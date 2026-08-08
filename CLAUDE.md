@@ -178,8 +178,25 @@ a production gunicorn bind — so the config is valid either way. Two fixes were
   `/assets` and `/files`.
 - The stock page was moved aside to `/etc/nginx/conf.d/default.disabled`.
 
-**Port 443 is not configured yet** — no TLS certificate. Blocked on inbound 80/443
-reaching this host (see §9).
+### TLS
+
+Live on **https://online.sibbc.org** with a Let's Encrypt certificate; port 80 returns
+`301` to https. Two things were needed beyond issuing the cert:
+
+- **`dns_multitenant` must be on.** `bench/config/nginx.py:prepare_sites()` only fills
+  `sites["that_use_ssl"]` — the list the template renders as `listen 443 ssl` — when
+  `common_site_config.dns_multitenant` is set. Without it the site falls into port-based
+  multitenancy and gets a plain `listen 80`, *no matter what `ssl_certificate` says in
+  site_config*. This is the whole reason 443 stayed silent after the cert was issued.
+- **Cert paths belong in `site_config.json`**, not hand-edited into the nginx file —
+  bench's template reads `ssl_certificate` / `ssl_certificate_key` from there, so
+  `bench setup nginx` regenerates a correct TLS config instead of clobbering edits.
+
+Issued with the **standalone** challenge, not webroot: Frappe's nginx template has no
+`/.well-known/acme-challenge` location and proxies unmatched paths to the backend, so a
+webroot challenge 404s. Standalone needs port 80 free, so `systemctl stop/start nginx`
+are registered as renewal `pre_hook`/`post_hook`; `certbot.timer` is enabled and
+`certbot renew --dry-run` passes. Renewal costs a few seconds of downtime, twice a year.
 
 ### Common commands
 
@@ -213,23 +230,15 @@ Phase 1 data still needed: the course catalog (CSV), faculty list, program credi
 totals and durations, and real term teaching dates (seeded dates are derived from
 application deadlines and flagged for review).
 
-## 9. Public access — not yet working
+## 9. Public access — live
 
-`online.sibbc.org` resolves to `14.98.31.75` (correct). `sibbc.org` stays on the
-marketing host, `216.198.79.1`.
+**https://online.sibbc.org** is reachable from the internet and serves Desk, `/login`,
+`/lms` and the API. DNS: `online.sibbc.org` → `14.98.31.75`; `sibbc.org` stays on the
+marketing host `216.198.79.1`. The gateway forwards 80, 443 and 2222 to `192.168.7.213`.
+The host has no local firewall (ufw inactive, iptables ACCEPT).
 
-From the internet, **only 2222 is reachable**; 80 and 443 are not. The host itself has no
-firewall (ufw inactive, iptables ACCEPT) and nginx does listen on 80, so the block is
-upstream of the VM — the NAT gateway `192.168.4.100` does not forward 80/443 to
-`192.168.7.213`, and/or the ISP blocks inbound web ports on this connection.
-
-Consequences until that is fixed:
-- Nobody outside the LAN can reach the site; use an SSH tunnel
-  (`ssh -L 8080:127.0.0.1:80 -p 2222 theiox@14.98.31.75`).
-- **Let's Encrypt HTTP-01 cannot validate**, so TLS/443 cannot be completed. If the ISP
-  blocks 80 permanently, use DNS-01 validation instead — but note the site still needs
-  inbound 443 to be usable at all.
-
-Production mode (`bench setup production`: gunicorn + workers under supervisor, replacing
-the `sibbcs-bench` dev unit) has deliberately **not** been run. It needs a sudoers
-drop-in for the bench user — an explicit decision, not a default.
+**Still the development server**, by explicit choice — gunicorn/supervisor production mode
+(`bench setup production`) has *not* been run, because it needs a sudoers drop-in for the
+bench user. `bench start` runs under the `sibbcs-bench` systemd unit with
+`Restart=always`, fronted by nginx. Switch before go-live: the dev server is
+single-process and will not hold 200+ concurrent students.
