@@ -1,0 +1,235 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:course_code",
+ "creation": "2026-08-08 16:44:58.035051",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_identity",
+  "course_code",
+  "course_title",
+  "cb_identity",
+  "is_active",
+  "sb_academic",
+  "credits",
+  "level",
+  "cb_academic",
+  "course_type",
+  "department",
+  "default_format",
+  "sb_programs",
+  "programs",
+  "course_prerequisites",
+  "sb_prerequisites",
+  "sb_lms",
+  "lms_course",
+  "sb_about",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_identity",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "course_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Course Code",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "course_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Course Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb_identity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "sb_academic",
+   "fieldtype": "Section Break",
+   "label": "Academic"
+  },
+  {
+   "default": "3",
+   "fieldname": "credits",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Credits",
+   "reqd": 1
+  },
+  {
+   "description": "The course's own level. A student's level lives on Program Enrollment and is deliberately independent of this.",
+   "fieldname": "level",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Level",
+   "options": "1\n2\n3\n4",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb_academic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "course_type",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Course Type",
+   "options": "Core\nElective\nPracticum\nGeneral Studies",
+   "reqd": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Department",
+   "options": "BIST\nTHST\nCHMI\nHIST\nREMI\nGEST",
+   "reqd": 1
+  },
+  {
+   "fieldname": "default_format",
+   "fieldtype": "Select",
+   "label": "Default Format",
+   "options": "\nPre-Recorded\nZoom Live\nResidential"
+  },
+  {
+   "fieldname": "sb_programs",
+   "fieldtype": "Section Break",
+   "label": "Programs"
+  },
+  {
+   "description": "Which programs this course may satisfy requirements for.",
+   "fieldname": "programs",
+   "fieldtype": "Table MultiSelect",
+   "label": "Counts Toward Programs",
+   "options": "Course Program Link"
+  },
+  {
+   "fieldname": "sb_lms",
+   "fieldtype": "Section Break",
+   "label": "LMS"
+  },
+  {
+   "fieldname": "lms_course",
+   "fieldtype": "Link",
+   "label": "LMS Course",
+   "options": "LMS Course"
+  },
+  {
+   "fieldname": "sb_about",
+   "fieldtype": "Section Break",
+   "label": "Description"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "fieldname": "course_prerequisites",
+   "fieldtype": "Table",
+   "label": "Prerequisites",
+   "options": "Course Prerequisite"
+  },
+  {
+   "fieldname": "sb_prerequisites",
+   "fieldtype": "Section Break",
+   "label": "Prerequisites"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-08 16:44:59.029263",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Course",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Faculty",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Student",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "course_title,department,level",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "course_title",
+ "track_changes": 1
+}

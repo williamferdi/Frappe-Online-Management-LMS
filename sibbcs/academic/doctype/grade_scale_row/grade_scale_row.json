@@ -1,0 +1,72 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-08 16:44:55.813837",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "grade",
+  "min_pct",
+  "max_pct",
+  "grade_points",
+  "is_pass"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "grade",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Grade",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "min_pct",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Min %",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "max_pct",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Max %",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "grade_points",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Grade Points"
+  },
+  {
+   "columns": 2,
+   "default": "0",
+   "fieldname": "is_pass",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Pass"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-08 16:44:55.813837",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Grade Scale Row",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

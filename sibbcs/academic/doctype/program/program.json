@@ -1,0 +1,205 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:abbr",
+ "creation": "2026-08-08 16:44:57.104728",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_identity",
+  "program_name",
+  "abbr",
+  "cb_identity",
+  "is_active",
+  "requires_ata_fee",
+  "sb_structure",
+  "total_credits",
+  "total_courses",
+  "cb_structure",
+  "min_years",
+  "max_years",
+  "internship_hours",
+  "sb_requirements",
+  "program_requirements",
+  "sb_about",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_identity",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "program_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Program Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "abbr",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Abbreviation",
+   "length": 16,
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "cb_identity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active"
+  },
+  {
+   "default": "0",
+   "description": "ATA registration is billed on enrollment for M.Div only.",
+   "fieldname": "requires_ata_fee",
+   "fieldtype": "Check",
+   "label": "Requires ATA Registration Fee"
+  },
+  {
+   "fieldname": "sb_structure",
+   "fieldtype": "Section Break",
+   "label": "Structure"
+  },
+  {
+   "fieldname": "total_credits",
+   "fieldtype": "Float",
+   "label": "Total Credits"
+  },
+  {
+   "fieldname": "total_courses",
+   "fieldtype": "Int",
+   "label": "Total Courses"
+  },
+  {
+   "fieldname": "cb_structure",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "min_years",
+   "fieldtype": "Float",
+   "label": "Min Years",
+   "precision": "1"
+  },
+  {
+   "fieldname": "max_years",
+   "fieldtype": "Float",
+   "label": "Max Years",
+   "precision": "1"
+  },
+  {
+   "default": "0",
+   "fieldname": "internship_hours",
+   "fieldtype": "Int",
+   "label": "Internship Hours"
+  },
+  {
+   "fieldname": "sb_requirements",
+   "fieldtype": "Section Break",
+   "label": "Graduation Requirements"
+  },
+  {
+   "fieldname": "program_requirements",
+   "fieldtype": "Table",
+   "label": "Requirements",
+   "options": "Program Requirement"
+  },
+  {
+   "fieldname": "sb_about",
+   "fieldtype": "Section Break",
+   "label": "About"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-08 16:44:57.104728",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Program",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Faculty",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Student",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "program_name,abbr",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "program_name",
+ "track_changes": 1
+}

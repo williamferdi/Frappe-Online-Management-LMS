@@ -1,0 +1,79 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-08 16:44:56.724293",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "rule_type",
+  "level",
+  "min_credits",
+  "min_courses",
+  "min_hours",
+  "notes"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "rule_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Rule Type",
+   "options": "Level Credits\nElective Minimum\nPracticum\nResidential\nInternship Hours",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "description": "Leave blank for rules that are not level-specific.",
+   "fieldname": "level",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Level",
+   "options": "\n1\n2\n3\n4"
+  },
+  {
+   "columns": 2,
+   "fieldname": "min_credits",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Min Credits"
+  },
+  {
+   "columns": 2,
+   "fieldname": "min_courses",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Min Courses"
+  },
+  {
+   "columns": 2,
+   "description": "Used by the Internship Hours rule.",
+   "fieldname": "min_hours",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Min Hours"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-08 16:44:56.724293",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Program Requirement",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

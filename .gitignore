@@ -1,0 +1,15 @@
+*.pyc
+__pycache__/
+*.egg-info/
+.eggs/
+build/
+dist/
+node_modules/
+.venv/
+env/
+.DS_Store
+*.swp
+sibbcs/docs/current
+# Filled-in catalog exports may hold real student-adjacent data; commit the
+# template, not ad-hoc extracts.
+sibbcs/setup/data/courses.csv

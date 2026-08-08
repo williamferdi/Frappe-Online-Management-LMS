@@ -1,0 +1,142 @@
+{
+ "charts": [],
+ "content": "[]",
+ "creation": "2026-08-08 16:58:23.639982",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "hide_custom": 0,
+ "icon": "education",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Academic",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Catalog",
+   "link_count": 3,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Program",
+   "link_count": 0,
+   "link_to": "Program",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Course",
+   "link_count": 0,
+   "link_to": "Course",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Grade Scale",
+   "link_count": 0,
+   "link_to": "Grade Scale",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Scheduling",
+   "link_count": 3,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Academic Term",
+   "link_count": 0,
+   "link_to": "Academic Term",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Course Offering",
+   "link_count": 0,
+   "link_to": "Course Offering",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Instructor",
+   "link_count": 0,
+   "link_to": "Instructor",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-08-08 16:58:23.639982",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Academic",
+ "number_cards": [],
+ "owner": "Administrator",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 20.0,
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "doc_view": "",
+   "label": "Course",
+   "link_to": "Course",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "",
+   "label": "Course Offering",
+   "link_to": "Course Offering",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "",
+   "label": "Academic Term",
+   "link_to": "Academic Term",
+   "type": "DocType"
+  },
+  {
+   "color": "Purple",
+   "doc_view": "",
+   "label": "Program",
+   "link_to": "Program",
+   "type": "DocType"
+  },
+  {
+   "color": "Cyan",
+   "doc_view": "",
+   "label": "Instructor",
+   "link_to": "Instructor",
+   "type": "DocType"
+  }
+ ],
+ "title": "Academic"
+}
