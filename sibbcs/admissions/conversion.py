@@ -27,7 +27,18 @@ import frappe
 from frappe import _
 from frappe.utils import add_years, flt, nowdate, today
 
-ORIENTATION_COURSE = "GEST O501"
+DEFAULT_ORIENTATION_COURSE = "GEST O501"
+
+
+def orientation_course():
+	"""The course every new student is auto-registered for.
+
+	Read from site config rather than hardcoded, so a site whose catalog uses a
+	different code (or a demo catalog) can point at its own without a patch:
+
+	    bench --site <site> set-config orientation_course_code "GEST O501"
+	"""
+	return frappe.conf.get("orientation_course_code") or DEFAULT_ORIENTATION_COURSE
 
 
 def _deferred(report, step, reason):
@@ -271,20 +282,22 @@ def _register_orientation(app, student, enrollment, report):
 		_deferred(report, "orientation", "Course Registration DocType arrives in Phase 3")
 		return
 
-	if not frappe.db.exists("Course", ORIENTATION_COURSE):
-		_deferred(report, "orientation", f"{ORIENTATION_COURSE} is not in the course catalog")
+	course = orientation_course()
+
+	if not frappe.db.exists("Course", course):
+		_deferred(report, "orientation", f"{course} is not in the course catalog")
 		return
 
 	offering = frappe.db.get_value(
 		"Course Offering",
-		{"course": ORIENTATION_COURSE, "term": app.intake_term},
+		{"course": course, "term": app.intake_term},
 		"name",
 	)
 	if not offering:
 		_deferred(
 			report,
 			"orientation",
-			f"no {ORIENTATION_COURSE} offering for term {app.intake_term}",
+			f"no {course} offering for term {app.intake_term}",
 		)
 		return
 
