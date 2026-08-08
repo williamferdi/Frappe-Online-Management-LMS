@@ -163,6 +163,24 @@ bench at `/home/theiox/frappe-bench`, database `sibbcs_erp`.
   intermittently reset — clone from `github.com` instead of `curl | bash` installers.
 - `theiox` is in the `supervisor` group; the socket is `root:supervisor 0770`.
 
+### nginx
+
+`bench setup nginx` output is symlinked to `/etc/nginx/conf.d/frappe-bench.conf`; it
+upstreams to `127.0.0.1:8000` (web) and `:9000` (socketio), which both the dev server and
+a production gunicorn bind — so the config is valid either way. Two fixes were needed:
+
+- Frappe's template logs with `access_log ... main`, a format the **nginx.org** default
+  `nginx.conf` defines but **Ubuntu's does not**. Defined in
+  `/etc/nginx/conf.d/00-log-format.conf`, which must sort before `frappe-bench.conf`
+  because `conf.d/*.conf` is parsed alphabetically and an unknown log format is a
+  parse-time error.
+- `chmod o+x /home/theiox` so the nginx worker can traverse into the bench to serve
+  `/assets` and `/files`.
+- The stock page was moved aside to `/etc/nginx/conf.d/default.disabled`.
+
+**Port 443 is not configured yet** — no TLS certificate. Blocked on inbound 80/443
+reaching this host (see §9).
+
 ### Common commands
 
 ```bash
@@ -194,3 +212,24 @@ permission query condition, or faculty see the whole gradebook.
 Phase 1 data still needed: the course catalog (CSV), faculty list, program credit
 totals and durations, and real term teaching dates (seeded dates are derived from
 application deadlines and flagged for review).
+
+## 9. Public access — not yet working
+
+`online.sibbc.org` resolves to `14.98.31.75` (correct). `sibbc.org` stays on the
+marketing host, `216.198.79.1`.
+
+From the internet, **only 2222 is reachable**; 80 and 443 are not. The host itself has no
+firewall (ufw inactive, iptables ACCEPT) and nginx does listen on 80, so the block is
+upstream of the VM — the NAT gateway `192.168.4.100` does not forward 80/443 to
+`192.168.7.213`, and/or the ISP blocks inbound web ports on this connection.
+
+Consequences until that is fixed:
+- Nobody outside the LAN can reach the site; use an SSH tunnel
+  (`ssh -L 8080:127.0.0.1:80 -p 2222 theiox@14.98.31.75`).
+- **Let's Encrypt HTTP-01 cannot validate**, so TLS/443 cannot be completed. If the ISP
+  blocks 80 permanently, use DNS-01 validation instead — but note the site still needs
+  inbound 443 to be usable at all.
+
+Production mode (`bench setup production`: gunicorn + workers under supervisor, replacing
+the `sibbcs-bench` dev unit) has deliberately **not** been run. It needs a sudoers
+drop-in for the bench user — an explicit decision, not a default.
