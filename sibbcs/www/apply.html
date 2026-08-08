@@ -1,0 +1,352 @@
+{% extends "templates/web.html" %}
+
+{% block title %}Apply — SIBBCS Online{% endblock %}
+
+{% block page_content %}
+<div class="sibbcs-apply">
+
+  <div id="apply-intro">
+    <h1>Apply to SIBBCS Online</h1>
+    <p class="lead text-muted">
+      South India Baptist Bible College &amp; Seminary · Coimbatore
+    </p>
+    <p class="text-muted">
+      This takes about ten minutes. You do not need an account. Once you submit,
+      the Admissions Office will contact you about the application fee and the
+      documents we need — you do not upload anything here.
+    </p>
+  </div>
+
+  {% if not accepting %}
+    <div class="alert alert-warning">
+      <h4>Applications are closed</h4>
+      <p>
+        No programmes are currently open for application. Please check back, or
+        contact the Admissions Office.
+      </p>
+    </div>
+  {% else %}
+
+  <form id="apply-form" novalidate>
+
+    <fieldset>
+      <legend>About you</legend>
+
+      <div class="form-group">
+        <label for="full_name">Full name <span class="req">*</span></label>
+        <input type="text" class="form-control" id="full_name" maxlength="140" required>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="dob">Date of birth</label>
+          <input type="date" class="form-control" id="dob">
+        </div>
+        <div class="form-group">
+          <label for="gender">Gender</label>
+          <select class="form-control" id="gender">
+            <option value="">Prefer not to say</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="mobile">Mobile <span class="req">*</span></label>
+          <input type="tel" class="form-control" id="mobile" maxlength="20" required>
+        </div>
+        <div class="form-group">
+          <label for="whatsapp">WhatsApp <span class="hint">if different</span></label>
+          <input type="tel" class="form-control" id="whatsapp" maxlength="20">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email <span class="req">*</span></label>
+        <input type="email" class="form-control" id="email" maxlength="140" required>
+        <small class="text-muted">
+          This becomes your login once you are admitted, so use one you keep.
+        </small>
+      </div>
+
+      <div class="form-group">
+        <label for="address">Postal address</label>
+        <textarea class="form-control" id="address" rows="3" maxlength="500"></textarea>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Your ministry</legend>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="church_name">Church</label>
+          <input type="text" class="form-control" id="church_name" maxlength="140">
+        </div>
+        <div class="form-group">
+          <label for="current_role">Your role there</label>
+          <input type="text" class="form-control" id="current_role" maxlength="140"
+                 placeholder="e.g. Associate Pastor">
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="years_of_ministry">Years in ministry</label>
+          <input type="number" class="form-control" id="years_of_ministry" min="0" max="80">
+        </div>
+        <div class="form-group form-check-wrap">
+          <label class="checkline">
+            <input type="checkbox" id="has_bachelors">
+            <span>I hold a bachelor's degree</span>
+          </label>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>What you want to study</legend>
+
+      <div class="form-group">
+        <label for="program">Programme <span class="req">*</span></label>
+        <select class="form-control" id="program" required>
+          <option value="">Choose…</option>
+          {% for p in programs %}
+            <option value="{{ p.name }}">{{ p.program_name }} ({{ p.name }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {% if intakes %}
+      <div class="form-group">
+        <label for="intake_term">Intake you are applying for</label>
+        <select class="form-control" id="intake_term">
+          <option value="">No preference</option>
+          {% for t in intakes %}
+            <option value="{{ t.name }}">
+              {{ t.term_name }}{% if t.application_deadline %} — apply by
+              {{ frappe.format(t.application_deadline, {"fieldtype": "Date"}) }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+    </fieldset>
+
+    <fieldset>
+      <legend>Your referees</legend>
+      <p class="text-muted small">
+        We ask two people who know you — normally your pastor or mentor, and a
+        professor or employer. We email each of them a private link. They never
+        need an account, and you will not see their answers.
+      </p>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="referee1_name">Referee 1 — name</label>
+          <input type="text" class="form-control" id="referee1_name" maxlength="140">
+        </div>
+        <div class="form-group">
+          <label for="referee1_email">Referee 1 — email</label>
+          <input type="email" class="form-control" id="referee1_email" maxlength="140">
+        </div>
+      </div>
+      <input type="hidden" id="referee1_type" value="Pastor-Mentor">
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="referee2_name">Referee 2 — name</label>
+          <input type="text" class="form-control" id="referee2_name" maxlength="140">
+        </div>
+        <div class="form-group">
+          <label for="referee2_email">Referee 2 — email</label>
+          <input type="email" class="form-control" id="referee2_email" maxlength="140">
+        </div>
+      </div>
+      <input type="hidden" id="referee2_type" value="Professor-Employer">
+    </fieldset>
+
+    <fieldset>
+      <legend>Your mentor</legend>
+      <p class="text-muted small">
+        Every student is supported by a mentor who meets them monthly. We will ask
+        them to confirm by email.
+      </p>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="mentor_name">Mentor's name</label>
+          <input type="text" class="form-control" id="mentor_name" maxlength="140">
+        </div>
+        <div class="form-group">
+          <label for="mentor_email">Mentor's email</label>
+          <input type="email" class="form-control" id="mentor_email" maxlength="140">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="mentor_mobile">Mentor's mobile</label>
+          <input type="tel" class="form-control" id="mentor_mobile" maxlength="20">
+        </div>
+        <div class="form-group">
+          <label for="mentor_church">Mentor's church</label>
+          <input type="text" class="form-control" id="mentor_church" maxlength="140">
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- honeypot: hidden from people, tempting to bots -->
+    <div class="hp" aria-hidden="true">
+      <label for="website">Website</label>
+      <input type="text" id="website" tabindex="-1" autocomplete="off">
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
+        Submit application
+      </button>
+      <p class="text-muted small" style="margin-top:10px">
+        By submitting you agree that we may contact you about your application.
+      </p>
+    </div>
+
+    <div id="form-message"></div>
+  </form>
+
+  <div id="apply-done" hidden>
+    <div class="alert alert-success">
+      <h3>Application received</h3>
+      <p>
+        Thank you, <b id="done-name"></b>. Your reference is
+        <b id="done-ref"></b> — please keep it.
+      </p>
+    </div>
+    <h4>What happens next</h4>
+    <ol class="next-steps">
+      <li>The Admissions Office contacts you about the <b>₹350 application fee</b>.</li>
+      <li>We ask you for your certificates, ID and photograph.</li>
+      <li>Your referees and mentor receive their private links by email.</li>
+      <li>You sit a short qualifying exam, then an interview.</li>
+      <li>If successful, you receive an offer and your student login.</li>
+    </ol>
+  </div>
+
+  {% endif %}
+</div>
+
+<style>
+  .sibbcs-apply { max-width: 700px; margin: 0 auto; }
+  .sibbcs-apply h1 { margin-bottom: 4px; }
+  .sibbcs-apply .lead { margin-bottom: 16px; }
+  .sibbcs-apply fieldset {
+    border: none; padding: 0; margin: 0 0 34px;
+    border-top: 1px solid var(--border-color, #e5e5e5); padding-top: 18px;
+  }
+  .sibbcs-apply legend {
+    font-size: 1.1rem; font-weight: 700; width: auto;
+    margin-bottom: 12px; border: none; padding: 0;
+  }
+  .sibbcs-apply .form-group { margin-bottom: 14px; }
+  .sibbcs-apply label { font-weight: 600; display: block; margin-bottom: 4px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  @media (max-width: 560px) { .grid-2 { grid-template-columns: 1fr; } }
+  .req { color: #c0392b; }
+  .hint { font-weight: 400; color: var(--text-muted, #888); font-size: .85em; }
+  .checkline { display: flex; align-items: center; gap: 8px; font-weight: 400; margin-top: 28px; }
+  .checkline input { width: auto; }
+  .form-check-wrap { display: flex; align-items: flex-start; }
+  .hp { position: absolute; left: -9999px; height: 0; overflow: hidden; }
+  .actions { margin-top: 8px; }
+  .next-steps li { margin-bottom: 6px; }
+  #form-message { margin-top: 16px; }
+</style>
+
+{% if accepting %}
+<script>
+(function () {
+  const form = document.getElementById('apply-form');
+  const val = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return '';
+    return el.type === 'checkbox' ? (el.checked ? 1 : 0) : el.value;
+  };
+
+  form.addEventListener('submit', async function (event) {
+    event.preventDefault();
+
+    const button = document.getElementById('submit-btn');
+    const message = document.getElementById('form-message');
+    message.innerHTML = '';
+
+    const required = ['full_name', 'mobile', 'email', 'program'];
+    const missing = required.filter((id) => !String(val(id)).trim());
+    if (missing.length) {
+      message.innerHTML =
+        '<div class="alert alert-danger">Please fill in every field marked *.</div>';
+      document.getElementById(missing[0]).focus();
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = 'Submitting…';
+
+    const fields = [
+      'full_name','dob','gender','mobile','whatsapp','email','address',
+      'church_name','current_role','years_of_ministry','has_bachelors',
+      'program','intake_term',
+      'referee1_name','referee1_email','referee1_type',
+      'referee2_name','referee2_email','referee2_type',
+      'mentor_name','mentor_email','mentor_mobile','mentor_church',
+      'website'
+    ];
+    const payload = {};
+    fields.forEach((id) => { payload[id] = val(id); });
+
+    try {
+      const response = await fetch(
+        '/api/method/sibbcs.admissions.public_form.submit_application',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Frappe-CSRF-Token': window.csrf_token || '',
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const body = await response.json();
+      if (!response.ok) {
+        let text = 'Your application could not be submitted.';
+        if (body && body._server_messages) {
+          try {
+            text = JSON.parse(JSON.parse(body._server_messages)[0]).message || text;
+          } catch (e) { /* keep the default */ }
+        } else if (body && body.exception) {
+          text = body.exception;
+        }
+        throw new Error(text);
+      }
+
+      const result = body.message || {};
+      document.getElementById('done-name').textContent = result.full_name || '';
+      document.getElementById('done-ref').textContent = result.application || '';
+      document.getElementById('apply-intro').hidden = true;
+      form.hidden = true;
+      document.getElementById('apply-done').hidden = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = 'Submit application';
+      message.innerHTML =
+        '<div class="alert alert-danger">' +
+        String(error.message || error).replace(/<[^>]*>/g, '') +
+        '</div>';
+    }
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}
