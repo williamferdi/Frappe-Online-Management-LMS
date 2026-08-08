@@ -1,0 +1,105 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-08 18:59:46.862048",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "mentor_name",
+  "mentor_email",
+  "mentor_mobile",
+  "church",
+  "sb_token",
+  "token",
+  "sent_on",
+  "cb_token",
+  "consented_on",
+  "consent_file"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "mentor_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Mentor Name",
+   "reqd": 1
+  },
+  {
+   "columns": 3,
+   "fieldname": "mentor_email",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Mentor Email",
+   "options": "Email",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "mentor_mobile",
+   "fieldtype": "Data",
+   "label": "Mentor Mobile",
+   "options": "Phone"
+  },
+  {
+   "columns": 2,
+   "fieldname": "church",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Church"
+  },
+  {
+   "fieldname": "sb_token",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "token",
+   "fieldtype": "Data",
+   "label": "Token",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sent_on",
+   "fieldtype": "Datetime",
+   "label": "Sent On",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_token",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "consented_on",
+   "fieldtype": "Datetime",
+   "label": "Consented On",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "consent_file",
+   "fieldtype": "Attach",
+   "label": "Consent File",
+   "no_copy": 1,
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-08 18:59:46.862048",
+ "modified_by": "Administrator",
+ "module": "Admissions",
+ "name": "Mentor Consent",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

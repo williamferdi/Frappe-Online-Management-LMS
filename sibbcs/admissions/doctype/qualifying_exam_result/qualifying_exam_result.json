@@ -1,0 +1,193 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-08-08 18:59:50.636476",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_subject",
+  "naming_series",
+  "application",
+  "applicant_name",
+  "cb_subject",
+  "conducted_on",
+  "pass_mark",
+  "sb_scores",
+  "english_score",
+  "bible_score",
+  "cb_scores",
+  "theology_score",
+  "ministry_score",
+  "sb_result",
+  "total",
+  "cb_result",
+  "result"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_subject",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "QER-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "QER-.YYYY.-.#####",
+   "reqd": 1
+  },
+  {
+   "fieldname": "application",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Admission Application",
+   "options": "Admission Application",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "application.full_name",
+   "fieldname": "applicant_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Applicant",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_subject",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "conducted_on",
+   "fieldtype": "Date",
+   "label": "Conducted On"
+  },
+  {
+   "default": "60",
+   "description": "Architecture doc confirms 60%.",
+   "fieldname": "pass_mark",
+   "fieldtype": "Float",
+   "label": "Pass Mark %"
+  },
+  {
+   "fieldname": "sb_scores",
+   "fieldtype": "Section Break",
+   "label": "Scores"
+  },
+  {
+   "fieldname": "english_score",
+   "fieldtype": "Float",
+   "label": "English"
+  },
+  {
+   "fieldname": "bible_score",
+   "fieldtype": "Float",
+   "label": "Bible"
+  },
+  {
+   "fieldname": "cb_scores",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "theology_score",
+   "fieldtype": "Float",
+   "label": "Theology"
+  },
+  {
+   "fieldname": "ministry_score",
+   "fieldtype": "Float",
+   "label": "Ministry"
+  },
+  {
+   "fieldname": "sb_result",
+   "fieldtype": "Section Break",
+   "label": "Result"
+  },
+  {
+   "fieldname": "total",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Total",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_result",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "result",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Result",
+   "options": "\nPass\nFail",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-08 18:59:50.636476",
+ "modified_by": "Administrator",
+ "module": "Admissions",
+ "name": "Qualifying Exam Result",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Admissions Officer",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

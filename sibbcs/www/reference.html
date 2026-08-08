@@ -1,0 +1,133 @@
+{% extends "templates/web.html" %}
+
+{% block title %}Reference Request{% endblock %}
+
+{% block page_content %}
+<div class="sibbcs-token-form">
+	{% if not valid %}
+		<div class="alert alert-warning">
+			<h4>This link cannot be opened</h4>
+			<p>{{ error }}</p>
+			<p class="text-muted small">
+				If you believe this is a mistake, please contact the Admissions Office.
+			</p>
+		</div>
+	{% else %}
+		<h2>Reference for {{ applicant_name }}</h2>
+		<p class="text-muted">
+			{{ applicant_name }} has applied to the
+			<strong>{{ program }}</strong> program at South India Baptist Bible College
+			&amp; Seminary and named you as a referee
+			{%- if row.referee_type %} ({{ row.referee_type }}){% endif %}.
+		</p>
+		<p class="text-muted small">
+			This form can be submitted once. Your answers go directly to the Admissions
+			Office and are not shared with the applicant.
+		</p>
+
+		<form id="reference-form" class="mt-4">
+			<div class="form-group">
+				<label for="known_duration">How long have you known the applicant?</label>
+				<input type="text" class="form-control" id="known_duration"
+				       placeholder="e.g. 6 years" required>
+			</div>
+
+			<div class="form-group">
+				<label for="capacity">In what capacity do you know them?</label>
+				<input type="text" class="form-control" id="capacity"
+				       placeholder="e.g. Pastor of their home church" required>
+			</div>
+
+			<div class="form-group">
+				<label for="character">Comments on their character and Christian walk</label>
+				<textarea class="form-control" id="character" rows="4" required></textarea>
+			</div>
+
+			<div class="form-group">
+				<label for="ministry">Comments on their ministry and suitability for study</label>
+				<textarea class="form-control" id="ministry" rows="4" required></textarea>
+			</div>
+
+			<div class="form-group">
+				<label for="recommendation">Your recommendation</label>
+				<select class="form-control" id="recommendation" required>
+					<option value="">Select…</option>
+					<option value="Strong">Strong — recommend without reservation</option>
+					<option value="Positive">Positive — recommend</option>
+					<option value="Neutral">Neutral — no strong view</option>
+					<option value="Negative">Negative — do not recommend</option>
+				</select>
+			</div>
+
+			<button type="submit" class="btn btn-primary" id="submit-btn">
+				Submit Reference
+			</button>
+			<div id="form-message" class="mt-3"></div>
+		</form>
+	{% endif %}
+</div>
+
+<style>
+	.sibbcs-token-form { max-width: 680px; margin: 0 auto; }
+	.sibbcs-token-form .form-group { margin-bottom: 1rem; }
+	.sibbcs-token-form label { font-weight: 600; }
+</style>
+
+{% if valid %}
+<script>
+document.getElementById('reference-form').addEventListener('submit', async function (event) {
+	event.preventDefault();
+
+	const button = document.getElementById('submit-btn');
+	const message = document.getElementById('form-message');
+	button.disabled = true;
+	button.textContent = 'Submitting…';
+	message.innerHTML = '';
+
+	const answers = {
+		known_duration: document.getElementById('known_duration').value,
+		capacity: document.getElementById('capacity').value,
+		character: document.getElementById('character').value,
+		ministry: document.getElementById('ministry').value,
+	};
+
+	try {
+		const response = await fetch('/api/method/sibbcs.admissions.tokens.submit', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'X-Frappe-CSRF-Token': window.csrf_token || '',
+			},
+			body: JSON.stringify({
+				form_key: 'reference',
+				token: {{ token | tojson }},
+				recommendation: document.getElementById('recommendation').value,
+				response_json: JSON.stringify(answers),
+			}),
+		});
+
+		const payload = await response.json();
+		if (!response.ok) {
+			throw new Error(
+				(payload && (payload.exception || payload._server_messages)) ||
+				'Submission failed'
+			);
+		}
+
+		document.getElementById('reference-form').style.display = 'none';
+		message.innerHTML =
+			'<div class="alert alert-success"><h4>Thank you</h4>' +
+			'<p>Your reference has been received. You may close this page.</p></div>';
+		message.style.display = 'block';
+	} catch (error) {
+		button.disabled = false;
+		button.textContent = 'Submit Reference';
+		message.innerHTML =
+			'<div class="alert alert-danger">Could not submit: ' +
+			String(error.message || error).replace(/<[^>]*>/g, '') +
+			'</div>';
+	}
+});
+</script>
+{% endif %}
+{% endblock %}

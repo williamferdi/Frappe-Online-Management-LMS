@@ -47,9 +47,20 @@ student sits in a Level 2 course but stays Level 1" work with zero special-case 
 Modules: `Academic` (Phase 1, built), plus `Admissions`, `Formation`, `Finance`,
 `SIBBCS ERP` (misc) to come.
 
-### 2.1 Admissions — Phase 2, not built
-`Lead`, `Admission Application` (+ `Application Document`, `Reference Request`,
-`Mentor Consent`), `Scholarship Request`, `Qualifying Exam Result`, `Interview Record`.
+### 2.1 Admissions — Phase 2, BUILT
+- **`Lead`** — `LEAD-.YYYY.-.#####`; source, program_interest, status, owner_officer
+- **`Admission Application`** — `APP-.YYYY.-.#####`; applicant / ministry / program
+  sections, `age` derived from `dob`, gate fields, `workflow_state`
+  - child **`Application Document`** — `document_type`, `file`, `verified`, `verified_by`
+  - child **`Reference Request`** — referee, `token`, `sent_on`, `submitted_on`,
+    `response_json`, `recommendation`
+  - child **`Mentor Consent`** — mentor details, `token`, `consented_on`, `consent_file`
+- **`Scholarship Request`** — `SCH-.YYYY.-.#####`; approval writes `monthly_discount` +
+  `approved_amount` (the cap) onto Program Enrollment
+- **`Qualifying Exam Result`** — `QER-.YYYY.-.#####`; `total` is the mean of the four
+  sections, `result` vs `pass_mark` (60), mirrored onto the application
+- **`Interview Record`** — `INT-.YYYY.-.#####`; `panel` multiselect, `outcome` mirrored
+  onto the application
 
 ### 2.2 Academic — Phase 1, BUILT
 - **`Program`** — `program_name`, `abbr` (docname), `total_credits`, `total_courses`,
@@ -76,8 +87,42 @@ Modules: `Academic` (Phase 1, built), plus `Admissions`, `Formation`, `Finance`,
   - child **`Grade Scale Row`** — `grade`, `min_pct`, `max_pct`, `grade_points`, `is_pass`
 - **`Weekday`** — lookup, seeded Monday–Sunday
 
-Phase 3 adds `Student`, `Program Enrollment`, `Course Registration` (+ `Grade Component`),
-`Level Promotion`.
+Built in Phase 2 because the conversion point produces them:
+- **`Student`** — `SIB-.YYYY.-.####`; `user` is the single login for portal *and* LMS
+- **`Program Enrollment`** — docname `{student}-{program}`; `current_level` sits at
+  **permlevel 1**, writable only by Registrar / Academic Coordinator;
+  `scholarship_total_cap` + `scholarship_used_to_date` are what stop a flexible discount
+  running forever (`discount_for_months()` clips to the remaining headroom)
+
+Phase 3 adds `Course Registration` (+ `Grade Component`) and `Level Promotion`.
+
+### The conversion point — `sibbcs/admissions/conversion.py`
+
+`convert(application)` does the six things in architecture doc §4 in one transaction.
+Steps that depend on later phases (Mentor → Phase 6, Fee Invoice → Phase 4, Course
+Registration → Phase 3) are attempted only if their DocType exists and are otherwise
+listed in the returned report under `deferred` — **never silently skipped**. The same
+function completes itself as those phases land. It is idempotent: a second call returns
+`already_converted` rather than making a second Student.
+
+Enrollment always starts at `current_level = 1`; the application's `entry_level` is
+advisory only.
+
+### Admission workflow — `setup/phase2_workflow.py`
+
+15 states, 32 transitions, `Draft → … → Orientation Registered`, with `Reject` and
+`Withdraw` reachable from every mid-flight state. Gates are enforced as transition
+`condition` expressions (`doc.docs_verified`, `doc.qualifying_exam_score >= 60`,
+`doc.admission_fee_paid`, `doc.student`) so they do not depend on an officer remembering.
+
+### Token forms — `sibbcs/admissions/tokens.py`
+
+One controller for every no-login form; registering a new one is a single entry in
+`TOKEN_TARGETS`. Tokens are `secrets.token_urlsafe(32)`, single-use, and scoped to one
+child row of one parent — a reference token is rejected by the mentor form. Pages live at
+`/reference` and `/mentor-consent`; submissions go to the guest endpoint
+`sibbcs.admissions.tokens.submit`, which writes only fields present in the row's own meta,
+so a crafted payload cannot reach `parent`, `token`, or another document.
 
 ### 2.3 Formation — Phase 6, not built
 `Mentor`, `Mentor Monthly Report`, `Chapel Session` + `Chapel Attendance`,
@@ -119,18 +164,43 @@ Recorded so nobody "corrects" them back:
   so `restart_supervisor_on_update: false` does not stop it; when plain `supervisorctl`
   fails it retries with `sudo` and aborts the whole command. Fixed at the OS level by
   making the supervisor socket group-readable (see §6) rather than granting sudo.
-- Definition cycles (`Course` ↔ `Course Prerequisite`) need a two-pass build: create the
-  parent, then the child, then extend the parent. See `setup/schema.add_fields`.
+- Definition cycles (`Course` ↔ `Course Prerequisite`, `Student` ↔ `Admission
+  Application`, `Admission Application` ↔ `Scholarship Request`) need a two-pass build:
+  create the parent, then the child, then extend the parent. See `setup/schema.add_fields`.
+- **`User.mobile_no` carries a UNIQUE index.** Copying a student's mobile onto their User
+  unconditionally makes the *second* student who shares a handset impossible to enroll —
+  and shared phones are ordinary here (a married couple, a family phone, a church office
+  number). `conversion._create_user` only claims a number nobody holds; `Student.mobile`
+  stays authoritative. Guarded by `test_two_students_may_share_a_phone_number`.
+- **Never `frappe.db.commit()` in library code.** Frappe commits automatically at the end
+  of a successful request, so the commit buys nothing — but it also commits the
+  surrounding transaction, which defeats `FrappeTestCase` rollback. An early version of
+  `tokens.mark_submitted` did this and left 27 test applications on the live site.
+- **`bench console` is not a script runner.** It reads piped stdin as separate IPython
+  cells, and even `exec(open(...).read())` puts module-level names in *locals*, invisible
+  to nested function scopes — so a script with helper functions raises `NameError`. Use
+  `bench execute <dotted.path>` for anything real; keep console one-liners function-free.
 
 ## 5. Layout and conventions
 
 ```
 sibbcs/
-  academic/doctype/<snake_case>/    DocType JSON (source of truth) + .py + test_*.py
-  setup/schema.py                   helpers for declaring DocTypes in code
-  setup/phase1_academic.py          idempotent Phase 1 DocType builder
-  setup/phase1_seed.py              programs, terms, course CSV importer
-  setup/data/courses_template.csv   catalog import template
+  academic/doctype/<snake_case>/     DocType JSON (source of truth) + .py + test_*.py
+  admissions/doctype/<snake_case>/   same, for the Admissions module
+  admissions/tokens.py               reusable token-link controller
+  admissions/conversion.py           the conversion point
+  www/reference.html|.py             public referee form  (/reference)
+  www/mentor-consent.html            public mentor form   (/mentor-consent)
+  www/mentor_consent.py              its controller (Frappe maps - to _)
+  setup/schema.py                    helpers for declaring DocTypes in code
+  setup/phase1_academic.py           idempotent Phase 1 DocType builder
+  setup/phase1_seed.py               programs, terms, course CSV importer
+  setup/phase2_admissions.py         Phase 2 DocType builder
+  setup/phase2_workflow.py           admission workflow
+  setup/phase2_email_templates.py    reference / mentor / offer emails
+  setup/phase1_workspace.py          Academic workspace
+  setup/phase2_workspace.py          Admissions workspace
+  setup/data/courses_template.csv    catalog import template
 ```
 
 - DocType JSON is generated by running the builder with `developer_mode` on, then

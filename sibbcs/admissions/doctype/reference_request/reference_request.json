@@ -1,0 +1,109 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-08 18:59:46.580920",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "referee_name",
+  "referee_email",
+  "referee_type",
+  "recommendation",
+  "sb_token",
+  "token",
+  "sent_on",
+  "cb_token",
+  "submitted_on",
+  "response_json"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "referee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Referee Name",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "referee_email",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Referee Email",
+   "options": "Email",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "referee_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Referee Type",
+   "options": "Pastor-Mentor\nProfessor-Employer",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "recommendation",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Recommendation",
+   "options": "\nStrong\nPositive\nNeutral\nNegative",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_token",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "token",
+   "fieldtype": "Data",
+   "label": "Token",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sent_on",
+   "fieldtype": "Datetime",
+   "label": "Sent On",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_token",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "submitted_on",
+   "fieldtype": "Datetime",
+   "label": "Submitted On",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "response_json",
+   "fieldtype": "Long Text",
+   "label": "Response",
+   "no_copy": 1,
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-08 18:59:46.580920",
+ "modified_by": "Administrator",
+ "module": "Admissions",
+ "name": "Reference Request",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

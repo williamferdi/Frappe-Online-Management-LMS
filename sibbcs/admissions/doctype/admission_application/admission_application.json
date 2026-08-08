@@ -1,0 +1,432 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-08-08 18:59:47.600303",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_applicant",
+  "naming_series",
+  "full_name",
+  "dob",
+  "age",
+  "gender",
+  "cb_applicant",
+  "mobile",
+  "whatsapp",
+  "email",
+  "sb_applicant_more",
+  "address",
+  "cb_applicant_more",
+  "photo",
+  "id_document",
+  "sb_ministry",
+  "church_name",
+  "current_role",
+  "cb_ministry",
+  "years_of_ministry",
+  "has_bachelors",
+  "ministry_experience_doc",
+  "sb_program",
+  "program",
+  "intake_term",
+  "cb_program",
+  "entry_level",
+  "sb_workflow",
+  "workflow_state",
+  "sb_gates",
+  "application_fee_paid",
+  "docs_verified",
+  "qualifying_exam_score",
+  "cb_gates",
+  "interview_outcome",
+  "offer_sent_on",
+  "admission_fee_paid",
+  "sb_documents",
+  "application_documents",
+  "sb_references",
+  "reference_requests",
+  "sb_mentor",
+  "mentor_consents",
+  "sb_outcome",
+  "student",
+  "scholarship_request",
+  "cb_outcome",
+  "enrolled_on",
+  "sb_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_applicant",
+   "fieldtype": "Section Break",
+   "label": "Applicant"
+  },
+  {
+   "default": "APP-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "APP-.YYYY.-.#####",
+   "reqd": 1
+  },
+  {
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Full Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "dob",
+   "fieldtype": "Date",
+   "label": "Date of Birth"
+  },
+  {
+   "fieldname": "age",
+   "fieldtype": "Int",
+   "label": "Age",
+   "read_only": 1
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Select",
+   "label": "Gender",
+   "options": "\nMale\nFemale"
+  },
+  {
+   "fieldname": "cb_applicant",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "mobile",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Mobile",
+   "options": "Phone",
+   "reqd": 1
+  },
+  {
+   "fieldname": "whatsapp",
+   "fieldtype": "Data",
+   "label": "WhatsApp",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Email",
+   "options": "Email",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sb_applicant_more",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
+  },
+  {
+   "fieldname": "cb_applicant_more",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "photo",
+   "fieldtype": "Attach Image",
+   "label": "Photo"
+  },
+  {
+   "fieldname": "id_document",
+   "fieldtype": "Attach",
+   "label": "ID Document"
+  },
+  {
+   "fieldname": "sb_ministry",
+   "fieldtype": "Section Break",
+   "label": "Ministry"
+  },
+  {
+   "fieldname": "church_name",
+   "fieldtype": "Data",
+   "label": "Church"
+  },
+  {
+   "fieldname": "current_role",
+   "fieldtype": "Data",
+   "label": "Current Role"
+  },
+  {
+   "fieldname": "cb_ministry",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "years_of_ministry",
+   "fieldtype": "Int",
+   "label": "Years of Ministry"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_bachelors",
+   "fieldtype": "Check",
+   "label": "Has Bachelor's Degree"
+  },
+  {
+   "fieldname": "ministry_experience_doc",
+   "fieldtype": "Attach",
+   "label": "Ministry Experience Document"
+  },
+  {
+   "fieldname": "sb_program",
+   "fieldtype": "Section Break",
+   "label": "Program"
+  },
+  {
+   "fieldname": "program",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Program",
+   "options": "Program",
+   "reqd": 1
+  },
+  {
+   "fieldname": "intake_term",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Intake Term",
+   "options": "Academic Term"
+  },
+  {
+   "fieldname": "cb_program",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "entry_level",
+   "fieldtype": "Select",
+   "label": "Entry Level",
+   "options": "1\n2\n3\n4"
+  },
+  {
+   "fieldname": "sb_workflow",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Workflow State",
+   "no_copy": 1,
+   "options": "Workflow State",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_gates",
+   "fieldtype": "Section Break",
+   "label": "Gates"
+  },
+  {
+   "default": "0",
+   "fieldname": "application_fee_paid",
+   "fieldtype": "Check",
+   "label": "Application Fee Paid"
+  },
+  {
+   "default": "0",
+   "fieldname": "docs_verified",
+   "fieldtype": "Check",
+   "label": "Documents Verified",
+   "read_only": 1
+  },
+  {
+   "fieldname": "qualifying_exam_score",
+   "fieldtype": "Float",
+   "label": "Qualifying Exam Score",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_gates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "interview_outcome",
+   "fieldtype": "Select",
+   "label": "Interview Outcome",
+   "options": "\nRecommend\nReject\nDefer",
+   "read_only": 1
+  },
+  {
+   "fieldname": "offer_sent_on",
+   "fieldtype": "Date",
+   "label": "Offer Sent On",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "admission_fee_paid",
+   "fieldtype": "Check",
+   "label": "Admission Fee Paid"
+  },
+  {
+   "fieldname": "sb_documents",
+   "fieldtype": "Section Break",
+   "label": "Documents"
+  },
+  {
+   "fieldname": "application_documents",
+   "fieldtype": "Table",
+   "label": "Documents",
+   "options": "Application Document"
+  },
+  {
+   "fieldname": "sb_references",
+   "fieldtype": "Section Break",
+   "label": "References"
+  },
+  {
+   "fieldname": "reference_requests",
+   "fieldtype": "Table",
+   "label": "Reference Requests",
+   "options": "Reference Request"
+  },
+  {
+   "fieldname": "sb_mentor",
+   "fieldtype": "Section Break",
+   "label": "Mentor"
+  },
+  {
+   "fieldname": "mentor_consents",
+   "fieldtype": "Table",
+   "label": "Mentor Consent",
+   "options": "Mentor Consent"
+  },
+  {
+   "fieldname": "sb_outcome",
+   "fieldtype": "Section Break",
+   "label": "Outcome"
+  },
+  {
+   "fieldname": "student",
+   "fieldtype": "Link",
+   "label": "Student",
+   "no_copy": 1,
+   "options": "Student",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_outcome",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "enrolled_on",
+   "fieldtype": "Datetime",
+   "label": "Enrolled On",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_notes",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Internal Notes"
+  },
+  {
+   "fieldname": "scholarship_request",
+   "fieldtype": "Link",
+   "label": "Scholarship Request",
+   "options": "Scholarship Request",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-08 18:59:49.693796",
+ "modified_by": "Administrator",
+ "module": "Admissions",
+ "name": "Admission Application",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Admissions Officer",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "full_name,email,mobile,program",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "full_name",
+ "track_changes": 1
+}

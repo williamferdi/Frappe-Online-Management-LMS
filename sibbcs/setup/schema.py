@@ -53,6 +53,16 @@ def read(role):
 	return dict(role=role, **_READ)
 
 
+def level(role, permlevel, write=1):
+	"""Access to a restricted permlevel.
+
+	Fields carrying `permlevel: N` are invisible unless a permission row exists
+	for that role at that level. Used to lock Program Enrollment.current_level
+	to the Registrar and Academic Coordinator.
+	"""
+	return {"role": role, "permlevel": permlevel, "read": 1, "write": write}
+
+
 # ---------------------------------------------------------------------------
 # field shorthands
 # ---------------------------------------------------------------------------
