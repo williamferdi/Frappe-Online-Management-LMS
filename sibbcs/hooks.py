@@ -247,3 +247,15 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+
+# ---------------------------------------------------------------------------
+# SIBBCS
+# ---------------------------------------------------------------------------
+
+scheduler_events = {
+	"hourly": [
+		# Registered-but-not-in-LMS is exactly the state a student reports as
+		# "I can't see my course", so retry it rather than wait for a ticket.
+		"sibbcs.academic.lms_sync.sync_pending",
+	],
+}

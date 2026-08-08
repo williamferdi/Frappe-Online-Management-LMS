@@ -94,7 +94,52 @@ Built in Phase 2 because the conversion point produces them:
   `scholarship_total_cap` + `scholarship_used_to_date` are what stop a flexible discount
   running forever (`discount_for_months()` clips to the remaining headroom)
 
-Phase 3 adds `Course Registration` (+ `Grade Component`) and `Level Promotion`.
+Built in Phase 3:
+- **`Course Registration`** — docname `{program_enrollment}-{course_offering}`; carries
+  `level_at_registration` (audit), `override_reason`/`override_by`,
+  `lms_enrollment_created`, and the grade fields at **permlevel 1** (Faculty and above
+  may write a grade; Students and Facilitators read only)
+  - child **`Grade Component`** — `component`, `weight_pct`, `max_marks`,
+    `obtained_marks`, `weighted_score`
+- **`Level Promotion`** — `LPR-.YYYY.-.#####`; the audit trail for a level change.
+  `current_level` is never edited silently — it moves through this document, which
+  records the approver and the credit evidence.
+
+### The eligibility rule engine — `sibbcs/academic/eligibility.py`
+
+Pure functions returning a `Decision`, so each rule is testable alone and the portal can
+grey out offerings *before* anyone clicks Register. §3 exactly:
+
+| | student L vs course C | outcome |
+|---|---|---|
+| 1 | `C == L` | allow |
+| 2 | `{L,C} ⊆ {1,2}` | allow — levels 1 and 2 interchangeable |
+| 3 | `{L,C} ⊆ {3,4}` | **hard block** — no override clears it |
+| 4 | anything else | block unless an Academic Coordinator override |
+
+**Confirmed:** a Level 2 student may **not** take a Level 3 course — it lands in rule 4,
+blocked, override required. `Decision.hard` marks rules an override cannot clear;
+`needs_override` marks ones it can, so the UI offers the escape hatch instead of a dead
+end. A student can never grant themselves an override: `portal.register` takes no
+override argument, and `validate_override_authority` re-checks the acting user's roles.
+
+Further gates: hard prerequisites, duplicate-pass (hard — this is what stops a Level 1
+student re-taking a Level 2 course after promotion), in-progress duplicate, offering
+status/capacity, closed term, inactive enrollment. **Fees warn by default**, matching the
+practice of chasing rather than locking out; `block_registration_on_overdue` flips it to a
+hard gate with no code change.
+
+**Level 4 gate**: `Level Promotion` refuses `to_level = 4` until every Level 3 course for
+the program is completed and passed.
+
+### LMS sync — `sibbcs/academic/lms_sync.py`
+
+`Course Registration → Registered` ensures an LMS Course, ensures/creates an LMS Batch for
+the offering, and enrolls `student.user`. **Two records are needed, not one**: `LMS Batch
+Enrollment` grants batch membership, but `LMS Enrollment` is what actually opens the
+course — batch membership alone leaves the student staring at an empty dashboard. Sync
+never raises into the registration: a misconfigured LMS must not undo a registration the
+registrar accepted. An hourly `sync_pending` sweep retries anything left behind.
 
 ### The conversion point — `sibbcs/admissions/conversion.py`
 
@@ -180,6 +225,26 @@ Recorded so nobody "corrects" them back:
   cells, and even `exec(open(...).read())` puts module-level names in *locals*, invisible
   to nested function scopes — so a script with helper functions raises `NameError`. Use
   `bench execute <dotted.path>` for anything real; keep console one-liners function-free.
+- **`LMS Batch.validate_batch_time` rejects `start_time >= end_time`.** Deriving both ends
+  of the class window from `Course Offering.zoom_time` produced a zero-length slot and
+  broke every batch creation. `zoom_time` is the *start* only; `lms_sync` adds a two-hour
+  default. (Compounded by the Time-field default above — the field is never empty, so this
+  failed silently on every offering, not just scheduled ones.)
+- **Batch membership is not course access.** `LMS Batch Enrollment` alone leaves a student
+  with an empty dashboard; `LMS Enrollment` is the record that opens the course. Guarded
+  by `test_student_is_enrolled_in_the_course_itself`.
+
+## 4a. Testing
+
+Run tests against **`test.local`**, never the production site:
+
+```bash
+bench --site test.local run-tests --app sibbcs
+```
+
+`bench setup production` has not been run, and neither has anything that would make the
+production site safe to test against. Phase 2 leaked 27 records onto the live site before
+the stray `frappe.db.commit()` was found; `test.local` exists so that cannot recur.
 
 ## 5. Layout and conventions
 

@@ -1,0 +1,430 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:{program_enrollment}-{course_offering}",
+ "creation": "2026-08-08 19:38:27.791404",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_who",
+  "program_enrollment",
+  "student",
+  "student_name",
+  "cb_who",
+  "program",
+  "level_at_registration",
+  "sb_what",
+  "course_offering",
+  "course",
+  "course_title",
+  "cb_what",
+  "term",
+  "credits",
+  "registration_date",
+  "sb_status",
+  "status",
+  "cb_status",
+  "lms_enrollment_created",
+  "sb_override",
+  "override_reason",
+  "cb_override",
+  "override_by",
+  "sb_grading",
+  "grade_components",
+  "sb_result",
+  "final_marks",
+  "grade",
+  "cb_result",
+  "grade_points",
+  "passed",
+  "sb_fee",
+  "registration_fee_invoice"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_who",
+   "fieldtype": "Section Break",
+   "label": "Student"
+  },
+  {
+   "fieldname": "program_enrollment",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Program Enrollment",
+   "options": "Program Enrollment",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "program_enrollment.student",
+   "fieldname": "student",
+   "fieldtype": "Link",
+   "label": "Student",
+   "options": "Student",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "program_enrollment.student_name",
+   "fieldname": "student_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Student Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_who",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "program_enrollment.program",
+   "fieldname": "program",
+   "fieldtype": "Link",
+   "label": "Program",
+   "options": "Program",
+   "read_only": 1
+  },
+  {
+   "description": "The student's sticky level when they registered. Kept for audit.",
+   "fieldname": "level_at_registration",
+   "fieldtype": "Data",
+   "label": "Level at Registration",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_what",
+   "fieldtype": "Section Break",
+   "label": "Offering"
+  },
+  {
+   "fieldname": "course_offering",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Course Offering",
+   "options": "Course Offering",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "course_offering.course",
+   "fieldname": "course",
+   "fieldtype": "Link",
+   "label": "Course",
+   "options": "Course",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "course_offering.course_title",
+   "fieldname": "course_title",
+   "fieldtype": "Data",
+   "label": "Course Title",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_what",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "course_offering.term",
+   "fieldname": "term",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Term",
+   "options": "Academic Term",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "course_offering.credits",
+   "fieldname": "credits",
+   "fieldtype": "Float",
+   "label": "Credits",
+   "read_only": 1
+  },
+  {
+   "fieldname": "registration_date",
+   "fieldtype": "Date",
+   "label": "Registration Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sb_status",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nRegistered\nActive\nCompleted\nWithdrawn\nFailed",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "lms_enrollment_created",
+   "fieldtype": "Check",
+   "label": "LMS Enrollment Created",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_override",
+   "fieldtype": "Section Break",
+   "label": "Cross-level Override"
+  },
+  {
+   "description": "Required when registering outside the normal level rules. Only an Academic Coordinator may authorise it.",
+   "fieldname": "override_reason",
+   "fieldtype": "Small Text",
+   "label": "Override Reason"
+  },
+  {
+   "fieldname": "cb_override",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "override_by",
+   "fieldtype": "Link",
+   "label": "Override By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_grading",
+   "fieldtype": "Section Break",
+   "label": "Grading"
+  },
+  {
+   "fieldname": "grade_components",
+   "fieldtype": "Table",
+   "label": "Grade Components",
+   "options": "Grade Component"
+  },
+  {
+   "fieldname": "sb_result",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "final_marks",
+   "fieldtype": "Float",
+   "label": "Final Marks %",
+   "permlevel": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "grade",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Grade",
+   "permlevel": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_result",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "grade_points",
+   "fieldtype": "Float",
+   "label": "Grade Points",
+   "permlevel": 1,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "passed",
+   "fieldtype": "Check",
+   "label": "Passed",
+   "permlevel": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_fee",
+   "fieldtype": "Section Break",
+   "label": "Fee"
+  },
+  {
+   "description": "Becomes a Link to Fee Invoice in Phase 4.",
+   "fieldname": "registration_fee_invoice",
+   "fieldtype": "Data",
+   "label": "Registration Fee Invoice",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-08 19:38:27.791404",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Course Registration",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Faculty",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Facilitator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Student",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "permlevel": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "permlevel": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "permlevel": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "permlevel": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Faculty",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "permlevel": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Facilitator",
+   "share": 1
+  },
+  {
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "permlevel": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Student",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "student,course,term",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "student_name",
+ "track_changes": 1
+}

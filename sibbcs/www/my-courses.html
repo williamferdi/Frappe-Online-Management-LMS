@@ -1,0 +1,154 @@
+{% extends "templates/web.html" %}
+
+{% block title %}My Courses{% endblock %}
+
+{% block page_content %}
+<div class="sibbcs-portal">
+	{% if no_enrollment %}
+		<div class="alert alert-warning">
+			<h4>No active enrollment</h4>
+			<p>
+				Your account is not linked to an active program enrollment yet.
+				Please contact the Registrar.
+			</p>
+		</div>
+	{% else %}
+		<div class="portal-header">
+			<h2>{{ student_name }}</h2>
+			<p class="text-muted">
+				{{ program }} &middot; Level {{ current_level }}
+				&middot; {{ credits_earned or 0 }} credits earned
+				{%- if cgpa %} &middot; CGPA {{ cgpa }}{% endif %}
+			</p>
+		</div>
+
+		<h3 class="mt-4">My registrations</h3>
+		{% if not registrations %}
+			<p class="text-muted">You have not registered for any courses yet.</p>
+		{% else %}
+			<div class="table-responsive">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>Course</th><th>Term</th><th>Status</th>
+							<th>Grade</th><th>LMS</th>
+						</tr>
+					</thead>
+					<tbody>
+					{% for r in registrations %}
+						<tr>
+							<td>
+								<strong>{{ r.course }}</strong><br>
+								<span class="text-muted small">{{ r.course_title or "" }}</span>
+							</td>
+							<td>{{ r.term }}</td>
+							<td><span class="badge">{{ r.status }}</span></td>
+							<td>{{ r.grade or "—" }}</td>
+							<td>
+								{% if r.lms_enrollment_created %}
+									<a href="/lms/courses">Open</a>
+								{% else %}
+									<span class="text-muted">Pending</span>
+								{% endif %}
+							</td>
+						</tr>
+					{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% endif %}
+
+		<h3 class="mt-5">Available this term</h3>
+		{% if not offerings %}
+			<p class="text-muted">
+				No courses are open for registration right now.
+			</p>
+		{% else %}
+			<p class="text-muted small">
+				{{ open_count }} of {{ offerings | length }} open to you at Level
+				{{ current_level }}.
+			</p>
+			<div class="offering-list">
+			{% for o in offerings %}
+				<div class="offering {% if not o.eligibility.allowed %}offering-blocked{% endif %}">
+					<div class="offering-main">
+						<div>
+							<strong>{{ o.course }}</strong>
+							<span class="text-muted">— {{ o.course_title or "" }}</span>
+						</div>
+						<div class="text-muted small">
+							{{ o.term }} &middot; {{ o.format }}
+							&middot; Level {{ o.course_level }}
+							&middot; {{ o.credits }} credits
+							{%- if o.capacity %} &middot; {{ o.enrolled_count or 0 }}/{{ o.capacity }} seats{% endif %}
+						</div>
+						{% if not o.eligibility.allowed and o.eligibility.reason %}
+							<div class="small offering-reason">{{ o.eligibility.reason }}</div>
+						{% endif %}
+					</div>
+					<div class="offering-action">
+						{% if o.eligibility.allowed %}
+							<button class="btn btn-sm btn-primary register-btn"
+							        data-offering="{{ o.name }}">Register</button>
+						{% else %}
+							<button class="btn btn-sm btn-default" disabled>Unavailable</button>
+						{% endif %}
+					</div>
+				</div>
+			{% endfor %}
+			</div>
+		{% endif %}
+		<div id="portal-message" class="mt-3"></div>
+	{% endif %}
+</div>
+
+<style>
+	.sibbcs-portal { max-width: 900px; margin: 0 auto; }
+	.offering {
+		display: flex; align-items: center; gap: 16px;
+		padding: 12px 0; border-bottom: 1px solid var(--border-color, #eee);
+	}
+	.offering-main { flex: 1; }
+	.offering-blocked { opacity: 0.62; }
+	.offering-reason { color: var(--text-muted, #888); margin-top: 4px; }
+	.portal-header { border-bottom: 1px solid var(--border-color, #eee); padding-bottom: 12px; }
+</style>
+
+<script>
+document.querySelectorAll('.register-btn').forEach(function (button) {
+	button.addEventListener('click', async function () {
+		const message = document.getElementById('portal-message');
+		button.disabled = true;
+		button.textContent = 'Registering…';
+
+		try {
+			const response = await fetch('/api/method/sibbcs.academic.portal.register', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'X-Frappe-CSRF-Token': window.csrf_token || '',
+				},
+				body: JSON.stringify({ course_offering: button.dataset.offering }),
+			});
+			const payload = await response.json();
+			if (!response.ok) {
+				throw new Error(
+					(payload && (payload.exception || payload._server_messages)) ||
+					'Registration failed'
+				);
+			}
+			message.innerHTML =
+				'<div class="alert alert-success">Registered. Reloading…</div>';
+			window.location.reload();
+		} catch (error) {
+			button.disabled = false;
+			button.textContent = 'Register';
+			message.innerHTML =
+				'<div class="alert alert-danger">' +
+				String(error.message || error).replace(/<[^>]*>/g, '') +
+				'</div>';
+		}
+	});
+});
+</script>
+{% endblock %}
