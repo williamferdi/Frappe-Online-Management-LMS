@@ -58,45 +58,66 @@
 			</div>
 		{% endif %}
 
-		<h3 class="mt-5">Available this term</h3>
-		{% if not offerings %}
+		<h3 class="mt-5">Open for registration</h3>
+		{% if not terms %}
 			<p class="text-muted">
 				No courses are open for registration right now.
 			</p>
 		{% else %}
 			<p class="text-muted small">
 				{{ open_count }} of {{ offerings | length }} open to you at Level
-				{{ current_level }}.
+				{{ current_level }}, across {{ terms | length }} term{{ "s" if terms | length != 1 }}.
+				<b>Check the term before you register</b> — the same course runs in more
+				than one.
 			</p>
-			<div class="offering-list">
-			{% for o in offerings %}
-				<div class="offering {% if not o.eligibility.allowed %}offering-blocked{% endif %}">
-					<div class="offering-main">
-						<div>
-							<strong>{{ o.course }}</strong>
-							<span class="text-muted">— {{ o.course_title or "" }}</span>
-						</div>
-						<div class="text-muted small">
-							{{ o.term }} &middot; {{ o.format }}
-							&middot; Level {{ o.course_level }}
-							&middot; {{ o.credits }} credits
-							{%- if o.capacity %} &middot; {{ o.enrolled_count or 0 }}/{{ o.capacity }} seats{% endif %}
-						</div>
-						{% if not o.eligibility.allowed and o.eligibility.reason %}
-							<div class="small offering-reason">{{ o.eligibility.reason }}</div>
+
+			{% for t in terms %}
+				<div class="term-block">
+					<div class="term-head">
+						<span class="term-name">{{ t.name }}</span>
+						{% if t.dates and t.dates.start_date %}
+							<span class="term-dates">
+								{{ frappe.format(t.dates.start_date, {"fieldtype": "Date"}) }}
+								&ndash;
+								{{ frappe.format(t.dates.end_date, {"fieldtype": "Date"}) }}
+							</span>
 						{% endif %}
+						<span class="term-count">{{ t.open_count }} open to you</span>
 					</div>
-					<div class="offering-action">
-						{% if o.eligibility.allowed %}
-							<button class="btn btn-sm btn-primary register-btn"
-							        data-offering="{{ o.name }}">Register</button>
-						{% else %}
-							<button class="btn btn-sm btn-default" disabled>Unavailable</button>
-						{% endif %}
+
+					<div class="offering-list">
+					{% for o in t.rows %}
+						<div class="offering {% if not o.eligibility.allowed %}offering-blocked{% endif %}">
+							<div class="offering-main">
+								<div>
+									<strong>{{ o.course }}</strong>
+									<span class="text-muted">— {{ o.course_title or "" }}</span>
+								</div>
+								<div class="text-muted small">
+									{{ o.format }}
+									&middot; Level {{ o.course_level }}
+									&middot; {{ o.credits }} credits
+									{%- if o.capacity %} &middot; {{ o.enrolled_count or 0 }}/{{ o.capacity }} seats{% endif %}
+								</div>
+								{% if not o.eligibility.allowed and o.eligibility.reason %}
+									<div class="small offering-reason">{{ o.eligibility.reason }}</div>
+								{% endif %}
+							</div>
+							<div class="offering-action">
+								{% if o.eligibility.allowed %}
+									<button class="btn btn-sm btn-primary register-btn"
+									        data-offering="{{ o.name }}"
+									        data-course="{{ o.course }}"
+									        data-term="{{ o.term }}">Register</button>
+								{% else %}
+									<button class="btn btn-sm btn-default" disabled>Unavailable</button>
+								{% endif %}
+							</div>
+						</div>
+					{% endfor %}
 					</div>
 				</div>
 			{% endfor %}
-			</div>
 		{% endif %}
 		<div id="portal-message" class="mt-3"></div>
 	{% endif %}
@@ -112,12 +133,33 @@
 	.offering-blocked { opacity: 0.62; }
 	.offering-reason { color: var(--text-muted, #888); margin-top: 4px; }
 	.portal-header { border-bottom: 1px solid var(--border-color, #eee); padding-bottom: 12px; }
+
+	.term-block { margin-top: 28px; }
+	.term-head {
+		display: flex;
+		align-items: baseline;
+		flex-wrap: wrap;
+		gap: 10px;
+		padding-bottom: 6px;
+		border-bottom: 2px solid var(--text-color, #333);
+	}
+	.term-name { font-weight: 700; font-size: 1.05rem; }
+	.term-dates { color: var(--text-muted, #888); font-size: 0.85rem; }
+	.term-count { margin-left: auto; color: var(--text-muted, #888); font-size: 0.85rem; }
 </style>
 
 <script>
 document.querySelectorAll('.register-btn').forEach(function (button) {
 	button.addEventListener('click', async function () {
 		const message = document.getElementById('portal-message');
+
+		// Name the term explicitly. The same course runs in several terms and
+		// the rows look alike, so an unconfirmed click is easy to get wrong.
+		const confirmed = window.confirm(
+			'Register for ' + button.dataset.course + ' in ' + button.dataset.term + '?'
+		);
+		if (!confirmed) return;
+
 		button.disabled = true;
 		button.textContent = 'Registering…';
 

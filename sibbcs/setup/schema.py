@@ -13,29 +13,33 @@ import frappe
 # permission presets
 # ---------------------------------------------------------------------------
 
-_FULL = {
-	"read": 1,
-	"write": 1,
-	"create": 1,
-	"delete": 1,
-	"report": 1,
-	"export": 1,
-	"print": 1,
-	"email": 1,
-	"share": 1,
-}
+# Every flag is stated explicitly, including the zeros. Omitting a flag does NOT
+# mean "denied": frappe's DocPerm fields carry their own defaults, and a partial
+# row silently came back with create/write/delete set to 1. That is how Students
+# ended up able to create Courses and Level Promotions.
+_ALL_FLAGS = (
+	"read", "write", "create", "delete", "submit", "cancel", "amend",
+	"report", "export", "import", "print", "email", "share", "set_user_permissions",
+)
 
-_EDIT = {
-	"read": 1,
-	"write": 1,
-	"report": 1,
-	"export": 1,
-	"print": 1,
-	"email": 1,
-	"share": 1,
-}
 
-_READ = {"read": 1, "report": 1, "print": 1, "email": 1}
+def _perm(**granted):
+	row = {flag: 0 for flag in _ALL_FLAGS}
+	row.update(granted)
+	return row
+
+
+_FULL = _perm(
+	read=1, write=1, create=1, delete=1,
+	report=1, export=1, print=1, email=1, share=1,
+)
+
+_EDIT = _perm(
+	read=1, write=1,
+	report=1, export=1, print=1, email=1, share=1,
+)
+
+_READ = _perm(read=1, report=1, print=1, email=1)
 
 
 def full(role):
@@ -58,9 +62,13 @@ def level(role, permlevel, write=1):
 
 	Fields carrying `permlevel: N` are invisible unless a permission row exists
 	for that role at that level. Used to lock Program Enrollment.current_level
-	to the Registrar and Academic Coordinator.
+	to the Registrar and Academic Coordinator, and Course Registration's grade
+	fields to Faculty and above.
 	"""
-	return {"role": role, "permlevel": permlevel, "read": 1, "write": write}
+	row = _perm(read=1, write=1 if write else 0)
+	row["role"] = role
+	row["permlevel"] = permlevel
+	return row
 
 
 # ---------------------------------------------------------------------------

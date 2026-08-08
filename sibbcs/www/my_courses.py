@@ -34,4 +34,33 @@ def get_context(context):
 	context.offerings = available_offerings(enrollment)
 	context.open_count = sum(1 for o in context.offerings if o["eligibility"]["allowed"])
 
+	# Group by term. Every course runs in several terms, so a flat list shows
+	# near-identical rows and students register for the wrong one -- which is
+	# exactly what happened during acceptance testing.
+	grouped = {}
+	for offering in context.offerings:
+		grouped.setdefault(offering["term"], []).append(offering)
+
+	term_dates = {
+		t.name: t
+		for t in frappe.get_all(
+			"Academic Term",
+			filters={"name": ("in", list(grouped) or [""])},
+			fields=["name", "start_date", "end_date", "registration_closes"],
+		)
+	}
+
+	context.terms = [
+		{
+			"name": term,
+			"rows": rows,
+			"open_count": sum(1 for r in rows if r["eligibility"]["allowed"]),
+			"dates": term_dates.get(term),
+		}
+		for term, rows in sorted(
+			grouped.items(),
+			key=lambda item: (term_dates.get(item[0], {}) or {}).get("start_date") or item[0],
+		)
+	]
+
 	return context

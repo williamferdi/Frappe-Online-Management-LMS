@@ -133,7 +133,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-08 18:59:48.426737",
+ "modified": "2026-08-09 00:17:21.043406",
  "modified_by": "Administrator",
  "module": "Academic",
  "name": "Student",
@@ -165,64 +165,46 @@
    "write": 1
   },
   {
-   "create": 1,
-   "delete": 1,
    "email": 1,
-   "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Admissions Officer",
-   "share": 1,
-   "write": 1
+   "role": "Admissions Officer"
   },
   {
-   "create": 1,
-   "delete": 1,
    "email": 1,
-   "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Academic Coordinator",
-   "share": 1,
-   "write": 1
+   "role": "Academic Coordinator"
   },
   {
-   "create": 1,
-   "delete": 1,
    "email": 1,
-   "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Faculty",
-   "share": 1,
-   "write": 1
+   "role": "Faculty"
   },
   {
-   "create": 1,
-   "delete": 1,
    "email": 1,
-   "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Accounts",
-   "share": 1,
-   "write": 1
+   "role": "Accounts"
   },
   {
-   "create": 1,
-   "delete": 1,
    "email": 1,
-   "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Formation Coordinator",
-   "share": 1,
-   "write": 1
+   "role": "Formation Coordinator"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Student"
   }
  ],
  "row_format": "Dynamic",
