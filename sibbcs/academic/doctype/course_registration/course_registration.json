@@ -249,15 +249,16 @@
   {
    "description": "Becomes a Link to Fee Invoice in Phase 4.",
    "fieldname": "registration_fee_invoice",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "label": "Registration Fee Invoice",
+   "options": "Fee Invoice",
    "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-08 19:38:27.791404",
+ "modified": "2026-08-08 20:01:51.520158",
  "modified_by": "Administrator",
  "module": "Academic",
  "name": "Course Registration",

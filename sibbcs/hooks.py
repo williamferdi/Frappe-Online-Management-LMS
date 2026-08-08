@@ -259,3 +259,15 @@ scheduler_events = {
 		"sibbcs.academic.lms_sync.sync_pending",
 	],
 }
+
+doc_events = {
+	"Course Registration": {
+		"on_update": "sibbcs.finance.hooks_handlers.course_registration_on_update",
+	},
+}
+
+scheduler_events["daily"] = [
+	# Bills only on the day a term actually starts; per-term idempotent.
+	"sibbcs.finance.fees.run_term_tuition_scheduled",
+	"sibbcs.finance.hooks_handlers.sweep_missing_registration_fees",
+]

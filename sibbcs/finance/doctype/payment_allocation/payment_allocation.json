@@ -1,0 +1,67 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-08 20:01:49.944367",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "fee_invoice",
+  "invoice_net",
+  "invoice_outstanding",
+  "allocated_amount"
+ ],
+ "fields": [
+  {
+   "columns": 3,
+   "fieldname": "fee_invoice",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Fee Invoice",
+   "options": "Fee Invoice",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fetch_from": "fee_invoice.net_amount",
+   "fieldname": "invoice_net",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Net",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fetch_from": "fee_invoice.outstanding_amount",
+   "fieldname": "invoice_outstanding",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Outstanding",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "allocated_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Allocated",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-08 20:01:49.944367",
+ "modified_by": "Administrator",
+ "module": "Finance",
+ "name": "Payment Allocation",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

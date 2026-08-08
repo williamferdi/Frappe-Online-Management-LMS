@@ -1,0 +1,158 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:fee_name",
+ "creation": "2026-08-08 20:01:48.104127",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_identity",
+  "fee_name",
+  "category",
+  "cb_identity",
+  "default_amount",
+  "is_active",
+  "sb_behaviour",
+  "trigger_event",
+  "cb_behaviour",
+  "discountable",
+  "gl_code",
+  "sb_scope",
+  "applies_to_programs"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_identity",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "fee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Fee Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Category",
+   "options": "One-Time\nPer-Registration\nRecurring Tuition",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb_identity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "default_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Default Amount",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "sb_behaviour",
+   "fieldtype": "Section Break",
+   "label": "Behaviour"
+  },
+  {
+   "default": "Manual",
+   "description": "The lifecycle event that raises this fee automatically.",
+   "fieldname": "trigger_event",
+   "fieldtype": "Select",
+   "label": "Raised On",
+   "options": "Manual\nApplication Submitted\nOffer Sent\nEnrollment\nCourse Registration\nTerm Start\nGraduation"
+  },
+  {
+   "fieldname": "cb_behaviour",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Only recurring tuition is discountable. The per-registration fee is deliberately not (\u00a75 Stream 2).",
+   "fieldname": "discountable",
+   "fieldtype": "Check",
+   "label": "Scholarship May Discount"
+  },
+  {
+   "fieldname": "gl_code",
+   "fieldtype": "Data",
+   "label": "GL Code"
+  },
+  {
+   "fieldname": "sb_scope",
+   "fieldtype": "Section Break",
+   "label": "Scope"
+  },
+  {
+   "description": "Leave empty to apply to every program.",
+   "fieldname": "applies_to_programs",
+   "fieldtype": "Table MultiSelect",
+   "label": "Applies To Programs",
+   "options": "Fee Type Program"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-08 20:01:48.104127",
+ "modified_by": "Administrator",
+ "module": "Finance",
+ "name": "Fee Type",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

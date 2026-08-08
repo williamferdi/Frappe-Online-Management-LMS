@@ -253,17 +253,16 @@ def _raise_ata_invoice(app, student, enrollment, report):
 		_deferred(report, "ata_invoice", "Fee Invoice DocType arrives in Phase 4")
 		return
 
-	invoice = frappe.get_doc(
-		{
-			"doctype": "Fee Invoice",
-			"student": student.name,
-			"program_enrollment": enrollment.name,
-			"fee_type": "ATA Registration",
-			"due_date": today(),
-		}
-	)
-	invoice.insert(ignore_permissions=True)
-	report["created"]["ata_invoice"] = invoice.name
+	# Delegate to the fee engine rather than hand-building an invoice: it owns
+	# the amount, the program scoping and the not-billed-twice check, and it is
+	# the version that is actually tested.
+	from sibbcs.finance import fees
+
+	invoice = fees.raise_ata_fee(student.name, enrollment.name, app.program)
+	if invoice:
+		report["created"]["ata_invoice"] = invoice.name
+	else:
+		_deferred(report, "ata_invoice", "already raised or fee type inactive")
 
 
 def _register_orientation(app, student, enrollment, report):

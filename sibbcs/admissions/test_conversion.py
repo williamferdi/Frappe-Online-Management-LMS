@@ -127,20 +127,33 @@ class TestConversion(FrappeTestCase):
 		self.assertEqual(first["created"]["student"], second["created"]["student"])
 		self.assertEqual(frappe.db.count("Student", {"admission_application": app.name}), 1)
 
-	def test_later_phase_steps_are_reported_as_deferred(self):
-		"""Never silently skip -- Phase 3/4/6 work must show up in the report."""
+	def test_steps_are_reported_never_silently_skipped(self):
+		"""Every step must land in `created` or `deferred` with a reason."""
 		app = ready_application(email="convert9@example.com", program="MDIV")
 		report = convert(app.name)
-		deferred = {d["step"] for d in report["deferred"]}
 
-		# Course Registration (Phase 3) and Fee Invoice (Phase 4) do not exist yet
-		self.assertIn("orientation", deferred)
-		self.assertIn("ata_invoice", deferred)
+		accounted = set(report["created"]) | {d["step"] for d in report["deferred"]}
+		self.assertIn("student", accounted)
+		self.assertIn("program_enrollment", accounted)
+		# Mentor is Phase 6 and still absent
+		self.assertIn("mentor", {d["step"] for d in report["deferred"]})
+		for item in report["deferred"]:
+			self.assertTrue(item["reason"], item["step"])
+
+	def test_ata_invoice_raised_for_mdiv_now_that_finance_exists(self):
+		"""The deferred step completes itself once Phase 4 lands."""
+		app = ready_application(email="convert12@example.com", program="MDIV")
+		report = convert(app.name)
+
+		self.assertIn("ata_invoice", report["created"])
+		invoice = frappe.get_doc("Fee Invoice", report["created"]["ata_invoice"])
+		self.assertEqual(invoice.fee_type, "ATA Registration")
+		self.assertEqual(invoice.net_amount, 2000)
 
 	def test_ata_invoice_not_raised_for_non_mdiv(self):
 		app = ready_application(email="convert10@example.com", program="MACS")
 		report = convert(app.name)
-		self.assertNotIn("ata_invoice", {d["step"] for d in report["deferred"]})
+		self.assertNotIn("ata_invoice", report["created"])
 
 
 class TestConversionScholarship(FrappeTestCase):

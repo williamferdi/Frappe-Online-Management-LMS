@@ -173,9 +173,57 @@ so a crafted payload cannot reach `parent`, `token`, or another document.
 `Mentor`, `Mentor Monthly Report`, `Chapel Session` + `Chapel Attendance`,
 `Internship Record` (+ `Internship Log Entry`), `Campus Visit` + `Campus Visit Attendance`.
 
-### 2.4 Finance — Phase 4, not built
-`Fee Type`, `Fee Invoice`, `Payment Entry` (+ `Payment Allocation`).
-`Student Fee Ledger` is a **report, not a DocType**.
+### 2.4 Finance — Phase 4, BUILT
+- **`Fee Type`** — `category` (One-Time / Per-Registration / Recurring Tuition),
+  `default_amount`, `trigger_event`, `discountable`, `applies_to_programs` (empty = all)
+- **`Fee Invoice`** — `FEE-.YYYY.-.#####`; gross / discount / net / paid / outstanding,
+  `months_billed` (counts toward the ceiling), `razorpay_link`
+- **`Payment Entry`** — `PAY-.YYYY.-.#####` + child **`Payment Allocation`**;
+  tracks `unallocated_amount`, and `auto_allocate()` settles oldest invoices first
+- **`Student Fee Ledger`** is a **Script Report, not a DocType** — invoices and payments
+  are the records; the ledger is a view with a running balance
+
+### The fee engine — `sibbcs/finance/fees.py`
+
+Four streams, never merged into one invoice (a student can owe an application fee, a
+registration fee and a tuition instalment at once, each with its own due date):
+
+1. **One-time** — application, admission, ATA (M.Div only), graduation
+2. **Per-registration** — ₹350 per Course Registration, **not discountable**; raised by a
+   `doc_events` hook plus a daily sweep, and a billing failure never rolls back a
+   registration the registrar accepted
+3. **Recurring tuition** — the *paused* subscription: bills only in terms where the
+   student registered at least one course
+4. **Scholarship** — `monthly_discount` clipped to `scholarship_total_cap −
+   scholarship_used_to_date`; spending it is what makes the cap real
+
+**Tuition ceiling (decision #1, answered "cap at ₹54,000, pay-as-you-go").** The ceiling
+lives on `Program.tuition_total`, not in code — clear it for uncapped billing. The final
+invoice is *trimmed* so the advertised total is never overshot.
+
+`Program.cap_on_gross` defaults to **1**, and this matters: §5 says "net tuition billed",
+but measuring the ceiling against net means a student with a scholarship simply takes
+longer to reach ₹54,000 and pays the same total — the discount would stretch the payment
+period instead of reducing the bill, cancelling out Stream 4 entirely. Measured on gross,
+the scholarship is a real saving. Flip the flag if the college wants the literal reading.
+
+### Razorpay — `sibbcs/finance/razorpay.py`
+
+Payment *Links*, one per invoice, not a hosted checkout. Credentials live in site config,
+never the repo:
+
+```bash
+bench --site online.sibbc.org set-config -g razorpay_key_id rzp_live_xxx
+bench --site online.sibbc.org set-config -g razorpay_key_secret xxx
+bench --site online.sibbc.org set-config -g razorpay_webhook_secret xxx
+```
+
+Webhook: `https://online.sibbc.org/api/method/sibbcs.finance.razorpay.webhook`
+
+The webhook verifies Razorpay's HMAC-SHA256 signature over the **raw body** with
+`hmac.compare_digest` *before parsing anything* — without it, anyone who found the URL
+could mark invoices paid. It is idempotent on `razorpay_payment_id`, because Razorpay
+retries. **Not yet configured** — no keys are set, so links cannot be generated.
 
 ### 2.5 Output — Phase 7, not built
 `Degree Audit`, `Transcript` (print format), `Graduation Record`.
@@ -233,6 +281,12 @@ Recorded so nobody "corrects" them back:
 - **Batch membership is not course access.** `LMS Batch Enrollment` alone leaves a student
   with an empty dashboard; `LMS Enrollment` is the record that opens the course. Guarded
   by `test_student_is_enrolled_in_the_course_itself`.
+- **Deferred steps go live silently.** `conversion.py` skips steps whose DocType does not
+  exist yet and reports them as `deferred`. The moment that phase lands, the branch runs
+  *for the first time in production conditions* — the ATA path hand-built a Fee Invoice
+  without the required `gross_amount` and broke every conversion test the day Phase 4
+  arrived. **Deferred branches must delegate to the owning module's tested function**, not
+  re-implement it. Re-run the full suite after each phase for exactly this reason.
 
 ## 4a. Testing
 

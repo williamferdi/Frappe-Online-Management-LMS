@@ -23,7 +23,11 @@
   "sb_requirements",
   "program_requirements",
   "sb_about",
-  "description"
+  "description",
+  "sb_tuition",
+  "monthly_tuition",
+  "tuition_total",
+  "cap_on_gross"
  ],
  "fields": [
   {
@@ -120,12 +124,38 @@
    "fieldname": "description",
    "fieldtype": "Small Text",
    "label": "Description"
+  },
+  {
+   "fieldname": "sb_tuition",
+   "fieldtype": "Section Break",
+   "label": "Tuition"
+  },
+  {
+   "default": "1500",
+   "description": "Billed per month of an active term.",
+   "fieldname": "monthly_tuition",
+   "fieldtype": "Currency",
+   "label": "Monthly Tuition"
+  },
+  {
+   "default": "54000",
+   "description": "Stop billing tuition once this much has been billed. Clear it (0) for uncapped pay-as-you-go.",
+   "fieldname": "tuition_total",
+   "fieldtype": "Currency",
+   "label": "Tuition Ceiling"
+  },
+  {
+   "default": "1",
+   "description": "Measure the ceiling against gross tuition, before scholarship. If measured against net, a scholarship merely stretches the payment period instead of reducing the bill.",
+   "fieldname": "cap_on_gross",
+   "fieldtype": "Check",
+   "label": "Ceiling Applies to Gross"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-08 16:44:57.104728",
+ "modified": "2026-08-08 20:01:50.826206",
  "modified_by": "Administrator",
  "module": "Academic",
  "name": "Program",
