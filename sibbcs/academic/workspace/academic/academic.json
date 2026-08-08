@@ -1,7 +1,7 @@
 {
  "charts": [],
- "content": "[]",
- "creation": "2026-08-08 16:58:23.639982",
+ "content": "[{\"id\": \"a7a692881637\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\", \"col\": 12}}, {\"id\": \"9539f09b9cec\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Course\", \"col\": 3}}, {\"id\": \"1fedbcdfc148\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Course Offering\", \"col\": 3}}, {\"id\": \"420c44176892\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Academic Term\", \"col\": 3}}, {\"id\": \"c77678d6a552\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Program\", \"col\": 3}}, {\"id\": \"a6f36a66aaf2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Instructor\", \"col\": 3}}, {\"id\": \"f6255d8bf924\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"f36b61c6178c\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\", \"col\": 12}}, {\"id\": \"af4e98f261c8\", \"type\": \"card\", \"data\": {\"card_name\": \"Catalog\", \"col\": 4}}, {\"id\": \"e37e069fd76a\", \"type\": \"card\", \"data\": {\"card_name\": \"Scheduling\", \"col\": 4}}, {\"id\": \"1fd3fa672d23\", \"type\": \"card\", \"data\": {\"card_name\": \"Students\", \"col\": 4}}]",
+ "creation": "2026-08-08 20:30:56.501946",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
@@ -89,9 +89,58 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Students",
+   "link_count": 4,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Student",
+   "link_count": 0,
+   "link_to": "Student",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Program Enrollment",
+   "link_count": 0,
+   "link_to": "Program Enrollment",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Course Registration",
+   "link_count": 0,
+   "link_to": "Course Registration",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Level Promotion",
+   "link_count": 0,
+   "link_to": "Level Promotion",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-08-08 16:58:23.639982",
+ "modified": "2026-08-08 20:30:56.501946",
  "modified_by": "Administrator",
  "module": "Academic",
  "name": "Academic",

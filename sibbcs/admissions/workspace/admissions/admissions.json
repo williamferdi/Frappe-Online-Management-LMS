@@ -1,7 +1,7 @@
 {
  "charts": [],
- "content": "[]",
- "creation": "2026-08-08 19:13:16.733117",
+ "content": "[{\"id\": \"5d689e26c2b1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\", \"col\": 12}}, {\"id\": \"60eb755afc2e\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Admission Application\", \"col\": 3}}, {\"id\": \"749a25e17473\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Lead\", \"col\": 3}}, {\"id\": \"41dc75c7bee3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Student\", \"col\": 3}}, {\"id\": \"ecc73ab8815c\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Program Enrollment\", \"col\": 3}}, {\"id\": \"bbc77a6cc629\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"ffa76224f40a\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\", \"col\": 12}}, {\"id\": \"6fdbe3d8e33a\", \"type\": \"card\", \"data\": {\"card_name\": \"Pipeline\", \"col\": 4}}, {\"id\": \"6dfdf2eb4dce\", \"type\": \"card\", \"data\": {\"card_name\": \"Assessment\", \"col\": 4}}, {\"id\": \"b6a23828ea46\", \"type\": \"card\", \"data\": {\"card_name\": \"Outcome\", \"col\": 4}}]",
+ "creation": "2026-08-08 20:30:56.673325",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
@@ -110,7 +110,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-08-08 19:13:16.733117",
+ "modified": "2026-08-08 20:30:56.673325",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Admissions",

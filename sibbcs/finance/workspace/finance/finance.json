@@ -1,0 +1,117 @@
+{
+ "charts": [],
+ "content": "[{\"id\": \"ab8c06bdbec7\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\", \"col\": 12}}, {\"id\": \"d73916ac8e5b\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Fee Invoice\", \"col\": 3}}, {\"id\": \"19b7a46e668c\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Payment Entry\", \"col\": 3}}, {\"id\": \"d0cb5ccd606d\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Fee Type\", \"col\": 3}}, {\"id\": \"91489df1bacd\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"0fc5b1e50314\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\", \"col\": 12}}, {\"id\": \"ba0be7261723\", \"type\": \"card\", \"data\": {\"card_name\": \"Billing\", \"col\": 4}}, {\"id\": \"18b90ca578d3\", \"type\": \"card\", \"data\": {\"card_name\": \"Receipts\", \"col\": 4}}, {\"id\": \"d8c5459e3e6f\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}]",
+ "creation": "2026-08-08 20:30:56.726819",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "hide_custom": 0,
+ "icon": "money-coins-1",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Finance",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Billing",
+   "link_count": 2,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Fee Type",
+   "link_count": 0,
+   "link_to": "Fee Type",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Fee Invoice",
+   "link_count": 0,
+   "link_to": "Fee Invoice",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Receipts",
+   "link_count": 1,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Payment Entry",
+   "link_count": 0,
+   "link_to": "Payment Entry",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 1,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Student Fee Ledger",
+   "link_count": 0,
+   "link_to": "Student Fee Ledger",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-08-08 20:30:56.726819",
+ "modified_by": "Administrator",
+ "module": "Finance",
+ "name": "Finance",
+ "number_cards": [],
+ "owner": "Administrator",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 30.0,
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "doc_view": "",
+   "label": "Fee Invoice",
+   "link_to": "Fee Invoice",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "",
+   "label": "Payment Entry",
+   "link_to": "Payment Entry",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Fee Type",
+   "link_to": "Fee Type",
+   "type": "DocType"
+  }
+ ],
+ "title": "Finance"
+}
