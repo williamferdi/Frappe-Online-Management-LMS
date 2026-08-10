@@ -234,12 +234,34 @@ def _rate_limit():
 		pass
 
 
+def outgoing_mail_configured():
+	# Email Account has no `enabled` field; the outgoing switch is `enable_outgoing`.
+	return bool(
+		frappe.db.get_value(
+			"Email Account", {"default_outgoing": 1, "enable_outgoing": 1}, "name"
+		)
+	)
+
+
 def _notify(doc):
 	"""Acknowledge to the applicant and alert the Admissions Officers.
 
 	Queued, never inline: a mail failure must not lose an application that has
 	already been accepted.
+
+	Two guards, both learned the hard way. We check for an outgoing account
+	first, because frappe.sendmail with none configured raises *and* pushes
+	"Please setup default outgoing Email Account from Tools > Email Account"
+	onto the message log -- which then travels back to the anonymous applicant
+	in the API response. And we clear the message log afterwards regardless, so
+	no internal mail plumbing can ever surface on the public form.
 	"""
+	if not outgoing_mail_configured():
+		frappe.logger("sibbcs").info(
+			f"{doc.name}: no outgoing email account, acknowledgement skipped"
+		)
+		return
+
 	try:
 		if doc.email:
 			frappe.sendmail(
@@ -271,3 +293,6 @@ def _notify(doc):
 			)
 	except Exception:
 		frappe.log_error(title=f"Application acknowledgement failed for {doc.name}")
+	finally:
+		# Never let mail plumbing reach the applicant's screen.
+		frappe.clear_messages()

@@ -140,6 +140,18 @@ class TestPublicApplication(FrappeTestCase):
 		second = submit_application(**payload(email="again@example.invalid"))
 		self.assertNotEqual(second["application"], result["application"])
 
+	def test_no_internal_message_leaks_to_the_applicant(self):
+		"""With no outgoing mail account, frappe.sendmail pushes
+		"Please setup default outgoing Email Account…" onto the message log,
+		which then rides back to the anonymous applicant in the API response.
+		"""
+		frappe.clear_messages()
+		submit_application(**payload(email="quiet@example.invalid"))
+
+		leaked = " ".join(str(m) for m in (frappe.get_message_log() or []))
+		self.assertNotIn("Email Account", leaked)
+		self.assertNotIn("default outgoing", leaked.lower())
+
 	def test_long_values_are_capped(self):
 		result = submit_application(
 			**payload(email="public8@example.invalid", full_name="x" * 400)
