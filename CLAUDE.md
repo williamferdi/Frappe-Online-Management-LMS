@@ -207,6 +207,33 @@ longer to reach ₹54,000 and pays the same total — the discount would stretch
 period instead of reducing the bill, cancelling out Stream 4 entirely. Measured on gross,
 the scholarship is a real saving. Flip the flag if the college wants the literal reading.
 
+### Payment gateway — `sibbcs/finance/gateway.py`
+
+Everything outside `finance/<provider>.py` talks to the gateway through this module.
+Which provider is live is site config, not code:
+
+```bash
+bench --site online.sibbc.org set-config payment_provider razorpay
+```
+
+A provider module exposes `is_configured()`, `create_payment_link(invoice)` and
+`PROVIDER_NAME`. **Webhooks stay provider-specific on purpose** — each gateway signs
+differently, and signature verification is the one thing that must not be generalised
+into a lowest common denominator. Adding a provider (Jodo is under evaluation) is one new
+module plus one `PROVIDERS` entry; the schema, the public form and the fee engine do not
+move.
+
+The schema is vendor-neutral: `payment_link`, `payment_reference`, `gateway_payment_id`,
+and a `payment_provider` column recording which gateway handled each row. Payment mode is
+`Online`, not a brand.
+
+**Use `gateway.public_url()`, never `frappe.utils.get_url()`, for anything a gateway or a
+candidate's browser will see.** `get_url()` appends the dev webserver port unless the site
+runs under supervisor/systemd, so on this bench-start deployment it produced
+`online.sibbc.org:8000` — an address the outside world cannot reach. It had silently
+poisoned both the webhook URL and the post-payment callback. `public_url()` builds from
+`host_name` instead; a test asserts no `:8000` can come back.
+
 ### Razorpay — `sibbcs/finance/razorpay.py`
 
 Payment *Links*, one per invoice, not a hosted checkout. Credentials live in site config,
@@ -281,6 +308,14 @@ Recorded so nobody "corrects" them back:
 - **Batch membership is not course access.** `LMS Batch Enrollment` alone leaves a student
   with an empty dashboard; `LMS Enrollment` is the record that opens the course. Guarded
   by `test_student_is_enrolled_in_the_course_itself`.
+- **Renaming a field on a standard DocType takes three steps, not one.**
+  `frappe.rename_field` is not enough: the JSON on disk is the source of truth and the
+  phase builders skip DocTypes that already exist, so the next `bench migrate` restores
+  the old column. Change the fieldname on the DocType doc and save it. Then fix
+  `search_fields` / `title_field` / `sort_field`, which reference fieldnames and fail
+  validation with *"Search field X is not valid"*. DDL (dropping the orphaned column)
+  must go through `frappe.db.sql_ddl`, not `frappe.db.sql`, which refuses it with
+  `ImplicitCommitError`.
 - **Deferred steps go live silently.** `conversion.py` skips steps whose DocType does not
   exist yet and reports them as `deferred`. The moment that phase lands, the branch runs
   *for the first time in production conditions* — the ATA path hand-built a Fee Invoice
