@@ -18,7 +18,7 @@
   "mode",
   "reference_no",
   "cb_mode",
-  "razorpay_payment_id",
+  "gateway_payment_id",
   "reconciled_by",
   "sb_allocation",
   "allocations",
@@ -101,12 +101,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "razorpay_payment_id",
-   "fieldtype": "Data",
-   "label": "Razorpay Payment ID",
-   "read_only": 1
-  },
-  {
    "fieldname": "reconciled_by",
    "fieldtype": "Link",
    "label": "Reconciled By",
@@ -153,12 +147,18 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
+  },
+  {
+   "fieldname": "gateway_payment_id",
+   "fieldtype": "Data",
+   "label": "Gateway Payment ID",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-10 12:26:38.681717",
+ "modified": "2026-08-10 13:01:21.605694",
  "modified_by": "Administrator",
  "module": "Finance",
  "name": "Payment Entry",
@@ -206,7 +206,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
- "search_fields": "student,razorpay_payment_id,reference_no",
+ "search_fields": "student,gateway_payment_id,reference_no",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

@@ -54,7 +54,10 @@ TRIGGERS = [
 	"Graduation",
 ]
 
-PAYMENT_MODES = ["Razorpay", "UPI", "Bank Transfer", "Cash", "Cheque"]
+# "Online" rather than a provider name: the gateway can change (Razorpay, Jodo,
+# something else) without the payment *mode* meaning anything different. Which
+# gateway handled it is recorded separately in `payment_provider`.
+PAYMENT_MODES = ["Online", "UPI", "Bank Transfer", "Cash", "Cheque"]
 
 INVOICE_STATUSES = ["Unpaid", "Partly Paid", "Paid", "Waived", "Cancelled"]
 
@@ -215,8 +218,9 @@ def _fee_invoice():
 			section("sb_due", "Payment"),
 			f("due_date", "Due Date", "Date", reqd=1, in_list_view=1),
 			column("cb_due"),
-			f("razorpay_link", "Razorpay Link", "Small Text", read_only=1),
-			f("razorpay_link_id", "Razorpay Link ID", "Data", read_only=1, hidden=1),
+			f("payment_link", "Payment Link", "Small Text", read_only=1),
+			f("payment_reference", "Gateway Reference", "Data", read_only=1, hidden=1),
+			f("payment_provider", "Gateway", "Data", read_only=1),
 			section("sb_remarks"),
 			f("remarks", "Remarks", "Small Text"),
 		],
@@ -278,7 +282,8 @@ def _payment_entry():
 			select("mode", "Mode", PAYMENT_MODES, reqd=1, in_list_view=1, in_standard_filter=1),
 			f("reference_no", "Reference No"),
 			column("cb_mode"),
-			f("razorpay_payment_id", "Razorpay Payment ID", "Data", read_only=1),
+			f("gateway_payment_id", "Gateway Payment ID", "Data", read_only=1),
+			f("payment_provider", "Gateway", "Data", read_only=1),
 			link("reconciled_by", "Reconciled By", "User", read_only=1),
 			section("sb_allocation", "Allocation"),
 			table("allocations", "Allocations", "Payment Allocation"),
@@ -304,7 +309,7 @@ def _payment_entry():
 		autoname="naming_series:",
 		naming_rule='By "Naming Series" field',
 		title_field="student_name",
-		search_fields="student,razorpay_payment_id,reference_no",
+		search_fields="student,gateway_payment_id,reference_no",
 		sort_field="modified",
 		sort_order="DESC",
 	)
@@ -340,6 +345,79 @@ def _fee_invoice_for_applicants():
 	if changed:
 		doc.save(ignore_permissions=True)
 		print("  Fee Invoice.student is no longer mandatory (applicants have no Student)")
+
+
+RENAMES = [
+	("Fee Invoice", "razorpay_link", "payment_link", "Payment Link"),
+	("Fee Invoice", "razorpay_link_id", "payment_reference", "Gateway Reference"),
+	("Payment Entry", "razorpay_payment_id", "gateway_payment_id", "Gateway Payment ID"),
+]
+
+
+def _neutralise_gateway_fields():
+	"""Rename provider-specific fields to neutral ones.
+
+	The gateway is a decision that can change; the schema should not carry one
+	vendor's name.
+
+	Note frappe.rename_field is NOT enough here. For a standard (non-custom)
+	DocType the JSON on disk is the source of truth, and the phase builders skip
+	DocTypes that already exist -- so a renamed column is simply restored by the
+	next `bench migrate`. The fieldname has to be changed on the DocType doc and
+	saved, which regenerates the JSON.
+
+	Guarded: refuses to touch a column that holds data, so running this on a
+	live site can never lose a payment link or a gateway reference.
+	"""
+	for doctype, old, new, label in RENAMES:
+		if not frappe.db.exists("DocType", doctype):
+			continue
+
+		# Two fields on the same DocType are renamed in turn; without this the
+		# second iteration reads a meta cached before the first save and
+		# silently finds nothing to do.
+		frappe.clear_cache(doctype=doctype)
+		meta = frappe.get_meta(doctype)
+		if meta.get_field(new) or not meta.get_field(old):
+			continue
+
+		if frappe.db.has_column(doctype, old):
+			in_use = frappe.db.sql(
+				f"""select count(*) from `tab{doctype}`
+				    where `{old}` is not null and `{old}` != ''"""
+			)[0][0]
+			if in_use:
+				print(
+					f"  ! {doctype}.{old} holds {in_use} value(s) -- skipping rename. "
+					"Migrate the data first."
+				)
+				continue
+
+		doc = frappe.get_doc("DocType", doctype)
+		for row in doc.fields:
+			if row.fieldname == old:
+				row.fieldname = new
+				row.label = label
+
+		# A fieldname is referenced from DocType metadata too. Renaming the
+		# field alone makes the save fail validation with
+		# "Search field <old> is not valid".
+		for attribute in ("search_fields", "title_field", "sort_field", "image_field"):
+			value = doc.get(attribute)
+			if value and old in value:
+				doc.set(attribute, value.replace(old, new))
+
+		doc.save(ignore_permissions=True)
+		print(f"  renamed {doctype}.{old} -> {new}")
+
+		if frappe.db.has_column(doctype, old):
+			# DDL must go through sql_ddl; frappe.db.sql refuses it with
+			# ImplicitCommitError because ALTER TABLE commits the transaction.
+			frappe.db.sql_ddl(f"alter table `tab{doctype}` drop column `{old}`")
+			print(f"    dropped orphaned column {old}")
+
+	# The mode option was a vendor name; record the gateway separately instead.
+	frappe.db.sql("""update `tabPayment Entry` set mode = 'Online' where mode = 'Razorpay'""")
 
 
 def _program_tuition_fields():
@@ -424,6 +502,7 @@ def build():
 	_fee_invoice()
 	_payment_entry()
 	_fee_invoice_for_applicants()
+	_neutralise_gateway_fields()
 	_program_tuition_fields()
 	_relink_registration_fee_field()
 	seed_fee_types()

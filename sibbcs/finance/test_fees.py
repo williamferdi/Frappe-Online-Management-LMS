@@ -493,6 +493,55 @@ class TestLedger(FrappeTestCase):
 			execute({})
 
 
+class TestGatewayBoundary(FrappeTestCase):
+	"""Nothing outside finance/<provider>.py should name a vendor."""
+
+	def test_default_provider_is_resolvable(self):
+		from sibbcs.finance import gateway
+
+		self.assertIn(gateway.active_provider(), gateway.PROVIDERS)
+
+	def test_provider_module_has_the_required_interface(self):
+		from sibbcs.finance import gateway
+
+		provider = gateway.get_provider()
+		for attribute in ("is_configured", "create_payment_link", "PROVIDER_NAME"):
+			self.assertTrue(hasattr(provider, attribute), attribute)
+
+	def test_unknown_provider_is_refused(self):
+		from sibbcs.finance import gateway
+
+		with self.assertRaises(frappe.ValidationError):
+			gateway.get_provider("not-a-gateway")
+
+	def test_public_url_never_carries_the_dev_port(self):
+		"""frappe.utils.get_url() appends :8000 outside production mode, which
+		would hand the gateway an address the outside world cannot reach."""
+		from sibbcs.finance import gateway
+
+		self.assertNotIn(":8000", gateway.public_url("/x"))
+		self.assertNotIn(":8000", gateway.webhook_url())
+
+	def test_webhook_url_points_at_the_active_provider(self):
+		from sibbcs.finance import gateway
+
+		self.assertIn(gateway.active_provider(), gateway.webhook_url())
+		self.assertTrue(gateway.webhook_url().endswith(".webhook"))
+
+	def test_schema_carries_no_vendor_name(self):
+		"""The gateway can change; the columns should not have to."""
+		for doctype, field in (
+			("Fee Invoice", "payment_link"),
+			("Fee Invoice", "payment_reference"),
+			("Payment Entry", "gateway_payment_id"),
+		):
+			self.assertTrue(frappe.get_meta(doctype).get_field(field), f"{doctype}.{field}")
+
+		for doctype in ("Fee Invoice", "Payment Entry"):
+			for df in frappe.get_meta(doctype).fields:
+				self.assertNotIn("razorpay", df.fieldname, f"{doctype}.{df.fieldname}")
+
+
 class TestRazorpaySignature(FrappeTestCase):
 	"""The webhook is the one place an outsider can mark invoices paid."""
 

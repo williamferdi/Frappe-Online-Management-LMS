@@ -20,7 +20,7 @@ Security notes:
   `hmac.compare_digest`, before parsing anything. An unsigned or mis-signed
   request is refused outright -- without this, anyone who found the URL could
   mark invoices paid.
-* The handler is idempotent on `razorpay_payment_id`: Razorpay retries webhooks,
+* The handler is idempotent on `gateway_payment_id`: Razorpay retries webhooks,
   and a retry must not create a second Payment Entry.
 * Amounts are taken from Razorpay's payload, never from the caller's query
   string, and are reconciled against the invoice.
@@ -32,10 +32,16 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import flt, get_url, nowdate
+from frappe.utils import flt, nowdate
+
+from sibbcs.finance.gateway import public_url as gateway_public_url
 
 API_BASE = "https://api.razorpay.com/v1"
 TIMEOUT = 30
+
+# Recorded on the invoice and the payment, so a ledger row always says which
+# gateway handled it even after the live provider changes.
+PROVIDER_NAME = "Razorpay"
 
 
 # ---------------------------------------------------------------------------
@@ -85,8 +91,8 @@ def create_payment_link(fee_invoice):
 
 	invoice = frappe.get_doc("Fee Invoice", fee_invoice)
 
-	if invoice.razorpay_link:
-		return invoice.razorpay_link
+	if invoice.payment_link:
+		return invoice.payment_link
 
 	if invoice.status in ("Paid", "Waived", "Cancelled"):
 		frappe.throw(
@@ -120,7 +126,9 @@ def create_payment_link(fee_invoice):
 			"student": invoice.student,
 			"fee_type": invoice.fee_type,
 		},
-		"callback_url": get_url(f"/fee-paid?invoice={invoice.name}"),
+		# gateway.public_url, not get_url: the latter appends the dev port and
+		# would send the candidate somewhere unreachable after paying.
+		"callback_url": gateway_public_url(f"/fee-paid?invoice={invoice.name}"),
 		"callback_method": "get",
 	}
 
@@ -142,7 +150,11 @@ def create_payment_link(fee_invoice):
 
 	data = response.json()
 	invoice.db_set(
-		{"razorpay_link": data.get("short_url"), "razorpay_link_id": data.get("id")},
+		{
+			"payment_link": data.get("short_url"),
+			"payment_reference": data.get("id"),
+			"payment_provider": PROVIDER_NAME,
+		},
 		update_modified=False,
 	)
 	return data.get("short_url")
@@ -230,7 +242,7 @@ def record_payment(entity):
 	if not payment_id:
 		return {"status": "ignored", "reason": "no payment id"}
 
-	existing = frappe.db.exists("Payment Entry", {"razorpay_payment_id": payment_id})
+	existing = frappe.db.exists("Payment Entry", {"gateway_payment_id": payment_id})
 	if existing:
 		# Razorpay retries webhooks; a retry must not double-credit.
 		return {"status": "duplicate", "payment_entry": existing}
@@ -260,8 +272,9 @@ def record_payment(entity):
 			"doctype": "Payment Entry",
 			"student": invoice.student,
 			"amount": amount,
-			"mode": "Razorpay",
-			"razorpay_payment_id": payment_id,
+			"mode": "Online",
+			"gateway_payment_id": payment_id,
+			"payment_provider": PROVIDER_NAME,
 			"received_on": nowdate(),
 			"reference_no": entity.get("order_id") or entity.get("reference_id"),
 			"remarks": _("Razorpay {0}").format(entity.get("method") or ""),
@@ -301,7 +314,8 @@ def _record_application_payment(invoice, entity, amount, payment_id):
 			"paid_amount": paid,
 			"outstanding_amount": flt(flt(invoice.net_amount) - paid, 2),
 			"status": "Paid" if paid >= flt(invoice.net_amount) else "Partly Paid",
-			"razorpay_link_id": invoice.razorpay_link_id or entity.get("payment_link_id"),
+			"payment_reference": invoice.payment_reference or entity.get("payment_link_id"),
+			"payment_provider": PROVIDER_NAME,
 			"remarks": (invoice.remarks or "") + _(" · Razorpay {0}").format(payment_id),
 		},
 		update_modified=False,

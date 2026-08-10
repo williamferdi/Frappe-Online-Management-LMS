@@ -243,13 +243,15 @@ def _start_payment(doc):
 
 		result["amount"] = invoice.net_amount
 
-		from sibbcs.finance import razorpay
+		# Through the gateway boundary, never a named provider -- swapping
+		# Razorpay for something else must not touch the admissions code.
+		from sibbcs.finance import gateway
 
-		if not razorpay.is_configured():
+		if not gateway.is_configured():
 			result["error"] = "gateway_not_configured"
 			return result
 
-		result["url"] = razorpay.create_payment_link(invoice.name)
+		result["url"] = gateway.create_payment_link(invoice.name)
 	except Exception:
 		frappe.log_error(title=f"Application fee/payment link failed for {doc.name}")
 		result["error"] = "payment_link_failed"
@@ -283,7 +285,7 @@ def payment_status(application):
 		"state": doc.workflow_state or "Draft",
 		"amount": invoice.net_amount if invoice else None,
 		"outstanding": invoice.outstanding_amount if invoice else None,
-		"payment_url": invoice.razorpay_link if invoice else None,
+		"payment_url": invoice.payment_link if invoice else None,
 	}
 
 
