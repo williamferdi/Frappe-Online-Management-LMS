@@ -1,0 +1,88 @@
+{% extends "templates/web.html" %}
+
+{% block title %}Application fee{% endblock %}
+
+{% block page_content %}
+<div class="fee-status">
+
+  {% if not found %}
+    <div class="alert alert-warning">
+      <h3>We could not find that application</h3>
+      <p>Please check the link, or contact the Admissions Office with your reference.</p>
+    </div>
+
+  {% elif paid %}
+    <div class="alert alert-success">
+      <h3>Payment received — your application is placed</h3>
+      <p>
+        Thank you, <b>{{ full_name }}</b>. Your application
+        <b>{{ application }}</b> for <b>{{ program }}</b> is now
+        <b>{{ state }}</b> with our Admissions Office.
+      </p>
+    </div>
+    <h4>What happens next</h4>
+    <ol>
+      <li>We ask you for your certificates, ID and photograph.</li>
+      <li>Your referees and mentor receive their private links by email.</li>
+      <li>You sit a short qualifying exam, then an interview.</li>
+      <li>If successful, you receive an offer and your student login.</li>
+    </ol>
+
+  {% else %}
+    <div class="alert alert-info">
+      <h3>Confirming your payment</h3>
+      <p>
+        Your application <b>{{ application }}</b> is saved, but we have not yet
+        seen the payment confirmed by the bank.
+      </p>
+      <p>
+        If you have just paid, this usually clears within a minute.
+        <b>Refresh this page</b> in a moment.
+      </p>
+    </div>
+
+    {% if payment_url and outstanding %}
+      <p>
+        Not paid yet?
+        <a class="btn btn-primary" href="{{ payment_url }}" rel="noopener">
+          Pay ₹{{ outstanding }} now
+        </a>
+      </p>
+    {% endif %}
+
+    <p class="text-muted small">
+      Your application is not placed with the Admissions Office until the fee
+      clears. Quote <b>{{ application }}</b> in any correspondence.
+    </p>
+  {% endif %}
+
+</div>
+
+<style>
+  .fee-status { max-width: 640px; margin: 0 auto; }
+  .fee-status ol { padding-left: 20px; }
+  .fee-status li { margin-bottom: 6px; }
+</style>
+
+{% if found and not paid %}
+<script>
+  // Razorpay's redirect often beats the webhook. Re-check a few times rather
+  // than making the candidate guess whether to refresh.
+  let tries = 0;
+  const timer = setInterval(async () => {
+    if (++tries > 10) return clearInterval(timer);
+    try {
+      const r = await fetch(
+        '/api/method/sibbcs.admissions.public_form.payment_status?application=' +
+        encodeURIComponent({{ application | tojson }})
+      );
+      const body = await r.json();
+      if (body && body.message && body.message.paid) {
+        clearInterval(timer);
+        window.location.reload();
+      }
+    } catch (e) { /* keep waiting */ }
+  }, 4000);
+</script>
+{% endif %}
+{% endblock %}

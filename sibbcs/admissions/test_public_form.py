@@ -140,6 +140,84 @@ class TestPublicApplication(FrappeTestCase):
 		second = submit_application(**payload(email="again@example.invalid"))
 		self.assertNotEqual(second["application"], result["application"])
 
+	# --- the payment gate ----------------------------------------------
+
+	def test_application_is_not_placed_until_the_fee_is_paid(self):
+		"""The college's rule: fee first, then the application counts."""
+		result = submit_application(**payload(email="gate1@example.invalid"))
+		doc = frappe.get_doc("Admission Application", result["application"])
+
+		self.assertFalse(doc.application_fee_paid)
+		self.assertIn((doc.workflow_state or "Draft"), ("Draft", None, ""))
+		self.assertTrue(result["payment_pending"])
+
+	def test_application_fee_invoice_is_raised(self):
+		from sibbcs.finance.fees import application_fee_invoice
+
+		result = submit_application(**payload(email="gate2@example.invalid"))
+		invoice = application_fee_invoice(result["application"])
+
+		self.assertIsNotNone(invoice)
+		self.assertEqual(invoice.net_amount, 350)
+		self.assertEqual(invoice.status, "Unpaid")
+		# no Student exists yet -- the invoice belongs to the application
+		self.assertFalse(invoice.student)
+		self.assertEqual(invoice.admission_application, result["application"])
+
+	def test_fee_invoice_is_not_raised_twice(self):
+		from sibbcs.finance.fees import raise_application_fee
+
+		result = submit_application(**payload(email="gate3@example.invalid"))
+		raise_application_fee(result["application"])
+		self.assertEqual(
+			frappe.db.count(
+				"Fee Invoice", {"admission_application": result["application"]}
+			),
+			1,
+		)
+
+	def test_paying_the_fee_places_the_application(self):
+		from sibbcs.finance.fees import mark_application_fee_paid
+
+		result = submit_application(**payload(email="gate4@example.invalid"))
+		state = mark_application_fee_paid(result["application"])
+
+		doc = frappe.get_doc("Admission Application", result["application"])
+		self.assertTrue(doc.application_fee_paid)
+		self.assertEqual(state, "Submitted")
+		self.assertEqual(doc.workflow_state, "Submitted")
+
+	def test_marking_paid_twice_is_harmless(self):
+		"""Razorpay retries webhooks."""
+		from sibbcs.finance.fees import mark_application_fee_paid
+
+		result = submit_application(**payload(email="gate5@example.invalid"))
+		mark_application_fee_paid(result["application"])
+		state = mark_application_fee_paid(result["application"])
+		self.assertEqual(state, "Submitted")
+
+	def test_payment_status_reports_the_gate(self):
+		from sibbcs.admissions.public_form import payment_status
+
+		result = submit_application(**payload(email="gate6@example.invalid"))
+		before = payment_status(result["application"])
+		self.assertTrue(before["found"])
+		self.assertFalse(before["paid"])
+		self.assertEqual(before["amount"], 350)
+
+	def test_payment_status_for_unknown_application(self):
+		from sibbcs.admissions.public_form import payment_status
+
+		self.assertFalse(payment_status("APP-DOES-NOT-EXIST")["found"])
+
+	def test_saved_even_when_the_gateway_is_unavailable(self):
+		"""A gateway problem must not lose a filled-in application."""
+		result = submit_application(**payload(email="gate7@example.invalid"))
+		self.assertTrue(frappe.db.exists("Admission Application", result["application"]))
+		# no keys configured in tests, so no link -- but the record survives
+		self.assertIsNone(result["payment_url"])
+		self.assertEqual(result["payment_error"], "gateway_not_configured")
+
 	def test_no_internal_message_leaks_to_the_applicant(self):
 		"""With no outgoing mail account, frappe.sendmail pushes
 		"Please setup default outgoing Email Account…" onto the message log,

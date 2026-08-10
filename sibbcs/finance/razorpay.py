@@ -248,6 +248,13 @@ def record_payment(entity):
 	invoice = frappe.get_doc("Fee Invoice", invoice_name)
 	amount = flt(entity.get("amount", 0)) / 100.0
 
+	# An application fee is paid before any Student exists, so there is no
+	# Payment Entry to write -- Payment Entry.student is mandatory and the
+	# applicant is not a student yet. Settle the invoice directly and place the
+	# application.
+	if not invoice.student and invoice.get("admission_application"):
+		return _record_application_payment(invoice, entity, amount, payment_id)
+
 	entry = frappe.get_doc(
 		{
 			"doctype": "Payment Entry",
@@ -281,4 +288,33 @@ def record_payment(entity):
 		"payment_entry": entry.name,
 		"invoice": invoice.name,
 		"allocated": flt(entry.allocated_amount),
+	}
+
+
+def _record_application_payment(invoice, entity, amount, payment_id):
+	"""Settle an application-fee invoice and place the application."""
+	from sibbcs.finance.fees import mark_application_fee_paid
+
+	paid = min(amount, flt(invoice.net_amount))
+	invoice.db_set(
+		{
+			"paid_amount": paid,
+			"outstanding_amount": flt(flt(invoice.net_amount) - paid, 2),
+			"status": "Paid" if paid >= flt(invoice.net_amount) else "Partly Paid",
+			"razorpay_link_id": invoice.razorpay_link_id or entity.get("payment_link_id"),
+			"remarks": (invoice.remarks or "") + _(" · Razorpay {0}").format(payment_id),
+		},
+		update_modified=False,
+	)
+
+	state = None
+	if invoice.status != "Partly Paid":
+		state = mark_application_fee_paid(invoice.admission_application)
+
+	return {
+		"status": "recorded",
+		"invoice": invoice.name,
+		"application": invoice.admission_application,
+		"workflow_state": state,
+		"paid": paid,
 	}

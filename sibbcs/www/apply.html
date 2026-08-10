@@ -216,16 +216,45 @@
   </form>
 
   <div id="apply-done" hidden>
-    <div class="alert alert-success">
-      <h3>Application received</h3>
+    <div class="alert alert-warning">
+      <h3>One step left — pay the application fee</h3>
       <p>
-        Thank you, <b id="done-name"></b>. Your reference is
-        <b id="done-ref"></b> — please keep it.
+        Thank you, <b id="done-name"></b>. We have saved your details under
+        reference <b id="done-ref"></b>.
+      </p>
+      <p>
+        <b>Your application is not placed until the fee is paid.</b>
+        Please keep your reference safe.
       </p>
     </div>
-    <h4>What happens next</h4>
+
+    <div id="pay-block" hidden>
+      <p class="pay-amount">Application fee: <b id="done-amount">₹350</b></p>
+      <p>
+        <a id="pay-link" class="btn btn-primary btn-lg" href="#" rel="noopener">
+          Pay now and place my application
+        </a>
+      </p>
+      <p class="text-muted small">
+        You will be taken to Razorpay. Card, UPI, net banking and wallets are all
+        accepted. Come back to this page afterwards — we update your application
+        automatically once the payment clears.
+      </p>
+    </div>
+
+    <div id="pay-manual" hidden>
+      <div class="alert alert-info">
+        <p>
+          Online payment is not available at this moment. The Admissions Office
+          will contact you about the <b>₹350 application fee</b> and how to pay it.
+          Your details are safe under reference <b id="done-ref-2"></b>.
+        </p>
+      </div>
+    </div>
+
+    <h4>What happens after the fee clears</h4>
     <ol class="next-steps">
-      <li>The Admissions Office contacts you about the <b>₹350 application fee</b>.</li>
+      <li>Your application moves from Draft to <b>Submitted</b> automatically.</li>
       <li>We ask you for your certificates, ID and photograph.</li>
       <li>Your referees and mentor receive their private links by email.</li>
       <li>You sit a short qualifying exam, then an interview.</li>
@@ -333,6 +362,22 @@
       const result = body.message || {};
       document.getElementById('done-name').textContent = result.full_name || '';
       document.getElementById('done-ref').textContent = result.application || '';
+      document.getElementById('done-ref-2').textContent = result.application || '';
+
+      if (result.payment_url) {
+        const link = document.getElementById('pay-link');
+        link.href = result.payment_url;
+        if (result.fee_amount) {
+          document.getElementById('done-amount').textContent =
+            '₹' + Number(result.fee_amount).toLocaleString('en-IN');
+        }
+        document.getElementById('pay-block').hidden = false;
+      } else {
+        // No gateway configured, or the link could not be created. The
+        // application is still saved -- say so rather than leaving a dead end.
+        document.getElementById('pay-manual').hidden = false;
+      }
+
       document.getElementById('apply-intro').hidden = true;
       form.hidden = true;
       document.getElementById('apply-done').hidden = false;

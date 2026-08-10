@@ -310,6 +310,38 @@ def _payment_entry():
 	)
 
 
+def _fee_invoice_for_applicants():
+	"""An application fee is owed before any Student exists.
+
+	Fee Invoice.student was mandatory, which made the §5 Stream 1 application
+	fee impossible to raise -- an applicant has no Student record until the
+	conversion point. Student becomes optional and an admission_application
+	link is added; FeeInvoice.validate requires exactly one of the two.
+	"""
+	add_fields(
+		"Fee Invoice",
+		[
+			link(
+				"admission_application",
+				"Admission Application",
+				"Admission Application",
+				description="Set for the application fee, which is owed before a Student exists.",
+			)
+		],
+		insert_after="program_enrollment",
+	)
+
+	doc = frappe.get_doc("DocType", "Fee Invoice")
+	changed = False
+	for row in doc.fields:
+		if row.fieldname == "student" and row.reqd:
+			row.reqd = 0
+			changed = True
+	if changed:
+		doc.save(ignore_permissions=True)
+		print("  Fee Invoice.student is no longer mandatory (applicants have no Student)")
+
+
 def _program_tuition_fields():
 	"""The tuition ceiling lives on Program, not in code."""
 	add_fields(
@@ -391,6 +423,7 @@ def build():
 	_fee_type()
 	_fee_invoice()
 	_payment_entry()
+	_fee_invoice_for_applicants()
 	_program_tuition_fields()
 	_relink_registration_fee_field()
 	seed_fee_types()

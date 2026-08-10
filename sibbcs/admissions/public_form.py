@@ -205,12 +205,85 @@ def submit_application(**values):
 	doc.flags.ignore_permissions = True
 	doc.insert(ignore_permissions=True)
 
+	# The application is recorded but NOT placed: `Draft -> Submitted` requires
+	# application_fee_paid, so it stays a Draft until the fee clears. Recording
+	# first is deliberate -- if we waited for payment we would lose everything
+	# the candidate typed the moment they abandoned checkout or a webhook was
+	# delayed.
+	payment = _start_payment(doc)
+
 	_notify(doc)
 
 	return {
 		"application": doc.name,
 		"full_name": doc.full_name,
 		"program": doc.program,
+		"fee_amount": payment.get("amount"),
+		"payment_url": payment.get("url"),
+		"payment_pending": True,
+		"payment_error": payment.get("error"),
+	}
+
+
+def _start_payment(doc):
+	"""Raise the application fee and get a Razorpay link for it.
+
+	Returns whatever it can. A payment-gateway problem must not lose an
+	application that is already saved -- the officer can send a link by hand.
+	"""
+	result = {"amount": None, "url": None, "error": None}
+
+	try:
+		from sibbcs.finance import fees
+
+		invoice = fees.raise_application_fee(doc.name)
+		if not invoice:
+			result["error"] = "no_fee_type"
+			return result
+
+		result["amount"] = invoice.net_amount
+
+		from sibbcs.finance import razorpay
+
+		if not razorpay.is_configured():
+			result["error"] = "gateway_not_configured"
+			return result
+
+		result["url"] = razorpay.create_payment_link(invoice.name)
+	except Exception:
+		frappe.log_error(title=f"Application fee/payment link failed for {doc.name}")
+		result["error"] = "payment_link_failed"
+
+	return result
+
+
+@frappe.whitelist(allow_guest=True)
+def payment_status(application):
+	"""Has this application's fee cleared? Used by the return page."""
+	if not application or not frappe.db.exists("Admission Application", application):
+		return {"found": False}
+
+	doc = frappe.db.get_value(
+		"Admission Application",
+		application,
+		["full_name", "program", "application_fee_paid", "workflow_state"],
+		as_dict=True,
+	)
+
+	from sibbcs.finance import fees
+
+	invoice = fees.application_fee_invoice(application)
+
+	return {
+		"found": True,
+		"application": application,
+		"full_name": doc.full_name,
+		"program": doc.program,
+		"paid": bool(doc.application_fee_paid),
+		"state": doc.workflow_state or "Draft",
+		"amount": invoice.net_amount if invoice else None,
+		"outstanding": invoice.outstanding_amount if invoice else None,
+		"payment_url": invoice.razorpay_link if invoice else None,
 	}
 
 

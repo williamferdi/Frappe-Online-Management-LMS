@@ -9,9 +9,23 @@ from frappe.utils import flt
 
 class FeeInvoice(Document):
 	def validate(self):
+		self.validate_owner()
 		self.validate_amounts()
 		self.compute_totals()
 		self.set_status()
+
+	def validate_owner(self):
+		"""Exactly one of student / admission_application.
+
+		The application fee is owed before a Student exists, so `student` alone
+		cannot be mandatory -- but an invoice belonging to nobody would never
+		appear on any ledger.
+		"""
+		if not self.student and not self.get("admission_application"):
+			frappe.throw(
+				_("A Fee Invoice needs either a Student or an Admission Application."),
+				title=_("No Owner"),
+			)
 
 	def validate_amounts(self):
 		if flt(self.gross_amount) < 0:

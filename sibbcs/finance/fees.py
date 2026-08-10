@@ -98,6 +98,86 @@ def create_invoice(
 # ---------------------------------------------------------------------------
 
 
+def raise_application_fee(application):
+	"""§5 Stream 1 -- the Rs350 fee that gates `Draft -> Submitted`.
+
+	Raised against the Admission Application, not a Student: the applicant does
+	not become a Student until the conversion point, several states later.
+	"""
+	fee_type = get_fee_type(APPLICATION_FEE)
+	if not fee_type:
+		return None
+
+	existing = frappe.db.exists(
+		"Fee Invoice",
+		{"admission_application": application, "fee_type": APPLICATION_FEE,
+		 "status": ("!=", "Cancelled")},
+	)
+	if existing:
+		return frappe.get_doc("Fee Invoice", existing)
+
+	app = frappe.db.get_value(
+		"Admission Application", application, ["full_name", "program"], as_dict=True
+	)
+
+	invoice = frappe.get_doc(
+		{
+			"doctype": "Fee Invoice",
+			"admission_application": application,
+			"fee_type": APPLICATION_FEE,
+			"gross_amount": flt(fee_type.default_amount),
+			"discount_amount": 0,
+			"due_date": add_days(today(), 7),
+			"status": "Unpaid",
+			"remarks": _("Application fee for {0}").format(app.full_name if app else application),
+		}
+	)
+	invoice.insert(ignore_permissions=True)
+	return invoice
+
+
+def application_fee_invoice(application):
+	name = frappe.db.get_value(
+		"Fee Invoice",
+		{"admission_application": application, "fee_type": APPLICATION_FEE,
+		 "status": ("!=", "Cancelled")},
+		"name",
+	)
+	return frappe.get_doc("Fee Invoice", name) if name else None
+
+
+def mark_application_fee_paid(application):
+	"""Flip the gate and place the application.
+
+	Called from the Razorpay webhook. Advancing the workflow needs the
+	Admissions Officer role, so it runs as Administrator -- the payment itself
+	is the authorisation, and it has already been signature-verified upstream.
+	"""
+	doc = frappe.get_doc("Admission Application", application)
+
+	if not doc.application_fee_paid:
+		doc.db_set("application_fee_paid", 1, update_modified=False)
+
+	if (doc.workflow_state or "Draft") != "Draft":
+		return doc.workflow_state
+
+	from frappe.model.workflow import apply_workflow
+
+	original_user = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		doc.reload()
+		apply_workflow(doc, "Submit Application")
+	except Exception:
+		frappe.log_error(title=f"Could not place application {application} after payment")
+		# The fee is recorded either way; an officer can advance it by hand.
+	finally:
+		frappe.set_user(original_user)
+
+	doc.reload()
+	return doc.workflow_state
+
+
 def raise_admission_fee(student, program_enrollment=None, program=None):
 	fee_type = get_fee_type(ADMISSION_FEE)
 	if not fee_type:

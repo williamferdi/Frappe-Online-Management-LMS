@@ -13,6 +13,7 @@
   "student_name",
   "cb_who",
   "program_enrollment",
+  "admission_application",
   "status",
   "sb_what",
   "fee_type",
@@ -57,8 +58,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Student",
-   "options": "Student",
-   "reqd": 1
+   "options": "Student"
   },
   {
    "fetch_from": "student.full_name",
@@ -214,12 +214,19 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
+  },
+  {
+   "description": "Set for the application fee, which is owed before a Student exists.",
+   "fieldname": "admission_application",
+   "fieldtype": "Link",
+   "label": "Admission Application",
+   "options": "Admission Application"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-10 11:59:07.378989",
+ "modified": "2026-08-10 12:26:37.840947",
  "modified_by": "Administrator",
  "module": "Finance",
  "name": "Fee Invoice",
