@@ -217,3 +217,84 @@ def resend(application):
 	else:
 		frappe.msgprint(_("Nothing outstanding to send."), indicator="orange")
 	return report
+
+
+# ---------------------------------------------------------------------------
+# setup diagnostics
+# ---------------------------------------------------------------------------
+
+
+@frappe.whitelist()
+def mail_status(send_test_to=None):
+	"""Report whether outgoing email is usable, and optionally prove it.
+
+	Run after configuring the Email Account:
+
+	    bench --site online.sibbc.org execute \
+	        sibbcs.admissions.notifications.mail_status \
+	        --kwargs "{'send_test_to': 'you@example.com'}"
+
+	Deliberately never takes a password. The account is configured in Desk,
+	where Frappe stores the credential encrypted; this only reads the result.
+	"""
+	frappe.only_for(("System Manager", "Administrator"))
+
+	accounts = frappe.get_all(
+		"Email Account",
+		fields=["name", "email_id", "smtp_server", "smtp_port", "use_tls",
+		        "enable_outgoing", "default_outgoing"],
+	)
+
+	default = frappe.db.get_value(
+		"Email Account", {"default_outgoing": 1, "enable_outgoing": 1},
+		["name", "email_id", "smtp_server", "smtp_port"], as_dict=True,
+	)
+
+	print("=== Email Accounts ===")
+	for a in accounts:
+		flag = " <- DEFAULT OUTGOING" if a.default_outgoing and a.enable_outgoing else ""
+		print("  %-26s %-26s %s:%s tls=%s%s" % (
+			a.name, a.email_id, a.smtp_server or "-", a.smtp_port or "-",
+			a.use_tls, flag))
+	if not accounts:
+		print("  (none)")
+
+	print("=== Verdict ===")
+	if not default:
+		print("  NOT USABLE - no account is both enabled and default outgoing.")
+		return {"ok": False, "reason": "no default outgoing account"}
+
+	print(f"  Usable: {default.email_id} via {default.smtp_server}:{default.smtp_port}")
+
+	pending = 0
+	for name in frappe.get_all(
+		"Admission Application",
+		filters={"workflow_state": ("in", ["In Review", "Admitted", "Onboarded"])},
+		pluck="name",
+	):
+		pending += frappe.db.count(
+			"Reference Request", {"parent": name, "sent_on": ("is", "not set")}
+		)
+		pending += frappe.db.count(
+			"Mentor Consent", {"parent": name, "sent_on": ("is", "not set")}
+		)
+	print(f"  Requests waiting to be sent: {pending}")
+
+	if send_test_to:
+		try:
+			frappe.sendmail(
+				recipients=[send_test_to],
+				subject="SIBBCS ERP - outgoing email test",
+				message=(
+					"<p>If you are reading this, outgoing email works.</p>"
+					"<p>Referee and mentor requests will now be sent automatically "
+					"when an application is placed.</p>"
+				),
+				now=True,
+			)
+			print(f"  Test email sent to {send_test_to}. Check the inbox.")
+		except Exception as exc:
+			print(f"  TEST SEND FAILED: {exc}")
+			return {"ok": False, "reason": str(exc)}
+
+	return {"ok": True, "account": default.email_id, "pending_requests": pending}
