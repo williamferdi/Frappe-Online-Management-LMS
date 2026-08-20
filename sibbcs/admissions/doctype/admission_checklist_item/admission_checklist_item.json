@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-20 12:55:26.594789",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "step_no",
+  "step",
+  "status",
+  "owner_role",
+  "remarks",
+  "sb_audit",
+  "updated_by",
+  "cb_audit",
+  "updated_on"
+ ],
+ "fields": [
+  {
+   "columns": 1,
+   "fieldname": "step_no",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "#",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "columns": 3,
+   "fieldname": "step",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Step",
+   "options": "Full Application Review\nApplicant Documents Review\nReference 1 Review\nReference 2 Review\nScholarship Form Review\nMentor Form Review\nLMS Account Creation\nEntrance Exam Review\nZoom Interview Review\nAdmission Fee Status\nAdmission Decision\nManual Reading Review\nOnboarding Status",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "description": "Only statuses valid for this step are accepted; the server rejects the rest.",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Acknowledged\nAdmitted\nApproved\nAwaiting\nAwaiting Onboarding\nAwaiting Review\nCleared\nCreated\nDeferred\nFailed\nLink Sent\nNeeds Admin Inspection\nNot Applicable\nOnboarded\nPaid\nPartial Submission\nPassed\nReceived\nRejected\nRequest Sent\nResubmit Requested\nReviewed\nScheduled\nSent\nUnder Review\nVerified\nWaived",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "owner_role",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Owner",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "sb_audit",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "updated_by",
+   "fieldtype": "Link",
+   "label": "Updated By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_audit",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "updated_on",
+   "fieldtype": "Datetime",
+   "label": "Updated On",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-20 12:55:26.594789",
+ "modified_by": "Administrator",
+ "module": "Admissions",
+ "name": "Admission Checklist Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

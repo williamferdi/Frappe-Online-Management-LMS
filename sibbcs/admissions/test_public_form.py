@@ -184,8 +184,8 @@ class TestPublicApplication(FrappeTestCase):
 
 		doc = frappe.get_doc("Admission Application", result["application"])
 		self.assertTrue(doc.application_fee_paid)
-		self.assertEqual(state, "Submitted")
-		self.assertEqual(doc.workflow_state, "Submitted")
+		self.assertEqual(state, "In Review")
+		self.assertEqual(doc.workflow_state, "In Review")
 
 	def test_marking_paid_twice_is_harmless(self):
 		"""Razorpay retries webhooks."""
@@ -194,7 +194,7 @@ class TestPublicApplication(FrappeTestCase):
 		result = submit_application(**payload(email="gate5@example.invalid"))
 		mark_application_fee_paid(result["application"])
 		state = mark_application_fee_paid(result["application"])
-		self.assertEqual(state, "Submitted")
+		self.assertEqual(state, "In Review")
 
 	def test_payment_status_reports_the_gate(self):
 		from sibbcs.admissions.public_form import payment_status

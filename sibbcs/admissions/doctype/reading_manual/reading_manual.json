@@ -1,0 +1,150 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:manual_title",
+ "creation": "2026-08-20 12:55:28.008836",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_identity",
+  "manual_title",
+  "version",
+  "cb_identity",
+  "is_active",
+  "require_scroll",
+  "sb_scope",
+  "applies_to_programs",
+  "sb_content",
+  "content",
+  "attachment"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_identity",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "manual_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "version",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Version"
+  },
+  {
+   "fieldname": "cb_identity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Active"
+  },
+  {
+   "default": "1",
+   "description": "Enable the acknowledge button only after the reader reaches the end.",
+   "fieldname": "require_scroll",
+   "fieldtype": "Check",
+   "label": "Require Scroll To End"
+  },
+  {
+   "fieldname": "sb_scope",
+   "fieldtype": "Section Break",
+   "label": "Applies To"
+  },
+  {
+   "fieldname": "applies_to_programs",
+   "fieldtype": "Table",
+   "label": "Programs",
+   "options": "Reading Manual Program"
+  },
+  {
+   "fieldname": "sb_content",
+   "fieldtype": "Section Break",
+   "label": "Content"
+  },
+  {
+   "description": "Shown on the acknowledgement page. Leave blank to use the attachment only.",
+   "fieldname": "content",
+   "fieldtype": "Text Editor",
+   "label": "Content"
+  },
+  {
+   "fieldname": "attachment",
+   "fieldtype": "Attach",
+   "label": "Attachment"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-20 13:02:09.236227",
+ "modified_by": "Administrator",
+ "module": "Admissions",
+ "name": "Reading Manual",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Admissions Officer"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Student"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

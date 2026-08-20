@@ -22,10 +22,79 @@ class AdmissionApplication(Document):
 
 	def before_insert(self):
 		self.issue_tokens()
+		self.seed_checklist()
 
 	def before_save(self):
 		# New referees or mentors added later must also get links.
 		self.issue_tokens()
+		self.seed_checklist()
+		self.mirror_gates_to_checklist()
+
+	def on_update(self):
+		from sibbcs.admissions.checklist import sync_overall_state
+
+		sync_overall_state(self)
+
+	def seed_checklist(self):
+		"""Every application carries the 13 tracked steps."""
+		from sibbcs.admissions.checklist import seed
+
+		seed(self)
+
+	def mirror_gates_to_checklist(self):
+		"""Keep the checklist honest about facts recorded elsewhere.
+
+		Documents, references, the mentor form and the admission fee are all
+		captured on other parts of the record. Reflecting them here means an
+		officer never has to tick the same fact twice, and the board cannot
+		drift from the data.
+		"""
+		from sibbcs.admissions.checklist import is_done, statuses_for
+
+		rows = {int(r.step_no): r for r in (self.get("checklist") or []) if r.step_no}
+
+		def move(step_no, status):
+			"""Set a row in place. No save -- this runs inside before_save, and
+			checklist.set_status() saves, which would recurse forever."""
+			row = rows.get(step_no)
+			if not row or status not in statuses_for(step_no):
+				return
+			# Never walk a step backwards out of a completed state; an officer's
+			# explicit decision outranks anything inferred here.
+			if row.status == status or is_done(step_no, row.status):
+				return
+			row.status = status
+			row.updated_by = frappe.session.user
+			row.updated_on = frappe.utils.now_datetime()
+
+		# 2 - documents
+		supplied = [d for d in self.application_documents if d.file]
+		if self.docs_verified:
+			move(2, "Verified")
+		elif supplied and len(supplied) < len(REQUIRED_DOCUMENTS):
+			move(2, "Partial Submission")
+		elif supplied:
+			move(2, "Awaiting Review")
+
+		# 3 and 4 - the two referees, tracked separately
+		for index, row in enumerate(self.reference_requests[:2]):
+			step_no = 3 + index
+			if row.submitted_on:
+				move(step_no, "Received")
+			elif row.sent_on:
+				move(step_no, "Request Sent")
+
+		# 6 - mentor
+		mentor = self.mentor_consents[0] if self.mentor_consents else None
+		if mentor:
+			if mentor.consented_on:
+				move(6, "Received")
+			elif mentor.sent_on:
+				move(6, "Request Sent")
+
+		# 10 - admission fee
+		if self.admission_fee_paid:
+			move(10, "Paid")
 
 	# -- derived fields ---------------------------------------------------
 

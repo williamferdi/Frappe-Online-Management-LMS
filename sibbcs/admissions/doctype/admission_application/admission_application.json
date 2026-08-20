@@ -36,6 +36,8 @@
   "entry_level",
   "sb_workflow",
   "workflow_state",
+  "checklist",
+  "sb_checklist",
   "sb_gates",
   "application_fee_paid",
   "docs_verified",
@@ -50,8 +52,13 @@
   "reference_requests",
   "sb_mentor",
   "mentor_consents",
+  "manual_acknowledgements",
+  "sb_manual",
   "sb_outcome",
   "student",
+  "onboard_term",
+  "onboard_level",
+  "sb_onboarding",
   "scholarship_request",
   "cb_outcome",
   "enrolled_on",
@@ -347,12 +354,53 @@
    "label": "Scholarship Request",
    "options": "Scholarship Request",
    "read_only": 1
+  },
+  {
+   "fieldname": "checklist",
+   "fieldtype": "Table",
+   "label": "Checklist",
+   "options": "Admission Checklist Item"
+  },
+  {
+   "fieldname": "sb_checklist",
+   "fieldtype": "Section Break",
+   "label": "Admission Checklist"
+  },
+  {
+   "fieldname": "manual_acknowledgements",
+   "fieldtype": "Table",
+   "label": "Manuals",
+   "options": "Manual Acknowledgement"
+  },
+  {
+   "fieldname": "sb_manual",
+   "fieldtype": "Section Break",
+   "label": "Manual Reading"
+  },
+  {
+   "description": "Defaults to the intake term if left blank.",
+   "fieldname": "onboard_term",
+   "fieldtype": "Link",
+   "label": "Admit into Term",
+   "options": "Academic Term"
+  },
+  {
+   "description": "Decided at step 13. Overrides the old always-Level-1 rule; the enrollment is created at this level.",
+   "fieldname": "onboard_level",
+   "fieldtype": "Select",
+   "label": "Admit at Level",
+   "options": "\n1\n2\n3\n4"
+  },
+  {
+   "fieldname": "sb_onboarding",
+   "fieldtype": "Section Break",
+   "label": "Onboarding Decision"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-10 13:01:18.247888",
+ "modified": "2026-08-20 13:02:06.892821",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Admission Application",

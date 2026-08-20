@@ -83,6 +83,9 @@ MATRIX = {
 		full(SM), full(OFFICER), read(REGISTRAR), read(COORDINATOR)
 	],
 	"Interview Record": [full(SM), full(OFFICER), read(REGISTRAR), read(COORDINATOR)],
+	"Reading Manual": [
+		full(SM), full(REGISTRAR), read(OFFICER), read(COORDINATOR), read(STUDENT)
+	],
 
 	# --- Finance ----------------------------------------------------------
 	"Fee Type": [full(SM), full(ACCOUNTS), read(REGISTRAR)],
@@ -103,6 +106,7 @@ FORBIDDEN_CREATE = {
 	"Course Registration": [STUDENT],
 	"Fee Invoice": [STUDENT],
 	"Payment Entry": [STUDENT],
+	"Reading Manual": [STUDENT, FACULTY, FACILITATOR],
 }
 
 

@@ -149,33 +149,20 @@ def application_fee_invoice(application):
 def mark_application_fee_paid(application):
 	"""Flip the gate and place the application.
 
-	Called from the Razorpay webhook. Advancing the workflow needs the
-	Admissions Officer role, so it runs as Administrator -- the payment itself
-	is the authorisation, and it has already been signature-verified upstream.
+	Called from the payment webhook. There is no Frappe Workflow to advance any
+	more -- the 13-step checklist owns the process, and `workflow_state` is a
+	derived summary. Paying the application fee is what moves an application out
+	of Draft and onto the review board.
 	"""
+	from sibbcs.admissions.checklist import sync_overall_state
+
 	doc = frappe.get_doc("Admission Application", application)
 
 	if not doc.application_fee_paid:
 		doc.db_set("application_fee_paid", 1, update_modified=False)
-
-	if (doc.workflow_state or "Draft") != "Draft":
-		return doc.workflow_state
-
-	from frappe.model.workflow import apply_workflow
-
-	original_user = frappe.session.user
-	try:
-		frappe.set_user("Administrator")
 		doc.reload()
-		apply_workflow(doc, "Submit Application")
-	except Exception:
-		frappe.log_error(title=f"Could not place application {application} after payment")
-		# The fee is recorded either way; an officer can advance it by hand.
-	finally:
-		frappe.set_user(original_user)
 
-	doc.reload()
-	return doc.workflow_state
+	return sync_overall_state(doc)
 
 
 def raise_admission_fee(student, program_enrollment=None, program=None):
