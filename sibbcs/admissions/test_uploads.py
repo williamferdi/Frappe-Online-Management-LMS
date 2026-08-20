@@ -219,3 +219,63 @@ class TestEducationFields(FrappeTestCase):
 		)
 		doc = frappe.get_doc("Admission Application", result["application"])
 		self.assertTrue(doc.photo, "photo field is empty, so nothing renders top-right")
+
+
+class TestChecklistGateOnSave(FrappeTestCase):
+	"""The gates must hold on a plain form save, not just through the API.
+
+	An officer works the grid and presses Save; that path never calls
+	checklist.set_status(), so without validation the gates are decorative
+	exactly where they matter most.
+	"""
+
+	def _application(self, email):
+		return submit_application(**payload(email=email))["application"]
+
+	def _row(self, doc, step_no):
+		return next(r for r in doc.checklist if int(r.step_no) == step_no)
+
+	def test_grid_edit_cannot_bypass_a_gate(self):
+		doc = frappe.get_doc("Admission Application", self._application("gg1@example.invalid"))
+		self._row(doc, 8).status = "Passed"  # step 7 still Awaiting
+		with self.assertRaises(frappe.ValidationError):
+			doc.save(ignore_permissions=True)
+
+	def test_grid_edit_allows_progress_short_of_completion(self):
+		"""Gates guard completion, not progress: Scheduled is fine any time."""
+		doc = frappe.get_doc("Admission Application", self._application("gg2@example.invalid"))
+		self._row(doc, 8).status = "Scheduled"
+		doc.save(ignore_permissions=True)
+		doc.reload()
+		self.assertEqual(self._row(doc, 8).status, "Scheduled")
+
+	def test_grid_edit_works_once_the_gate_opens(self):
+		doc = frappe.get_doc("Admission Application", self._application("gg3@example.invalid"))
+		self._row(doc, 7).status = "Created"
+		doc.save(ignore_permissions=True)
+		doc.reload()
+		self._row(doc, 8).status = "Passed"
+		doc.save(ignore_permissions=True)
+		doc.reload()
+		self.assertEqual(self._row(doc, 8).status, "Passed")
+
+	def test_grid_edit_rejects_a_status_from_another_step(self):
+		doc = frappe.get_doc("Admission Application", self._application("gg4@example.invalid"))
+		self._row(doc, 10).status = "Onboarded"
+		with self.assertRaises(frappe.ValidationError):
+			doc.save(ignore_permissions=True)
+
+	def test_unrelated_edit_does_not_re_judge_settled_rows(self):
+		"""A record already in a valid combination must stay editable."""
+		doc = frappe.get_doc("Admission Application", self._application("gg5@example.invalid"))
+		self._row(doc, 10).status = "Paid"
+		doc.save(ignore_permissions=True)
+		doc.reload()
+		self._row(doc, 11).status = "Admitted"
+		doc.save(ignore_permissions=True)
+		doc.reload()
+
+		doc.church_name = "Somewhere Else"
+		doc.save(ignore_permissions=True)
+		doc.reload()
+		self.assertEqual(self._row(doc, 11).status, "Admitted")

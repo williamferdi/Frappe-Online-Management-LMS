@@ -24,6 +24,50 @@ class AdmissionApplication(Document):
 		self.validate_dob()
 		self.validate_references()
 		self.set_docs_verified()
+		self.validate_checklist()
+
+	def validate_checklist(self):
+		"""Enforce the step gates on a plain form save.
+
+		checklist.set_status() guards the API path, but an officer working the
+		grid and pressing Save never goes through it -- so without this the
+		gates are decorative exactly where they are most likely to be used.
+
+		Only rows whose status *changed* in this save are judged, so an
+		application already sitting in a valid combination stays editable, and
+		a backfilled record is never made unsavable by history.
+		"""
+		from sibbcs.admissions.checklist import blocked_reason, is_done, statuses_for
+
+		previous = self.get_doc_before_save()
+		was = {}
+		if previous:
+			was = {
+				int(r.step_no): r.status
+				for r in (previous.get("checklist") or [])
+				if r.step_no
+			}
+
+		for row in self.get("checklist") or []:
+			if not row.step_no:
+				continue
+			step_no = int(row.step_no)
+
+			if row.status not in statuses_for(step_no):
+				frappe.throw(
+					_("{0} is not a valid status for step {1} ({2}). Allowed: {3}").format(
+						row.status, step_no, row.step, ", ".join(statuses_for(step_no))
+					),
+					title=_("Invalid Status"),
+				)
+
+			if row.status == was.get(step_no):
+				continue
+
+			if is_done(step_no, row.status):
+				reason = blocked_reason(self, step_no)
+				if reason:
+					frappe.throw(reason, title=_("Step Blocked"))
 
 	def before_insert(self):
 		self.issue_tokens()
