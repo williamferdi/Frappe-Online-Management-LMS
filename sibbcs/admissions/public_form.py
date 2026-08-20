@@ -304,24 +304,54 @@ def payment_status(application):
 	}
 
 
+RATE_LIMIT_PER_HOUR = 5
+
+
 def _rate_limit():
 	"""Cap submissions per IP. Best-effort -- never blocks a real applicant
-	because the cache is unavailable."""
+	because the cache is unavailable.
+
+	Skipped under tests: there is no request IP, so every test would share one
+	counter, and the cache survives the per-test rollback. Without this the
+	suite starts failing purely because it grew past five applications. The
+	limiter itself is covered by test_rate_limit_blocks_a_flood.
+	"""
+	if frappe.flags.in_test:
+		return
+
+	# getattr, not frappe.local.request_ip: outside a web request that attribute
+	# does not exist and raises. The previous version wrapped the whole function
+	# in `except Exception: pass`, so that raise silently disabled the limiter
+	# rather than limiting anything.
+	ip = getattr(frappe.local, "request_ip", None) or "unknown"
+	key = f"sibbcs:apply:{ip}"
+
+	# Redis INCR, not get_value/set_value. Two reasons:
+	#
+	# 1. Correctness. get-then-set is a read-modify-write, so two submissions
+	#    arriving together both read 4 and both write 5 -- the cap leaks.
+	#    INCR is atomic.
+	# 2. frappe.cache().set_value(..., expires_in_sec=...) deliberately does NOT
+	#    populate frappe.local.cache, while a preceding get_value miss DOES
+	#    cache None there. The counter then reads back as None for the rest of
+	#    the process, so the limiter silently never fires.
 	try:
-		ip = frappe.local.request_ip or "unknown"
-		key = f"sibbcs:apply:{ip}"
 		cache = frappe.cache()
-		count = cache.get_value(key) or 0
-		if int(count) >= 5:
-			frappe.throw(
-				_("Too many applications from this connection. Please try again later."),
-				title=_("Slow Down"),
-			)
-		cache.set_value(key, int(count) + 1, expires_in_sec=3600)
-	except frappe.ValidationError:
-		raise
+		redis_key = cache.make_key(key)
+		count = cache.incr(redis_key)
+		if count == 1:
+			cache.expire(redis_key, 3600)
 	except Exception:
-		pass
+		# A cache outage must never stop a genuine applicant applying.
+		frappe.log_error(title="Application rate limit could not reach the cache")
+		return
+
+	# Outside the try, so it can never be swallowed.
+	if count > RATE_LIMIT_PER_HOUR:
+		frappe.throw(
+			_("Too many applications from this connection. Please try again later."),
+			title=_("Slow Down"),
+		)
 
 
 def outgoing_mail_configured():

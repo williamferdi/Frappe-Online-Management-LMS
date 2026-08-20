@@ -315,3 +315,144 @@ class TestRequestDispatch(FrappeTestCase):
 			notifications.dispatch_requests(result["application"])
 
 		self.assertEqual(len(sent), first, "requests were sent twice")
+
+
+class TestResendRequests(FrappeTestCase):
+	"""Re-sending a referee or mentor link on demand."""
+
+	def _placed(self, email):
+		from sibbcs.finance.fees import mark_application_fee_paid
+
+		result = submit_application(**payload(email=email))
+		frappe.db.set_value(
+			"Admission Application", result["application"], "workflow_state", "In Review"
+		)
+		return result["application"]
+
+	def test_list_requests_shows_everyone_and_their_state(self):
+		from sibbcs.admissions.notifications import list_requests
+
+		app = self._placed("rs1@example.invalid")
+		data = list_requests(app)
+
+		kinds = [r["kind"] for r in data["rows"]]
+		self.assertEqual(kinds.count("reference"), 2)
+		self.assertEqual(kinds.count("mentor"), 1)
+		for row in data["rows"]:
+			self.assertIn("sent_on", row)
+			self.assertFalse(row["done"])
+
+	def test_resend_reaches_an_already_sent_referee(self):
+		"""The gap this closes: dispatch skips sent rows, so a referee who lost
+		the email had no path."""
+		from unittest.mock import patch
+
+		from sibbcs.admissions import notifications
+
+		app = self._placed("rs2@example.invalid")
+		doc = frappe.get_doc("Admission Application", app)
+		target = doc.reference_requests[0]
+
+		sent = []
+		with patch.object(notifications, "outgoing_configured", return_value=True), patch.object(
+			frappe, "sendmail", side_effect=lambda **kw: sent.append(kw["recipients"][0])
+		):
+			notifications.dispatch_requests(app)          # first send
+			first = len(sent)
+			notifications.dispatch_requests(app)          # no-op, already sent
+			self.assertEqual(len(sent), first)
+
+			notifications.resend_selected(
+				app, [{"kind": "reference", "row": target.name}]
+			)
+
+		self.assertEqual(len(sent), first + 1)
+		self.assertEqual(sent[-1], target.referee_email)
+
+	def test_resend_refuses_someone_who_already_replied(self):
+		"""Their token is spent; a fresh email would only confuse them."""
+		from unittest.mock import patch
+
+		from sibbcs.admissions import notifications
+
+		app = self._placed("rs3@example.invalid")
+		doc = frappe.get_doc("Admission Application", app)
+		target = doc.reference_requests[0]
+		frappe.db.set_value(
+			"Reference Request", target.name, "submitted_on", frappe.utils.now_datetime()
+		)
+
+		sent = []
+		with patch.object(notifications, "outgoing_configured", return_value=True), patch.object(
+			frappe, "sendmail", side_effect=lambda **kw: sent.append(kw["recipients"][0])
+		):
+			result = notifications.resend_selected(
+				app, [{"kind": "reference", "row": target.name}]
+			)
+
+		self.assertEqual(sent, [])
+		self.assertTrue(any("already replied" in r for r in result["refused"]))
+
+	def test_resend_targets_only_the_chosen_person(self):
+		from unittest.mock import patch
+
+		from sibbcs.admissions import notifications
+
+		app = self._placed("rs4@example.invalid")
+		doc = frappe.get_doc("Admission Application", app)
+		mentor = doc.mentor_consents[0]
+
+		sent = []
+		with patch.object(notifications, "outgoing_configured", return_value=True), patch.object(
+			frappe, "sendmail", side_effect=lambda **kw: sent.append(kw["recipients"][0])
+		):
+			notifications.resend_selected(app, [{"kind": "mentor", "row": mentor.name}])
+
+		self.assertEqual(sent, [mentor.mentor_email])
+
+	def test_resend_needs_a_selection(self):
+		from unittest.mock import patch
+
+		from sibbcs.admissions import notifications
+
+		app = self._placed("rs5@example.invalid")
+		with patch.object(notifications, "outgoing_configured", return_value=True):
+			with self.assertRaises(frappe.ValidationError):
+				notifications.resend_selected(app, [])
+
+	def test_resend_without_mail_configured_is_refused_clearly(self):
+		from sibbcs.admissions import notifications
+
+		app = self._placed("rs6@example.invalid")
+		doc = frappe.get_doc("Admission Application", app)
+		with self.assertRaises(frappe.ValidationError):
+			notifications.resend_selected(
+				app, [{"kind": "reference", "row": doc.reference_requests[0].name}]
+			)
+
+
+class TestRateLimit(FrappeTestCase):
+	"""The limiter is skipped under tests, so cover it explicitly."""
+
+	def test_rate_limit_blocks_a_flood(self):
+		from sibbcs.admissions.public_form import RATE_LIMIT_PER_HOUR, _rate_limit
+
+		cache = frappe.cache()
+		redis_key = cache.make_key(f"sibbcs:apply:{getattr(frappe.local, 'request_ip', None) or 'unknown'}")
+		cache.delete(redis_key)
+
+		frappe.flags.in_test = False
+		try:
+			for _ in range(RATE_LIMIT_PER_HOUR):
+				_rate_limit()
+			with self.assertRaises(frappe.ValidationError):
+				_rate_limit()
+		finally:
+			frappe.flags.in_test = True
+			cache.delete(redis_key)
+	def test_rate_limit_is_skipped_under_tests(self):
+		"""Otherwise the suite fails once it grows past five applications."""
+		from sibbcs.admissions.public_form import _rate_limit
+
+		for _ in range(20):
+			_rate_limit()

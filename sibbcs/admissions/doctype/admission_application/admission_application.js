@@ -7,7 +7,15 @@ frappe.ui.form.on("Admission Application", {
 
 		frm.trigger("show_gate_status");
 
-		if (frm.doc.reference_requests?.some((r) => !r.submitted_on)) {
+		if (frm.doc.reference_requests?.length || frm.doc.mentor_consents?.length) {
+			frm.add_custom_button(
+				__("Resend Reference / Mentor Email"),
+				() => frm.trigger("open_resend_dialog"),
+				__("Admissions")
+			);
+		}
+
+		if (frm.doc.reference_requests?.some((r) => !r.submitted_on && !r.sent_on)) {
 			frm.add_custom_button(
 				__("Send Reference Requests"),
 				() => frm.trigger("send_reference_requests"),
@@ -15,7 +23,7 @@ frappe.ui.form.on("Admission Application", {
 			);
 		}
 
-		if (frm.doc.mentor_consents?.some((r) => !r.consented_on)) {
+		if (frm.doc.mentor_consents?.some((r) => !r.consented_on && !r.sent_on)) {
 			frm.add_custom_button(
 				__("Send Mentor Consent"),
 				() => frm.trigger("send_mentor_consent"),
@@ -67,6 +75,102 @@ frappe.ui.form.on("Admission Application", {
 			`<div style="padding:4px 0">${html}</div>`,
 			__("Admission Gates")
 		);
+	},
+
+	open_resend_dialog(frm) {
+		frappe.call({
+			method: "sibbcs.admissions.notifications.list_requests",
+			args: { application: frm.doc.name },
+			freeze: true,
+			callback: ({ message }) => {
+				if (!message) return;
+				frm.events.render_resend_dialog(frm, message);
+			},
+		});
+	},
+
+	render_resend_dialog(frm, data) {
+		if (!data.mail_configured) {
+			frappe.msgprint({
+				title: __("Email Not Configured"),
+				indicator: "orange",
+				message: __(
+					"No outgoing email account is set up, so nothing can be sent. Add one under Email Account first."
+				),
+			});
+			return;
+		}
+
+		// One checkbox per person, with where each one stands, so an officer
+		// chases the right people rather than emailing everyone again.
+		const fields = [
+			{
+				fieldtype: "HTML",
+				options: `<p class="text-muted small">${__(
+					"Select who should receive the link again. Anyone who has already replied is listed but cannot be re-sent — their link is used up."
+				)}</p>`,
+			},
+		];
+
+		let section = null;
+		data.rows.forEach((row, index) => {
+			const heading = row.kind === "reference" ? __("Referees") : __("Mentors");
+			if (heading !== section) {
+				section = heading;
+				fields.push({ fieldtype: "Section Break", label: heading });
+			}
+
+			let state;
+			if (row.done) {
+				state = `<span style="color:var(--green-600)">${__("replied")} ${
+					frappe.datetime.str_to_user(row.done_on) || ""
+				}</span>`;
+			} else if (row.sent_on) {
+				state = `${__("sent")} ${frappe.datetime.str_to_user(row.sent_on)}`;
+			} else {
+				state = `<span style="color:var(--orange-600)">${__("never sent")}</span>`;
+			}
+
+			fields.push({
+				fieldtype: "Check",
+				fieldname: `pick_${index}`,
+				label: `${frappe.utils.escape_html(row.label)} &lt;${frappe.utils.escape_html(
+					row.email || __("no email")
+				)}&gt; — ${state}`,
+				read_only: row.done || !row.email ? 1 : 0,
+				default: row.done || !row.email ? 0 : 1,
+			});
+		});
+
+		const dialog = new frappe.ui.Dialog({
+			title: __("Resend to referees and mentors"),
+			fields: fields,
+			primary_action_label: __("Send Now"),
+			primary_action: (values) => {
+				const targets = data.rows
+					.map((row, index) => ({ row, picked: values[`pick_${index}`] }))
+					.filter((entry) => entry.picked && !entry.row.done && entry.row.email)
+					.map((entry) => ({ kind: entry.row.kind, row: entry.row.row }));
+
+				if (!targets.length) {
+					frappe.msgprint(__("Select at least one person."));
+					return;
+				}
+
+				frappe.call({
+					method: "sibbcs.admissions.notifications.resend_selected",
+					args: { application: frm.doc.name, targets: JSON.stringify(targets) },
+					freeze: true,
+					freeze_message: __("Sending…"),
+					callback: () => {
+						dialog.hide();
+						frm.reload_doc();
+					},
+				});
+			},
+		});
+
+		dialog.show();
 	},
 
 	send_reference_requests(frm) {

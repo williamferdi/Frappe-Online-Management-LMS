@@ -58,8 +58,62 @@ def _mark_step(application, step_no, status):
 	)
 
 
+def send_reference_row(doc, row, index=0):
+	"""Email one referee their link. Returns the address, or None on failure."""
+	if not row.referee_email:
+		return None
+	frappe.sendmail(
+		recipients=[row.referee_email],
+		subject=_("Reference request for {0}").format(doc.full_name),
+		template="reference_request",
+		args={
+			"referee_name": row.referee_name,
+			"applicant_name": doc.full_name,
+			"program": doc.program,
+			"link": token_url("reference", row.token),
+		},
+		header=[_("Reference Request"), "blue"],
+		now=False,
+	)
+	frappe.db.set_value(
+		"Reference Request", row.name, "sent_on", now_datetime(), update_modified=False
+	)
+	_mark_step(doc.name, REFEREE_STEPS.get(index, 3), "Request Sent")
+	return row.referee_email
+
+
+def send_mentor_row(doc, row):
+	"""Email one mentor their consent link."""
+	if not row.mentor_email:
+		return None
+	frappe.sendmail(
+		recipients=[row.mentor_email],
+		subject=_("Mentor consent for {0}").format(doc.full_name),
+		template="mentor_consent_request",
+		args={
+			"mentor_name": row.mentor_name,
+			"applicant_name": doc.full_name,
+			"program": doc.program,
+			"link": token_url("mentor-consent", row.token),
+		},
+		header=[_("Mentor Consent"), "blue"],
+		now=False,
+	)
+	frappe.db.set_value(
+		"Mentor Consent", row.name, "sent_on", now_datetime(), update_modified=False
+	)
+	_mark_step(doc.name, MENTOR_STEP, "Request Sent")
+	return row.mentor_email
+
+
 def dispatch_requests(application, force=False):
-	"""Send any outstanding referee and mentor requests for one application."""
+	"""Send any outstanding referee and mentor requests for one application.
+
+	`force` re-sends rows already stamped `sent_on` -- used by the resend
+	dialog, for a referee who lost the email or whose address was corrected.
+	A row that has already been *submitted* is never re-sent: its token is
+	spent and the form would only tell them so.
+	"""
 	report = {"application": application, "referees": [], "mentor": [], "skipped": None}
 
 	if not outgoing_configured():
@@ -72,52 +126,22 @@ def dispatch_requests(application, force=False):
 	doc = frappe.get_doc("Admission Application", application)
 
 	for index, row in enumerate(doc.reference_requests):
-		if (row.sent_on and not force) or row.submitted_on or not row.referee_email:
+		if (row.sent_on and not force) or row.submitted_on:
 			continue
 		try:
-			frappe.sendmail(
-				recipients=[row.referee_email],
-				subject=_("Reference request for {0}").format(doc.full_name),
-				template="reference_request",
-				args={
-					"referee_name": row.referee_name,
-					"applicant_name": doc.full_name,
-					"program": doc.program,
-					"link": token_url("reference", row.token),
-				},
-				header=[_("Reference Request"), "blue"],
-				now=False,
-			)
-			frappe.db.set_value(
-				"Reference Request", row.name, "sent_on", now_datetime(), update_modified=False
-			)
-			_mark_step(application, REFEREE_STEPS.get(index, 3), "Request Sent")
-			report["referees"].append(row.referee_email)
+			sent = send_reference_row(doc, row, index)
+			if sent:
+				report["referees"].append(sent)
 		except Exception:
 			frappe.log_error(title=f"Reference request failed for {application}")
 
 	for row in doc.mentor_consents:
-		if (row.sent_on and not force) or row.consented_on or not row.mentor_email:
+		if (row.sent_on and not force) or row.consented_on:
 			continue
 		try:
-			frappe.sendmail(
-				recipients=[row.mentor_email],
-				subject=_("Mentor consent for {0}").format(doc.full_name),
-				template="mentor_consent_request",
-				args={
-					"mentor_name": row.mentor_name,
-					"applicant_name": doc.full_name,
-					"program": doc.program,
-					"link": token_url("mentor-consent", row.token),
-				},
-				header=[_("Mentor Consent"), "blue"],
-				now=False,
-			)
-			frappe.db.set_value(
-				"Mentor Consent", row.name, "sent_on", now_datetime(), update_modified=False
-			)
-			_mark_step(application, MENTOR_STEP, "Request Sent")
-			report["mentor"].append(row.mentor_email)
+			sent = send_mentor_row(doc, row)
+			if sent:
+				report["mentor"].append(sent)
 		except Exception:
 			frappe.log_error(title=f"Mentor consent request failed for {application}")
 
@@ -298,3 +322,133 @@ def mail_status(send_test_to=None):
 			return {"ok": False, "reason": str(exc)}
 
 	return {"ok": True, "account": default.email_id, "pending_requests": pending}
+
+
+# ---------------------------------------------------------------------------
+# resending on demand
+# ---------------------------------------------------------------------------
+
+
+@frappe.whitelist()
+def list_requests(application):
+	"""Every referee and mentor on an application, with where each one stands.
+
+	Feeds the resend dialog, so an officer can see who has replied, who was
+	emailed and when, and who was never contacted at all -- before choosing
+	whom to chase.
+	"""
+	doc = frappe.get_doc("Admission Application", application)
+	doc.check_permission("read")
+
+	rows = []
+	for index, row in enumerate(doc.reference_requests):
+		rows.append(
+			{
+				"kind": "reference",
+				"row": row.name,
+				"label": row.referee_name or _("Referee {0}").format(index + 1),
+				"email": row.referee_email,
+				"detail": row.referee_type or "",
+				"sent_on": str(row.sent_on) if row.sent_on else None,
+				"done": bool(row.submitted_on),
+				"done_on": str(row.submitted_on) if row.submitted_on else None,
+			}
+		)
+
+	for row in doc.mentor_consents:
+		rows.append(
+			{
+				"kind": "mentor",
+				"row": row.name,
+				"label": row.mentor_name or _("Mentor"),
+				"email": row.mentor_email,
+				"detail": row.church or "",
+				"sent_on": str(row.sent_on) if row.sent_on else None,
+				"done": bool(row.consented_on),
+				"done_on": str(row.consented_on) if row.consented_on else None,
+			}
+		)
+
+	return {
+		"application": doc.name,
+		"applicant": doc.full_name,
+		"mail_configured": outgoing_configured(),
+		"rows": rows,
+	}
+
+
+@frappe.whitelist()
+def resend_selected(application, targets):
+	"""Re-send to specific referees or mentors, even if already sent once.
+
+	`targets` is a JSON list of {"kind": "reference"|"mentor", "row": <name>}.
+	Rows that have already replied are refused rather than silently skipped --
+	their token is spent, so a fresh email would only confuse the recipient.
+	"""
+	import json
+
+	doc = frappe.get_doc("Admission Application", application)
+	doc.check_permission("write")
+
+	if not outgoing_configured():
+		frappe.throw(
+			_(
+				"No outgoing email account is configured, so nothing can be sent. "
+				"Set one up under Email Account first."
+			),
+			title=_("Email Not Configured"),
+		)
+
+	if isinstance(targets, str):
+		targets = json.loads(targets)
+
+	wanted = {(t.get("kind"), t.get("row")) for t in (targets or [])}
+	if not wanted:
+		frappe.throw(_("Select at least one person to resend to."))
+
+	sent, refused = [], []
+
+	for index, row in enumerate(doc.reference_requests):
+		if ("reference", row.name) not in wanted:
+			continue
+		if row.submitted_on:
+			refused.append(_("{0} has already replied").format(row.referee_name))
+			continue
+		try:
+			result = send_reference_row(doc, row, index)
+			sent.append(result) if result else refused.append(
+				_("{0} has no email address").format(row.referee_name)
+			)
+		except Exception:
+			frappe.log_error(title=f"Resend to referee failed for {application}")
+			refused.append(_("{0} — sending failed").format(row.referee_name))
+
+	for row in doc.mentor_consents:
+		if ("mentor", row.name) not in wanted:
+			continue
+		if row.consented_on:
+			refused.append(_("{0} has already consented").format(row.mentor_name))
+			continue
+		try:
+			result = send_mentor_row(doc, row)
+			sent.append(result) if result else refused.append(
+				_("{0} has no email address").format(row.mentor_name)
+			)
+		except Exception:
+			frappe.log_error(title=f"Resend to mentor failed for {application}")
+			refused.append(_("{0} — sending failed").format(row.mentor_name))
+
+	frappe.clear_messages()
+
+	if sent:
+		frappe.msgprint(
+			_("Sent to: {0}").format(", ".join(sent)),
+			title=_("Requests Sent"),
+			indicator="green",
+		)
+	if refused:
+		frappe.msgprint(
+			"<br>".join(refused), title=_("Not Sent"), indicator="orange"
+		)
+
+	return {"sent": sent, "refused": refused}
