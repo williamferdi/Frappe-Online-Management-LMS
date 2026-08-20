@@ -169,6 +169,23 @@ child row of one parent — a reference token is rejected by the mentor form. Pa
 `sibbcs.admissions.tokens.submit`, which writes only fields present in the row's own meta,
 so a crafted payload cannot reach `parent`, `token`, or another document.
 
+### Step 7 — `sibbcs/admissions/lms_account.py`
+
+Creates the applicant's login and sends the entrance exam link. Step 8 (Entrance Exam
+Review) is gated on it because the exam is sat inside the LMS.
+
+- **One account, kept for life.** `conversion._create_user` adopts an existing User by
+  email, so an admitted applicant keeps the login they sat the exam with.
+- **No password is ever emailed** — the invite carries a `/update-password?key=` link.
+  `User._reset_password` builds that URL with `get_url()`, which appends `:8000` here, so
+  the key is kept and the address rebuilt through `gateway.public_url()`.
+- The applicant gets **`LMS Student` only**; `Student` is granted at conversion.
+
+Where the exam lives is config, not code — `entrance_exam_url` wins over
+`entrance_exam_lms_course`; with the course set the applicant is also enrolled in it.
+With **neither set the account is still created** and the step reports why nothing was
+sent, rather than mailing a dead link. **Neither is set on `online.sibbc.org` yet.**
+
 ### 2.3 Formation — Phase 6, not built
 `Mentor`, `Mentor Monthly Report`, `Chapel Session` + `Chapel Attendance`,
 `Internship Record` (+ `Internship Log Entry`), `Campus Visit` + `Campus Visit Attendance`.
