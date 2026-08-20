@@ -1,9 +1,9 @@
 {% extends "templates/web.html" %}
 
-{% block title %}Reference Request{% endblock %}
+{% block title %}Spiritual and Ministerial Reference{% endblock %}
 
 {% block page_content %}
-<div class="sibbcs-token-form">
+<div class="sibbcs-reference">
 	{% if not valid %}
 		<div class="alert alert-warning">
 			<h4>This link cannot be opened</h4>
@@ -13,121 +13,160 @@
 			</p>
 		</div>
 	{% else %}
-		<h2>Reference for {{ applicant_name }}</h2>
-		<p class="text-muted">
-			{{ applicant_name }} has applied to the
-			<strong>{{ program }}</strong> program at South India Baptist Bible College
-			&amp; Seminary and named you as a referee
-			{%- if row.referee_type %} ({{ row.referee_type }}){% endif %}.
-		</p>
-		<p class="text-muted small">
-			This form can be submitted once. Your answers go directly to the Admissions
-			Office and are not shared with the applicant.
-		</p>
+		<h2>Spiritual and Ministerial Reference</h2>
 
-		<form id="reference-form" class="mt-4">
+		<div class="intro text-muted">{{ intro }}</div>
+
+		<h4 class="section-title">Please fill in the details</h4>
+
+		<form id="reference-form">
 			<div class="form-group">
-				<label for="known_duration">How long have you known the applicant?</label>
-				<input type="text" class="form-control" id="known_duration"
-				       placeholder="e.g. 6 years" required>
+				<label>Student Name</label>
+				<input type="text" class="form-control" value="{{ applicant_name }}" readonly>
+				<small class="text-muted">Applying for {{ program }}</small>
 			</div>
 
 			<div class="form-group">
-				<label for="capacity">In what capacity do you know them?</label>
-				<input type="text" class="form-control" id="capacity"
-				       placeholder="e.g. Pastor of their home church" required>
+				<label>Reference Email</label>
+				<input type="text" class="form-control"
+				       value="{{ row.referee_email or '' }}" readonly>
 			</div>
 
-			<div class="form-group">
-				<label for="character">Comments on their character and Christian walk</label>
-				<textarea class="form-control" id="character" rows="4" required></textarea>
+			{% for q in questions %}
+				<div class="form-group">
+					<label for="{{ q.fieldname }}">
+						{{ q.question }}{% if q.required %} <span class="req">*</span>{% endif %}
+					</label>
+					{% if q.options %}
+						<select class="form-control q-input" id="{{ q.fieldname }}"
+						        {% if q.required %}required{% endif %}>
+							<option value="">— Select —</option>
+							{% for opt in q.options %}
+								<option value="{{ opt }}">{{ opt }}</option>
+							{% endfor %}
+						</select>
+					{% else %}
+						<textarea class="form-control q-input" id="{{ q.fieldname }}" rows="3"
+						          maxlength="2000"></textarea>
+					{% endif %}
+				</div>
+			{% endfor %}
+
+			<div class="actions">
+				<button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
+					Submit Reference
+				</button>
+				<p class="text-muted small" style="margin-top:10px">
+					This form can be submitted once. Your answers go to the Admissions
+					Office and are not shared with the applicant.
+				</p>
 			</div>
 
-			<div class="form-group">
-				<label for="ministry">Comments on their ministry and suitability for study</label>
-				<textarea class="form-control" id="ministry" rows="4" required></textarea>
-			</div>
-
-			<div class="form-group">
-				<label for="recommendation">Your recommendation</label>
-				<select class="form-control" id="recommendation" required>
-					<option value="">Select…</option>
-					<option value="Strong">Strong — recommend without reservation</option>
-					<option value="Positive">Positive — recommend</option>
-					<option value="Neutral">Neutral — no strong view</option>
-					<option value="Negative">Negative — do not recommend</option>
-				</select>
-			</div>
-
-			<button type="submit" class="btn btn-primary" id="submit-btn">
-				Submit Reference
-			</button>
-			<div id="form-message" class="mt-3"></div>
+			<div id="form-message"></div>
 		</form>
+
+		<div id="reference-done" hidden>
+			<div class="alert alert-success">
+				<h4>Thank you</h4>
+				<p>
+					Your reference for <b>{{ applicant_name }}</b> has been received.
+					You may close this page.
+				</p>
+			</div>
+		</div>
 	{% endif %}
 </div>
 
 <style>
-	.sibbcs-token-form { max-width: 680px; margin: 0 auto; }
-	.sibbcs-token-form .form-group { margin-bottom: 1rem; }
-	.sibbcs-token-form label { font-weight: 600; }
+	.sibbcs-reference { max-width: 760px; margin: 0 auto; }
+	.sibbcs-reference .intro {
+		font-size: 14.5px; line-height: 1.65; margin: 12px 0 26px;
+		padding-left: 14px; border-left: 3px solid var(--border-color, #ddd);
+	}
+	.sibbcs-reference .section-title {
+		border-bottom: 1px solid var(--border-color, #e5e5e5);
+		padding-bottom: 8px; margin-bottom: 20px;
+	}
+	.sibbcs-reference .form-group { margin-bottom: 18px; }
+	.sibbcs-reference label { font-weight: 600; display: block; margin-bottom: 5px; }
+	.sibbcs-reference input[readonly] { background: var(--control-bg, #f4f5f6); }
+	.req { color: #c0392b; }
+	.actions { margin-top: 26px; }
+	#form-message { margin-top: 16px; }
 </style>
 
 {% if valid %}
 <script>
-document.getElementById('reference-form').addEventListener('submit', async function (event) {
-	event.preventDefault();
+(function () {
+	const form = document.getElementById('reference-form');
+	const fields = {{ questions | map(attribute='fieldname') | list | tojson }};
+	const required = {{ questions | selectattr('required') | map(attribute='fieldname') | list | tojson }};
 
-	const button = document.getElementById('submit-btn');
-	const message = document.getElementById('form-message');
-	button.disabled = true;
-	button.textContent = 'Submitting…';
-	message.innerHTML = '';
+	form.addEventListener('submit', async function (event) {
+		event.preventDefault();
 
-	const answers = {
-		known_duration: document.getElementById('known_duration').value,
-		capacity: document.getElementById('capacity').value,
-		character: document.getElementById('character').value,
-		ministry: document.getElementById('ministry').value,
-	};
+		const button = document.getElementById('submit-btn');
+		const message = document.getElementById('form-message');
+		message.innerHTML = '';
 
-	try {
-		const response = await fetch('/api/method/sibbcs.admissions.tokens.submit', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'X-Frappe-CSRF-Token': window.csrf_token || '',
-			},
-			body: JSON.stringify({
-				form_key: 'reference',
-				token: {{ token | tojson }},
-				recommendation: document.getElementById('recommendation').value,
-				response_json: JSON.stringify(answers),
-			}),
+		const answers = {};
+		fields.forEach((name) => {
+			const el = document.getElementById(name);
+			answers[name] = el ? el.value : '';
 		});
 
-		const payload = await response.json();
-		if (!response.ok) {
-			throw new Error(
-				(payload && (payload.exception || payload._server_messages)) ||
-				'Submission failed'
-			);
+		const missing = required.filter((name) => !String(answers[name] || '').trim());
+		if (missing.length) {
+			message.innerHTML =
+				'<div class="alert alert-danger">Please answer every question marked *.</div>';
+			const first = document.getElementById(missing[0]);
+			if (first) { first.focus(); first.scrollIntoView({ block: 'center' }); }
+			return;
 		}
 
-		document.getElementById('reference-form').style.display = 'none';
-		message.innerHTML =
-			'<div class="alert alert-success"><h4>Thank you</h4>' +
-			'<p>Your reference has been received. You may close this page.</p></div>';
-		message.style.display = 'block';
-	} catch (error) {
-		button.disabled = false;
-		button.textContent = 'Submit Reference';
-		message.innerHTML =
-			'<div class="alert alert-danger">Could not submit: ' +
-			String(error.message || error).replace(/<[^>]*>/g, '') +
-			'</div>';
-	}
-});
+		button.disabled = true;
+		button.textContent = 'Submitting…';
+
+		try {
+			const response = await fetch(
+				'/api/method/sibbcs.admissions.tokens.submit_reference',
+				{
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'X-Frappe-CSRF-Token': window.csrf_token || '',
+					},
+					body: JSON.stringify({
+						token: {{ token | tojson }},
+						answers: JSON.stringify(answers),
+					}),
+				}
+			);
+
+			const body = await response.json();
+			if (!response.ok) {
+				let text = 'Your reference could not be submitted.';
+				if (body && body._server_messages) {
+					try {
+						text = JSON.parse(JSON.parse(body._server_messages)[0]).message || text;
+					} catch (e) { /* keep the default */ }
+				}
+				throw new Error(text);
+			}
+
+			form.hidden = true;
+			document.getElementById('reference-done').hidden = false;
+			window.scrollTo({ top: 0, behavior: 'smooth' });
+		} catch (error) {
+			button.disabled = false;
+			button.textContent = 'Submit Reference';
+			message.innerHTML =
+				'<div class="alert alert-danger">' +
+				String(error.message || error).replace(/<[^>]*>/g, '') +
+				'</div>';
+		}
+	});
+})();
 </script>
 {% endif %}
 {% endblock %}

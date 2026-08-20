@@ -5,6 +5,7 @@ URL: /reference?token=<uuid>
 
 import frappe
 
+from sibbcs.admissions.reference_form import INTRO, questions_for_render
 from sibbcs.admissions.tokens import TokenError, get_context_for
 
 no_cache = 1
@@ -17,6 +18,8 @@ def get_context(context):
 
 	try:
 		context.update(get_context_for("reference", token))
+		context.intro = INTRO
+		context.questions = questions_for_render()
 		context.valid = True
 	except TokenError as exc:
 		context.valid = False

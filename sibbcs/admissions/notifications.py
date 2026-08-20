@@ -58,20 +58,74 @@ def _mark_step(application, step_no, status):
 	)
 
 
+def render_template(template_name, context, fallback_subject, fallback_body):
+	"""Render an Email Template record.
+
+	NOT frappe.sendmail(template=...): that looks for a Jinja *file* at
+	templates/emails/<name>.html and raises TemplateNotFound. Our templates are
+	Email Template documents on purpose, so the Admissions Office can reword
+	them in Desk without a deploy.
+
+	Falls back to a plain built-in message if the record has been deleted --
+	losing the pretty wording is far better than losing the request.
+	"""
+	if frappe.db.exists("Email Template", template_name):
+		template = frappe.get_cached_doc("Email Template", template_name)
+		body = template.get("response_html") or template.get("response") or fallback_body
+		try:
+			return (
+				frappe.render_template(template.subject or fallback_subject, context),
+				frappe.render_template(body, context),
+			)
+		except Exception:
+			frappe.log_error(title=f"Email template {template_name} failed to render")
+
+	return (
+		frappe.render_template(fallback_subject, context),
+		frappe.render_template(fallback_body, context),
+	)
+
+
+FALLBACK_REFERENCE = (
+	"Reference request for {{ applicant_name }}",
+	"<p>Dear {{ referee_name }},</p>"
+	"<p>{{ applicant_name }} has applied to the {{ program }} programme at South "
+	"India Baptist Bible College &amp; Seminary and named you as a referee.</p>"
+	"<p>Please complete the short reference form here:<br>"
+	'<a href="{{ link }}">{{ link }}</a></p>'
+	"<p>Admissions Office</p>",
+)
+
+FALLBACK_MENTOR = (
+	"Mentor consent for {{ applicant_name }}",
+	"<p>Dear {{ mentor_name }},</p>"
+	"<p>{{ applicant_name }} has applied to the {{ program }} programme at South "
+	"India Baptist Bible College &amp; Seminary and asked you to be their mentor.</p>"
+	"<p>Please confirm here:<br>"
+	'<a href="{{ link }}">{{ link }}</a></p>'
+	"<p>Admissions Office</p>",
+)
+
+
 def send_reference_row(doc, row, index=0):
 	"""Email one referee their link. Returns the address, or None on failure."""
 	if not row.referee_email:
 		return None
+
+	context = {
+		"referee_name": row.referee_name,
+		"applicant_name": doc.full_name,
+		"program": doc.program,
+		"link": token_url("reference", row.token),
+	}
+	subject, message = render_template(
+		"reference_request", context, *FALLBACK_REFERENCE
+	)
+
 	frappe.sendmail(
 		recipients=[row.referee_email],
-		subject=_("Reference request for {0}").format(doc.full_name),
-		template="reference_request",
-		args={
-			"referee_name": row.referee_name,
-			"applicant_name": doc.full_name,
-			"program": doc.program,
-			"link": token_url("reference", row.token),
-		},
+		subject=subject,
+		message=message,
 		header=[_("Reference Request"), "blue"],
 		now=False,
 	)
@@ -86,16 +140,20 @@ def send_mentor_row(doc, row):
 	"""Email one mentor their consent link."""
 	if not row.mentor_email:
 		return None
+	context = {
+		"mentor_name": row.mentor_name,
+		"applicant_name": doc.full_name,
+		"program": doc.program,
+		"link": token_url("mentor-consent", row.token),
+	}
+	subject, message = render_template(
+		"mentor_consent_request", context, *FALLBACK_MENTOR
+	)
+
 	frappe.sendmail(
 		recipients=[row.mentor_email],
-		subject=_("Mentor consent for {0}").format(doc.full_name),
-		template="mentor_consent_request",
-		args={
-			"mentor_name": row.mentor_name,
-			"applicant_name": doc.full_name,
-			"program": doc.program,
-			"link": token_url("mentor-consent", row.token),
-		},
+		subject=subject,
+		message=message,
 		header=[_("Mentor Consent"), "blue"],
 		now=False,
 	)

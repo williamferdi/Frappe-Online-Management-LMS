@@ -172,3 +172,24 @@ def submit(form_key, token, **values):
 	except Exception:
 		frappe.log_error(title="Token form submission failed")
 		frappe.throw(_("Could not save your response. Please try again."))
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def submit_reference(token, answers):
+	"""Submit the Spiritual and Ministerial Reference questionnaire.
+
+	Separate from the generic `submit` because the answers are validated
+	against the question definitions server-side -- the endpoint is public, so
+	the browser's version of the form is not to be trusted.
+	"""
+	from sibbcs.admissions.reference_form import submit as submit_reference_form
+
+	try:
+		return submit_reference_form(token, answers)
+	except TokenError:
+		raise
+	except frappe.ValidationError:
+		raise
+	except Exception:
+		frappe.log_error(title="Reference form submission failed")
+		frappe.throw(_("Could not save your response. Please try again."))

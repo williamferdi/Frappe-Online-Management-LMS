@@ -6,6 +6,7 @@ frappe.ui.form.on("Admission Application", {
 		if (frm.is_new()) return;
 
 		frm.trigger("show_gate_status");
+		frm.trigger("show_submitted_references");
 
 		if (frm.doc.reference_requests?.length || frm.doc.mentor_consents?.length) {
 			frm.add_custom_button(
@@ -75,6 +76,43 @@ frappe.ui.form.on("Admission Application", {
 			`<div style="padding:4px 0">${html}</div>`,
 			__("Admission Gates")
 		);
+	},
+
+	show_submitted_references(frm) {
+		// A submitted reference is a dozen answers in a JSON blob; nobody should
+		// have to read that raw to make an admissions decision.
+		const submitted = (frm.doc.reference_requests || []).filter((r) => r.submitted_on);
+		if (!submitted.length) return;
+
+		submitted.forEach((row) => {
+			frm.add_custom_button(
+				__("View: {0}", [row.referee_name || __("Referee")]),
+				() => {
+					frappe.call({
+						method: "sibbcs.admissions.reference_form.view",
+						args: { application: frm.doc.name, row: row.name },
+						freeze: true,
+						callback: ({ message }) => {
+							if (!message) return;
+							frappe.msgprint({
+								title: __("Reference from {0}", [message.referee]),
+								indicator: "blue",
+								wide: true,
+								message: `
+									<p class="text-muted" style="margin-bottom:14px">
+										${frappe.utils.escape_html(message.email || "")}
+										${message.type ? "&middot; " + frappe.utils.escape_html(message.type) : ""}
+										${message.submitted_on ? "&middot; " + frappe.datetime.str_to_user(message.submitted_on) : ""}
+									</p>
+									${message.html || __("No answers recorded.")}
+								`,
+							});
+						},
+					});
+				},
+				__("References")
+			);
+		});
 	},
 
 	open_resend_dialog(frm) {

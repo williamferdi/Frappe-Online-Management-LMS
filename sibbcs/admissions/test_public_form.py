@@ -456,3 +456,167 @@ class TestRateLimit(FrappeTestCase):
 
 		for _ in range(20):
 			_rate_limit()
+
+
+class TestEmailTemplates(FrappeTestCase):
+	"""The templates must actually render.
+
+	Every other mail test mocks frappe.sendmail, which meant the template was
+	never resolved -- and hid a TemplateNotFound that stopped every referee and
+	mentor email in production. These tests render for real.
+	"""
+
+	CONTEXT = {
+		"referee_name": "Pastor A",
+		"mentor_name": "Mentor M",
+		"applicant_name": "Test Applicant",
+		"program": "MDIV",
+		"link": "https://online.sibbc.org/reference?token=ABC",
+	}
+
+	def test_reference_template_renders(self):
+		from sibbcs.admissions.notifications import FALLBACK_REFERENCE, render_template
+
+		subject, message = render_template(
+			"reference_request", self.CONTEXT, *FALLBACK_REFERENCE
+		)
+		self.assertIn("Test Applicant", subject)
+		self.assertIn("https://online.sibbc.org/reference?token=ABC", message)
+		self.assertNotIn("{{", message)
+
+	def test_mentor_template_renders(self):
+		from sibbcs.admissions.notifications import FALLBACK_MENTOR, render_template
+
+		subject, message = render_template(
+			"mentor_consent_request", self.CONTEXT, *FALLBACK_MENTOR
+		)
+		self.assertIn("Test Applicant", subject)
+		self.assertIn("token=ABC", message)
+		self.assertNotIn("{{", message)
+
+	def test_missing_template_falls_back_rather_than_failing(self):
+		"""Losing the wording beats losing the request."""
+		from sibbcs.admissions.notifications import FALLBACK_REFERENCE, render_template
+
+		subject, message = render_template(
+			"no_such_template", self.CONTEXT, *FALLBACK_REFERENCE
+		)
+		self.assertIn("Test Applicant", subject)
+		self.assertIn("token=ABC", message)
+
+	def test_sending_a_real_reference_email_does_not_raise(self):
+		"""End to end through frappe.sendmail, unmocked, into the Email Queue.
+
+		Skipped where no outgoing account exists -- Frappe refuses to queue at
+		all then, which says nothing about our code. On a site with mail
+		configured this is the test that would have caught the TemplateNotFound.
+		"""
+		from sibbcs.admissions.notifications import outgoing_configured, send_reference_row
+
+		if not outgoing_configured():
+			self.skipTest("no outgoing email account on this site")
+
+		result = submit_application(**payload(email="tpl1@example.invalid"))
+		doc = frappe.get_doc("Admission Application", result["application"])
+
+		sent = send_reference_row(doc, doc.reference_requests[0], 0)
+		self.assertEqual(sent, doc.reference_requests[0].referee_email)
+
+
+class TestReferenceForm(FrappeTestCase):
+	"""The college's Spiritual and Ministerial Reference questionnaire."""
+
+	def _token(self, email):
+		result = submit_application(**payload(email=email))
+		doc = frappe.get_doc("Admission Application", result["application"])
+		return result["application"], doc.reference_requests[0].token
+
+	def _answers(self, **overrides):
+		from sibbcs.admissions.reference_form import QUESTIONS
+
+		answers = {}
+		for fieldname, _q, options, required in QUESTIONS:
+			if options:
+				answers[fieldname] = options[0]
+			elif required:
+				answers[fieldname] = "n/a"
+		answers.update(overrides)
+		return answers
+
+	def test_every_question_is_answerable(self):
+		from sibbcs.admissions.reference_form import validate_answers
+
+		cleaned = validate_answers(self._answers())
+		self.assertIn("relationship", cleaned)
+		self.assertIn("recommendation_choice", cleaned)
+
+	def test_missing_required_answer_refused(self):
+		from sibbcs.admissions.reference_form import validate_answers
+
+		answers = self._answers()
+		answers["calling"] = ""
+		with self.assertRaises(frappe.ValidationError):
+			validate_answers(answers)
+
+	def test_answer_outside_the_option_list_refused(self):
+		"""The endpoint is public; the browser's form is not trusted."""
+		from sibbcs.admissions.reference_form import validate_answers
+
+		answers = self._answers(commitment_to_christ="Whatever I like")
+		with self.assertRaises(frappe.ValidationError):
+			validate_answers(answers)
+
+	def test_free_text_comment_is_optional(self):
+		from sibbcs.admissions.reference_form import validate_answers
+
+		answers = self._answers()
+		answers.pop("additional_comments", None)
+		validate_answers(answers)
+
+	def test_submitting_records_answers_and_recommendation(self):
+		import json
+
+		from sibbcs.admissions.reference_form import submit as submit_reference
+
+		app, token = self._token("ref1@example.invalid")
+		submit_reference(token, self._answers(recommendation_choice="I strongly recommend"))
+
+		doc = frappe.get_doc("Admission Application", app)
+		row = doc.reference_requests[0]
+		self.assertTrue(row.submitted_on)
+		# maps onto the four-point value the officer sees in the grid
+		self.assertEqual(row.recommendation, "Strong")
+
+		stored = json.loads(row.response_json)
+		self.assertEqual(stored["relationship"], "Pastor")
+
+	def test_recommendation_mapping_covers_every_choice(self):
+		from sibbcs.admissions.reference_form import BY_FIELD, RECOMMENDATION_MAP
+
+		options = BY_FIELD["recommendation_choice"][2]
+		for option in options:
+			self.assertIn(option, RECOMMENDATION_MAP, option)
+		self.assertEqual(
+			set(RECOMMENDATION_MAP.values()), {"Strong", "Positive", "Neutral", "Negative"}
+		)
+
+	def test_a_reference_cannot_be_submitted_twice(self):
+		from sibbcs.admissions.reference_form import submit as submit_reference
+		from sibbcs.admissions.tokens import TokenError
+
+		_app, token = self._token("ref2@example.invalid")
+		submit_reference(token, self._answers())
+		with self.assertRaises(TokenError):
+			submit_reference(token, self._answers())
+
+	def test_answers_render_readably_for_the_officer(self):
+		from sibbcs.admissions.reference_form import format_answers, submit as submit_reference
+
+		app, token = self._token("ref3@example.invalid")
+		submit_reference(token, self._answers())
+
+		doc = frappe.get_doc("Admission Application", app)
+		html = format_answers(doc.reference_requests[0].response_json)
+		self.assertIn("Your Relationship to the Applicant", html)
+		self.assertIn("Pastor", html)
+		self.assertNotIn("{", html)
