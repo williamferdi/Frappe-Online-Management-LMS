@@ -9,11 +9,12 @@ frappe.ui.form.on("Admission Application", {
 		frm.trigger("show_submitted_references");
 		frm.trigger("show_submitted_mentor");
 
+		// Top level, not inside a group. add_custom_button's third argument
+		// buries the action in a dropdown named after the group, which is fine
+		// for occasional actions but wrong for one an officer reaches for daily.
 		if (frm.doc.reference_requests?.length || frm.doc.mentor_consents?.length) {
-			frm.add_custom_button(
-				__("Resend Reference / Mentor Email"),
-				() => frm.trigger("open_resend_dialog"),
-				__("Admissions")
+			frm.add_custom_button(__("Resend Reference / Mentor Email"), () =>
+				frm.trigger("open_resend_dialog")
 			);
 		}
 
@@ -21,7 +22,7 @@ frappe.ui.form.on("Admission Application", {
 			frm.add_custom_button(
 				__("Send Reference Requests"),
 				() => frm.trigger("send_reference_requests"),
-				__("Admissions")
+				__("Send")
 			);
 		}
 
@@ -29,7 +30,7 @@ frappe.ui.form.on("Admission Application", {
 			frm.add_custom_button(
 				__("Send Mentor Consent"),
 				() => frm.trigger("send_mentor_consent"),
-				__("Admissions")
+				__("Send")
 			);
 		}
 
