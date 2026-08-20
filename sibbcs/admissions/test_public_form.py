@@ -620,3 +620,132 @@ class TestReferenceForm(FrappeTestCase):
 		self.assertIn("Your Relationship to the Applicant", html)
 		self.assertIn("Pastor", html)
 		self.assertNotIn("{", html)
+
+
+class TestMentorForm(FrappeTestCase):
+	"""The college's Mentor Consent Form."""
+
+	def _token(self, email):
+		result = submit_application(**payload(email=email))
+		doc = frappe.get_doc("Admission Application", result["application"])
+		return result["application"], doc.mentor_consents[0].token
+
+	def _answers(self, **overrides):
+		answers = {
+			"mentor_name": "Shadrek Paul",
+			"mentor_mobile": "8374220717",
+			"mentor_email": "paul1999@example.invalid",
+			"mentor_gender": "Male",
+			"mentor_age": "27",
+			"current_position": "Pastor",
+			"denomination": "Holy Army Fellowship",
+			"address_line_1": "Ambedkar Colony",
+			"address_line_2": "Autonagar",
+			"city": "Tirupati",
+			"state": "Andhra Pradesh",
+			"postal_code": "517501",
+			"country": "India",
+			"prior_theological_education": "No",
+			"mentoring_experience": "No",
+			"years_of_ministry": "7",
+			"handbook_acknowledged": 1,
+		}
+		answers.update(overrides)
+		return answers
+
+	def test_every_field_is_accepted(self):
+		from sibbcs.admissions.mentor_form import validate_answers
+
+		cleaned = validate_answers(self._answers())
+		self.assertEqual(cleaned["denomination"], "Holy Army Fellowship")
+		self.assertEqual(cleaned["mentor_age"], 27)
+		self.assertEqual(cleaned["years_of_ministry"], 7)
+
+	def test_missing_required_field_refused(self):
+		from sibbcs.admissions.mentor_form import validate_answers
+
+		with self.assertRaises(frappe.ValidationError):
+			validate_answers(self._answers(denomination=""))
+
+	def test_optional_address_line_2_may_be_blank(self):
+		from sibbcs.admissions.mentor_form import validate_answers
+
+		validate_answers(self._answers(address_line_2=""))
+
+	def test_age_must_be_a_number(self):
+		from sibbcs.admissions.mentor_form import validate_answers
+
+		with self.assertRaises(frappe.ValidationError):
+			validate_answers(self._answers(mentor_age="twenty seven"))
+
+	def test_absurd_age_refused(self):
+		from sibbcs.admissions.mentor_form import validate_answers
+
+		with self.assertRaises(frappe.ValidationError):
+			validate_answers(self._answers(mentor_age="7"))
+
+	def test_bad_gender_refused(self):
+		from sibbcs.admissions.mentor_form import validate_answers
+
+		with self.assertRaises(frappe.ValidationError):
+			validate_answers(self._answers(mentor_gender="Sometimes"))
+
+	def test_bad_email_refused(self):
+		from sibbcs.admissions.mentor_form import validate_answers
+
+		with self.assertRaises(Exception):
+			validate_answers(self._answers(mentor_email="not-an-email"))
+
+	def test_submitting_records_the_whole_form(self):
+		from sibbcs.admissions.mentor_form import submit as submit_mentor
+
+		app, token = self._token("men1@example.invalid")
+		submit_mentor(token, self._answers())
+
+		doc = frappe.get_doc("Admission Application", app)
+		row = doc.mentor_consents[0]
+		self.assertTrue(row.consented_on)
+		self.assertEqual(row.current_position, "Pastor")
+		self.assertEqual(row.city, "Tirupati")
+		self.assertEqual(row.years_of_ministry, 7)
+		self.assertTrue(row.handbook_acknowledged)
+
+	def test_mentor_cannot_write_fields_outside_the_form(self):
+		"""The endpoint is public; only the mentor's own fields are writable."""
+		from sibbcs.admissions.mentor_form import submit as submit_mentor
+
+		app, token = self._token("men2@example.invalid")
+		submit_mentor(token, self._answers(token="hijack", parent="EVIL"))
+
+		doc = frappe.get_doc("Admission Application", app)
+		row = doc.mentor_consents[0]
+		self.assertEqual(row.token, token)
+		self.assertEqual(row.parent, app)
+
+	def test_consent_cannot_be_submitted_twice(self):
+		from sibbcs.admissions.mentor_form import submit as submit_mentor
+		from sibbcs.admissions.tokens import TokenError
+
+		_app, token = self._token("men3@example.invalid")
+		submit_mentor(token, self._answers())
+		with self.assertRaises(TokenError):
+			submit_mentor(token, self._answers())
+
+	def test_answers_render_readably_for_the_officer(self):
+		from sibbcs.admissions.mentor_form import format_answers, submit as submit_mentor
+
+		app, token = self._token("men4@example.invalid")
+		submit_mentor(token, self._answers())
+
+		doc = frappe.get_doc("Admission Application", app)
+		html = format_answers(doc.mentor_consents[0])
+		self.assertIn("Mentor Denomination", html)
+		self.assertIn("Holy Army Fellowship", html)
+
+	def test_handbook_links_are_configurable_not_hardcoded(self):
+		from sibbcs.admissions.mentor_form import intro_parts
+
+		parts = intro_parts()
+		self.assertIn("role_url", parts)
+		self.assertIn("handbook_url", parts)
+		self.assertIn("sacred and meaningful responsibility", parts["lead"])

@@ -1,9 +1,9 @@
 {% extends "templates/web.html" %}
 
-{% block title %}Mentor Consent{% endblock %}
+{% block title %}Mentor Consent Form{% endblock %}
 
 {% block page_content %}
-<div class="sibbcs-token-form">
+<div class="sibbcs-mentor">
 	{% if not valid %}
 		<div class="alert alert-warning">
 			<h4>This link cannot be opened</h4>
@@ -13,118 +13,247 @@
 			</p>
 		</div>
 	{% else %}
-		<h2>Mentor consent for {{ applicant_name }}</h2>
-		<p class="text-muted">
-			{{ applicant_name }} has applied to the <strong>{{ program }}</strong>
-			program at South India Baptist Bible College &amp; Seminary and has asked
-			you to serve as their mentor.
-		</p>
-
-		<div class="alert alert-info">
-			<strong>What this involves.</strong> Meeting the student roughly once a
-			month for the duration of their studies, and submitting a short monthly
-			report on their spiritual growth and ministry involvement. You will
-			receive a link for each report — you will never need a login.
+		<div class="form-banner">
+			<h3>Mentor Consent Form — SIBBCS Online Programs</h3>
 		</div>
 
-		<form id="mentor-form" class="mt-4">
+		<div class="intro text-muted">
+			{{ intro.lead }}
+			{% if intro.role_url %}
+				<a href="{{ intro.role_url }}" target="_blank" rel="noopener">
+					You can view the details here</a>.
+			{% endif %}
+			Kindly ensure that you download the Mentor Handbook
+			{% if intro.handbook_url %}
+				<a href="{{ intro.handbook_url }}" target="_blank" rel="noopener">using this link</a>.
+			{% else %}
+				(the Admissions Office will send it to you).
+			{% endif %}
+			{{ intro.tail }}
+		</div>
+
+		<h4 class="section-title">Please fill in the details</h4>
+
+		<form id="mentor-form">
 			<div class="form-group">
-				<label for="mentor_name">Your name</label>
-				<input type="text" class="form-control" id="mentor_name"
-				       value="{{ row.mentor_name or '' }}" required>
+				<label>Student Name</label>
+				<input type="text" class="form-control" value="{{ applicant_name }}" readonly>
+				<small class="text-muted">Applying for {{ program }}</small>
 			</div>
 
-			<div class="form-group">
-				<label for="mentor_mobile">Your mobile number</label>
-				<input type="text" class="form-control" id="mentor_mobile"
-				       value="{{ row.mentor_mobile or '' }}" required>
-			</div>
+			{% for f in fields %}
+				{% if f.fieldname == "address_line_1" %}
+					<h5 class="group-title">Mentor Address <span class="req">*</span></h5>
+				{% endif %}
+				<div class="form-group">
+					<label for="{{ f.fieldname }}">
+						{{ f.label }}{% if f.required %} <span class="req">*</span>{% endif %}
+					</label>
 
-			<div class="form-group">
-				<label for="church">Your church</label>
-				<input type="text" class="form-control" id="church"
-				       value="{{ row.church or '' }}" required>
-			</div>
+					{% if f.kind == "select" %}
+						<select class="form-control m-input" id="{{ f.fieldname }}"
+						        {% if f.required %}required{% endif %}>
+							<option value="">— Select —</option>
+							{% for opt in f.options %}
+								<option value="{{ opt }}">{{ opt }}</option>
+							{% endfor %}
+						</select>
+					{% elif f.kind == "textarea" %}
+						<textarea class="form-control m-input" id="{{ f.fieldname }}" rows="3"
+						          maxlength="500"></textarea>
+					{% elif f.kind == "number" %}
+						<input type="number" class="form-control m-input" id="{{ f.fieldname }}"
+						       min="0" {% if f.required %}required{% endif %}>
+					{% elif f.kind == "image" %}
+						<input type="file" class="form-control-file" id="{{ f.fieldname }}"
+						       accept=".jpg,.jpeg,.png">
+						<small class="text-muted">A recent photograph. JPG or PNG, up to 5&nbsp;MB.</small>
+					{% else %}
+						<input type="text" class="form-control m-input" id="{{ f.fieldname }}"
+						       value="{{ row.get(f.fieldname) or '' }}"
+						       {% if f.required %}required{% endif %}>
+					{% endif %}
+				</div>
+			{% endfor %}
 
-			<div class="form-check mt-3 mb-3">
-				<input type="checkbox" class="form-check-input" id="agree" required>
-				<label class="form-check-label" for="agree">
-					I agree to serve as mentor to {{ applicant_name }} and to submit
-					monthly reports.
+			<div class="form-check declaration">
+				<label class="checkline">
+					<input type="checkbox" id="handbook_acknowledged">
+					<span>
+						I have read the Mentor Handbook and agree to mentor
+						<b>{{ applicant_name }}</b> in accordance with the guidelines and
+						expectations of SIBBCS.
+					</span>
 				</label>
 			</div>
 
-			<button type="submit" class="btn btn-primary" id="submit-btn">
-				Give Consent
-			</button>
-			<div id="form-message" class="mt-3"></div>
+			<div class="actions">
+				<button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
+					Submit Consent
+				</button>
+				<p class="text-muted small" style="margin-top:10px">
+					This form can be submitted once.
+				</p>
+			</div>
+
+			<div id="form-message"></div>
 		</form>
+
+		<div id="mentor-done" hidden>
+			<div class="alert alert-success">
+				<h4>Thank you</h4>
+				<p>
+					Your consent to mentor <b>{{ applicant_name }}</b> has been recorded.
+					You may close this page.
+				</p>
+			</div>
+		</div>
 	{% endif %}
 </div>
 
 <style>
-	.sibbcs-token-form { max-width: 680px; margin: 0 auto; }
-	.sibbcs-token-form .form-group { margin-bottom: 1rem; }
-	.sibbcs-token-form label { font-weight: 600; }
-	.sibbcs-token-form .form-check-label { font-weight: 400; }
+	.sibbcs-mentor { max-width: 760px; margin: 0 auto; }
+	.form-banner {
+		background: var(--control-bg, #eef3fb); text-align: center;
+		padding: 12px; border-radius: 6px; margin-bottom: 16px;
+	}
+	.form-banner h3 { margin: 0; font-size: 1.15rem; }
+	.sibbcs-mentor .intro {
+		font-size: 14.5px; line-height: 1.65; margin-bottom: 26px;
+		padding-left: 14px; border-left: 3px solid var(--border-color, #ddd);
+	}
+	.sibbcs-mentor .section-title {
+		border-bottom: 1px solid var(--border-color, #e5e5e5);
+		padding-bottom: 8px; margin-bottom: 20px;
+	}
+	.group-title { margin: 26px 0 10px; font-size: 1rem; font-weight: 700; }
+	.sibbcs-mentor .form-group { margin-bottom: 16px; }
+	.sibbcs-mentor label { font-weight: 600; display: block; margin-bottom: 5px; }
+	.sibbcs-mentor input[readonly] { background: var(--control-bg, #f4f5f6); }
+	.req { color: #c0392b; }
+	.declaration { margin: 24px 0 8px; }
+	.checkline { display: flex; gap: 10px; font-weight: 400; align-items: flex-start; }
+	.checkline input { width: auto; margin-top: 4px; }
+	.actions { margin-top: 20px; }
+	#form-message { margin-top: 16px; }
 </style>
 
 {% if valid %}
 <script>
-document.getElementById('mentor-form').addEventListener('submit', async function (event) {
-	event.preventDefault();
+(function () {
+	const form = document.getElementById('mentor-form');
+	const fields = {{ fields | map(attribute='fieldname') | list | tojson }};
+	const required = {{ fields | selectattr('required') | map(attribute='fieldname') | list | tojson }};
+	const token = {{ token | tojson }};
 
-	const button = document.getElementById('submit-btn');
-	const message = document.getElementById('form-message');
+	form.addEventListener('submit', async function (event) {
+		event.preventDefault();
 
-	if (!document.getElementById('agree').checked) {
-		message.innerHTML =
-			'<div class="alert alert-danger">Please confirm your agreement.</div>';
-		return;
-	}
+		const button = document.getElementById('submit-btn');
+		const message = document.getElementById('form-message');
+		message.innerHTML = '';
 
-	button.disabled = true;
-	button.textContent = 'Submitting…';
-	message.innerHTML = '';
-
-	try {
-		const response = await fetch('/api/method/sibbcs.admissions.tokens.submit', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'X-Frappe-CSRF-Token': window.csrf_token || '',
-			},
-			body: JSON.stringify({
-				form_key: 'mentor-consent',
-				token: {{ token | tojson }},
-				mentor_name: document.getElementById('mentor_name').value,
-				mentor_mobile: document.getElementById('mentor_mobile').value,
-				church: document.getElementById('church').value,
-			}),
+		const answers = {};
+		fields.forEach((name) => {
+			const el = document.getElementById(name);
+			if (el && el.type !== 'file') answers[name] = el.value;
 		});
+		answers.handbook_acknowledged =
+			document.getElementById('handbook_acknowledged').checked ? 1 : 0;
 
-		const payload = await response.json();
-		if (!response.ok) {
-			throw new Error(
-				(payload && (payload.exception || payload._server_messages)) ||
-				'Submission failed'
-			);
+		const missing = required.filter((name) => {
+			const el = document.getElementById(name);
+			return el && el.type !== 'file' && !String(el.value || '').trim();
+		});
+		if (missing.length) {
+			message.innerHTML =
+				'<div class="alert alert-danger">Please fill in every field marked *.</div>';
+			const first = document.getElementById(missing[0]);
+			if (first) { first.focus(); first.scrollIntoView({ block: 'center' }); }
+			return;
 		}
 
-		document.getElementById('mentor-form').style.display = 'none';
-		message.innerHTML =
-			'<div class="alert alert-success"><h4>Thank you</h4>' +
-			'<p>Your consent has been recorded. You may close this page.</p></div>';
-		message.style.display = 'block';
-	} catch (error) {
-		button.disabled = false;
-		button.textContent = 'Give Consent';
-		message.innerHTML =
-			'<div class="alert alert-danger">Could not submit: ' +
-			String(error.message || error).replace(/<[^>]*>/g, '') +
-			'</div>';
-	}
-});
+		button.disabled = true;
+		button.textContent = 'Submitting…';
+
+		try {
+			// The photograph goes first: if it fails the mentor can retry the
+			// whole form, whereas a consent recorded without it would be final.
+			const photo = document.getElementById('mentor_image');
+			if (photo && photo.files && photo.files[0]) {
+				button.textContent = 'Uploading photograph…';
+				const file = photo.files[0];
+				const b64 = await new Promise((resolve, reject) => {
+					const reader = new FileReader();
+					reader.onload = () => resolve(String(reader.result).split(',')[1]);
+					reader.onerror = reject;
+					reader.readAsDataURL(file);
+				});
+				const up = await fetch(
+					'/api/method/sibbcs.admissions.tokens.upload_mentor_image',
+					{
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+							'X-Frappe-CSRF-Token': window.csrf_token || '',
+						},
+						body: JSON.stringify({
+							token: token,
+							filename: file.name,
+							content_type: file.type,
+							content: b64,
+						}),
+					}
+				);
+				if (!up.ok) {
+					const body = await up.json();
+					let text = 'The photograph could not be uploaded.';
+					if (body && body._server_messages) {
+						try {
+							text = JSON.parse(JSON.parse(body._server_messages)[0]).message || text;
+						} catch (e) { /* keep default */ }
+					}
+					throw new Error(text);
+				}
+			}
+
+			button.textContent = 'Submitting…';
+			const response = await fetch(
+				'/api/method/sibbcs.admissions.tokens.submit_mentor_form',
+				{
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'X-Frappe-CSRF-Token': window.csrf_token || '',
+					},
+					body: JSON.stringify({ token: token, answers: JSON.stringify(answers) }),
+				}
+			);
+
+			const body = await response.json();
+			if (!response.ok) {
+				let text = 'Your consent could not be submitted.';
+				if (body && body._server_messages) {
+					try {
+						text = JSON.parse(JSON.parse(body._server_messages)[0]).message || text;
+					} catch (e) { /* keep default */ }
+				}
+				throw new Error(text);
+			}
+
+			form.hidden = true;
+			document.getElementById('mentor-done').hidden = false;
+			window.scrollTo({ top: 0, behavior: 'smooth' });
+		} catch (error) {
+			button.disabled = false;
+			button.textContent = 'Submit Consent';
+			message.innerHTML =
+				'<div class="alert alert-danger">' +
+				String(error.message || error).replace(/<[^>]*>/g, '') +
+				'</div>';
+		}
+	});
+})();
 </script>
 {% endif %}
 {% endblock %}

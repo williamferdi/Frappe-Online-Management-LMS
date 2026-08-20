@@ -9,6 +9,7 @@ is mentor-consent.html and this module is mentor_consent.py.
 
 import frappe
 
+from sibbcs.admissions.mentor_form import fields_for_render, intro_parts
 from sibbcs.admissions.tokens import TokenError, get_context_for
 
 no_cache = 1
@@ -21,6 +22,8 @@ def get_context(context):
 
 	try:
 		context.update(get_context_for("mentor-consent", token))
+		context.intro = intro_parts()
+		context.fields = fields_for_render()
 		context.valid = True
 	except TokenError as exc:
 		context.valid = False

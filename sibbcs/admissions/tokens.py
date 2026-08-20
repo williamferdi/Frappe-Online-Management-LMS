@@ -193,3 +193,63 @@ def submit_reference(token, answers):
 	except Exception:
 		frappe.log_error(title="Reference form submission failed")
 		frappe.throw(_("Could not save your response. Please try again."))
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def submit_mentor_form(token, answers):
+	"""Submit the Mentor Consent Form. Validated server-side."""
+	from sibbcs.admissions.mentor_form import submit as submit_mentor
+
+	try:
+		return submit_mentor(token, answers)
+	except TokenError:
+		raise
+	except frappe.ValidationError:
+		raise
+	except Exception:
+		frappe.log_error(title="Mentor form submission failed")
+		frappe.throw(_("Could not save your response. Please try again."))
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def upload_mentor_image(token, filename, content, content_type=None):
+	"""Attach the mentor's photograph, authorised by their own token.
+
+	Separate from the applicant upload endpoint: that one is keyed to the
+	application's upload_token, which a mentor does not have and must not be
+	given -- it would let them attach documents to the application itself.
+	"""
+	import base64
+
+	from sibbcs.admissions.uploads import _validate_file
+
+	resolved = resolve("mentor-consent", token)
+
+	try:
+		raw = base64.b64decode(content, validate=True)
+	except Exception:
+		frappe.throw(_("The image could not be read."), title=_("Upload Failed"))
+
+	extension = _validate_file(filename, raw, content_type)
+	if extension == "pdf":
+		frappe.throw(_("Please upload a photograph, not a PDF."), title=_("Unsupported File"))
+
+	file_doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": f"{resolved['parent']}-mentor-photo.{extension}",
+			"attached_to_doctype": "Admission Application",
+			"attached_to_name": resolved["parent"],
+			"content": raw,
+			"decode": False,
+			"is_private": 1,
+		}
+	)
+	file_doc.flags.ignore_permissions = True
+	file_doc.insert(ignore_permissions=True)
+
+	frappe.db.set_value(
+		"Mentor Consent", resolved["row_name"], "mentor_image",
+		file_doc.file_url, update_modified=False,
+	)
+	return {"ok": True, "file_url": file_doc.file_url}

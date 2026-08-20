@@ -10,6 +10,27 @@
   "mentor_email",
   "mentor_mobile",
   "church",
+  "handbook_acknowledged",
+  "sb_mentor_declaration",
+  "mentoring_experience",
+  "prior_theological_education",
+  "sb_mentor_background",
+  "country",
+  "postal_code",
+  "state",
+  "cb_mentor_address",
+  "city",
+  "address_line_2",
+  "address_line_1",
+  "sb_mentor_address",
+  "years_of_ministry",
+  "denomination",
+  "current_position",
+  "cb_mentor_detail",
+  "mentor_image",
+  "mentor_age",
+  "mentor_gender",
+  "sb_mentor_detail",
   "sb_token",
   "token",
   "sent_on",
@@ -84,13 +105,120 @@
    "label": "Consent File",
    "no_copy": 1,
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "INFERRED from the form's instruction to read the handbook thoroughly -- confirm this is wanted before real intakes.",
+   "fieldname": "handbook_acknowledged",
+   "fieldtype": "Check",
+   "label": "Confirmed reading the Mentor Handbook"
+  },
+  {
+   "fieldname": "sb_mentor_declaration",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "mentoring_experience",
+   "fieldtype": "Small Text",
+   "label": "Any Mentoring Experience?"
+  },
+  {
+   "fieldname": "prior_theological_education",
+   "fieldtype": "Small Text",
+   "label": "Any Prior Theological Education?"
+  },
+  {
+   "fieldname": "sb_mentor_background",
+   "fieldtype": "Section Break",
+   "label": "Background"
+  },
+  {
+   "default": "India",
+   "fieldname": "country",
+   "fieldtype": "Data",
+   "label": "Country"
+  },
+  {
+   "fieldname": "postal_code",
+   "fieldtype": "Data",
+   "label": "Postal Code",
+   "length": 20
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Data",
+   "label": "State / Province"
+  },
+  {
+   "fieldname": "cb_mentor_address",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City / District"
+  },
+  {
+   "fieldname": "address_line_2",
+   "fieldtype": "Data",
+   "label": "Address Line 2"
+  },
+  {
+   "fieldname": "address_line_1",
+   "fieldtype": "Data",
+   "label": "Address Line 1"
+  },
+  {
+   "fieldname": "sb_mentor_address",
+   "fieldtype": "Section Break",
+   "label": "Address"
+  },
+  {
+   "fieldname": "years_of_ministry",
+   "fieldtype": "Int",
+   "label": "Years of Ministry Experience"
+  },
+  {
+   "fieldname": "denomination",
+   "fieldtype": "Data",
+   "label": "Denomination"
+  },
+  {
+   "fieldname": "current_position",
+   "fieldtype": "Small Text",
+   "label": "Current Position in Ministry"
+  },
+  {
+   "fieldname": "cb_mentor_detail",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "mentor_image",
+   "fieldtype": "Attach Image",
+   "label": "Photograph"
+  },
+  {
+   "fieldname": "mentor_age",
+   "fieldtype": "Int",
+   "label": "Age"
+  },
+  {
+   "fieldname": "mentor_gender",
+   "fieldtype": "Select",
+   "label": "Gender",
+   "options": "\nMale\nFemale"
+  },
+  {
+   "fieldname": "sb_mentor_detail",
+   "fieldtype": "Section Break",
+   "label": "Mentor Details"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-08-08 18:59:46.862048",
+ "modified": "2026-08-20 17:10:47.644531",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Mentor Consent",

@@ -7,6 +7,7 @@ frappe.ui.form.on("Admission Application", {
 
 		frm.trigger("show_gate_status");
 		frm.trigger("show_submitted_references");
+		frm.trigger("show_submitted_mentor");
 
 		if (frm.doc.reference_requests?.length || frm.doc.mentor_consents?.length) {
 			frm.add_custom_button(
@@ -76,6 +77,38 @@ frappe.ui.form.on("Admission Application", {
 			`<div style="padding:4px 0">${html}</div>`,
 			__("Admission Gates")
 		);
+	},
+
+	show_submitted_mentor(frm) {
+		const done = (frm.doc.mentor_consents || []).filter((m) => m.consented_on);
+		done.forEach((row) => {
+			frm.add_custom_button(
+				__("View: {0}", [row.mentor_name || __("Mentor")]),
+				() => {
+					frappe.call({
+						method: "sibbcs.admissions.mentor_form.view",
+						args: { application: frm.doc.name, row: row.name },
+						freeze: true,
+						callback: ({ message }) => {
+							if (!message) return;
+							frappe.msgprint({
+								title: __("Mentor form — {0}", [message.mentor]),
+								indicator: "blue",
+								wide: true,
+								message: `
+									<p class="text-muted" style="margin-bottom:14px">
+										${frappe.utils.escape_html(message.email || "")}
+										${message.consented_on ? "&middot; " + frappe.datetime.str_to_user(message.consented_on) : ""}
+									</p>
+									${message.html || __("No answers recorded.")}
+								`,
+							});
+						},
+					});
+				},
+				__("Mentor")
+			);
+		});
 	},
 
 	show_submitted_references(frm) {
