@@ -155,6 +155,7 @@ def mark_application_fee_paid(application):
 	of Draft and onto the review board.
 	"""
 	from sibbcs.admissions.checklist import sync_overall_state
+	from sibbcs.admissions.notifications import dispatch_on_placement
 
 	doc = frappe.get_doc("Admission Application", application)
 
@@ -162,7 +163,20 @@ def mark_application_fee_paid(application):
 		doc.db_set("application_fee_paid", 1, update_modified=False)
 		doc.reload()
 
-	return sync_overall_state(doc)
+	state = sync_overall_state(doc)
+
+	# Dispatch explicitly rather than relying on the on_update hook: both the
+	# flag and the state are written with db_set, which goes straight to the
+	# database and never runs document hooks. This is the moment the
+	# application is actually placed, so it is where the referee and mentor
+	# requests belong.
+	try:
+		doc.reload()
+		dispatch_on_placement(doc)
+	except Exception:
+		frappe.log_error(title=f"Request dispatch failed for {application}")
+
+	return state
 
 
 def raise_admission_fee(student, program_enrollment=None, program=None):

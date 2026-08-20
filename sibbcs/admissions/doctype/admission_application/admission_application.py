@@ -81,8 +81,18 @@ class AdmissionApplication(Document):
 
 	def on_update(self):
 		from sibbcs.admissions.checklist import sync_overall_state
+		from sibbcs.admissions.notifications import dispatch_on_placement
 
 		sync_overall_state(self)
+
+		# Referee and mentor requests go out on their own once the application
+		# is placed. Before this they were sent only when an officer pressed a
+		# button, so on a self-service application nobody was ever asked.
+		try:
+			self.reload()
+			dispatch_on_placement(self)
+		except Exception:
+			frappe.log_error(title=f"Request dispatch failed for {self.name}")
 
 	def seed_checklist(self):
 		"""Every application carries the 13 tracked steps."""
@@ -226,77 +236,72 @@ class AdmissionApplication(Document):
 
 
 def token_url(form_key, token):
-	base = (frappe.utils.get_url() or "").rstrip("/")
-	return f"{base}/{form_key}?token={token}"
+	"""A link an outsider can actually open.
+
+	Not frappe.utils.get_url(): outside production mode it appends the dev
+	webserver port, so every referee and mentor email would have carried
+	https://online.sibbc.org:8000/... which is unreachable from the internet.
+	gateway.public_url() builds from host_name instead.
+	"""
+	from sibbcs.finance.gateway import public_url
+
+	return public_url(f"/{form_key}?token={token}")
 
 
 @frappe.whitelist()
 def send_reference_requests(application_name):
-	"""Email each referee their token link. Skips ones already submitted."""
+	"""Send outstanding reference requests.
+
+	Delegates to notifications.dispatch_requests so the manual button and the
+	automatic dispatch-on-placement path cannot drift apart, and so a missing
+	mail account produces advice rather than Frappe's raw
+	"Please setup default outgoing Email Account" error.
+	"""
+	from sibbcs.admissions.notifications import outgoing_configured, dispatch_requests
+
 	app = frappe.get_doc("Admission Application", application_name)
 	app.check_permission("write")
 
-	sent = []
-	for row in app.reference_requests:
-		if row.submitted_on or not row.referee_email:
-			continue
-
-		frappe.sendmail(
-			recipients=[row.referee_email],
-			subject=_("Reference request for {0}").format(app.full_name),
-			template="reference_request",
-			args={
-				"referee_name": row.referee_name,
-				"applicant_name": app.full_name,
-				"program": app.program,
-				"link": token_url("reference", row.token),
-			},
-			header=[_("Reference Request"), "blue"],
-			now=False,
+	if not outgoing_configured():
+		frappe.msgprint(
+			_("No outgoing email account is configured, so nothing can be sent."),
+			title=_("Email Not Configured"),
+			indicator="orange",
 		)
-		row.db_set("sent_on", frappe.utils.now_datetime(), update_modified=False)
-		sent.append(row.referee_email)
+		return []
 
-	if not sent:
-		frappe.msgprint(_("No outstanding reference requests to send."), indicator="orange")
-	else:
+	sent = dispatch_requests(application_name)["referees"]
+	if sent:
 		frappe.msgprint(
 			_("Reference requests queued to: {0}").format(", ".join(sent)), indicator="green"
 		)
+	else:
+		frappe.msgprint(_("No outstanding reference requests to send."), indicator="orange")
 	return sent
 
 
 @frappe.whitelist()
 def send_mentor_consent_requests(application_name):
-	"""Email each mentor their consent link."""
+	"""Send outstanding mentor consent requests."""
+	from sibbcs.admissions.notifications import outgoing_configured, dispatch_requests
+
 	app = frappe.get_doc("Admission Application", application_name)
 	app.check_permission("write")
 
-	sent = []
-	for row in app.mentor_consents:
-		if row.consented_on or not row.mentor_email:
-			continue
-
-		frappe.sendmail(
-			recipients=[row.mentor_email],
-			subject=_("Mentor consent for {0}").format(app.full_name),
-			template="mentor_consent_request",
-			args={
-				"mentor_name": row.mentor_name,
-				"applicant_name": app.full_name,
-				"program": app.program,
-				"link": token_url("mentor-consent", row.token),
-			},
-			header=[_("Mentor Consent"), "blue"],
-			now=False,
-		)
-		row.db_set("sent_on", frappe.utils.now_datetime(), update_modified=False)
-		sent.append(row.mentor_email)
-
-	if not sent:
-		frappe.msgprint(_("No outstanding mentor consent requests."), indicator="orange")
-	else:
+	if not outgoing_configured():
 		frappe.msgprint(
-			_("Mentor consent requests queued to: {0}").format(", ".join(sent)), indicator="green"
+			_("No outgoing email account is configured, so nothing can be sent."),
+			title=_("Email Not Configured"),
+			indicator="orange",
 		)
+		return []
+
+	sent = dispatch_requests(application_name)["mentor"]
+	if sent:
+		frappe.msgprint(
+			_("Mentor consent requests queued to: {0}").format(", ".join(sent)),
+			indicator="green",
+		)
+	else:
+		frappe.msgprint(_("No outstanding mentor consent requests."), indicator="orange")
 	return sent

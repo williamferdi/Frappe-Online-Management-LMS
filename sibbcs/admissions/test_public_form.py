@@ -236,3 +236,82 @@ class TestPublicApplication(FrappeTestCase):
 		)
 		doc = frappe.get_doc("Admission Application", result["application"])
 		self.assertLessEqual(len(doc.full_name), 140)
+
+
+class TestRequestDispatch(FrappeTestCase):
+	"""Referee and mentor requests must actually be sent, to a usable link."""
+
+	def test_token_links_are_externally_reachable(self):
+		"""frappe.utils.get_url() appends the dev port outside production mode,
+		which would have made every referee link unopenable."""
+		from sibbcs.admissions.doctype.admission_application.admission_application import (
+			token_url,
+		)
+
+		link = token_url("reference", "SAMPLE")
+		self.assertNotIn(":8000", link)
+		self.assertTrue(link.startswith("http"))
+		self.assertIn("/reference?token=SAMPLE", link)
+
+	def test_dispatch_is_skipped_and_reported_without_a_mail_account(self):
+		"""Never raise at whoever triggered the save -- report it instead."""
+		from sibbcs.admissions.notifications import dispatch_requests
+
+		result = submit_application(**payload(email="disp1@example.invalid"))
+		report = dispatch_requests(result["application"])
+
+		self.assertEqual(report["referees"], [])
+		self.assertIn("no outgoing email account", report["skipped"])
+
+	def test_draft_applications_are_not_dispatched(self):
+		"""An abandoned, unpaid application must not email its referees."""
+		from sibbcs.admissions.notifications import dispatch_on_placement
+
+		result = submit_application(**payload(email="disp2@example.invalid"))
+		doc = frappe.get_doc("Admission Application", result["application"])
+		self.assertEqual(doc.workflow_state or "Draft", "Draft")
+		# Draft short-circuits before any send is attempted
+		self.assertIsNone(dispatch_on_placement(doc))
+
+	def test_requests_are_dispatched_once_the_application_is_placed(self):
+		"""With mail configured, placing the application sends the requests."""
+		from unittest.mock import patch
+
+		from sibbcs.admissions import notifications
+		from sibbcs.finance.fees import mark_application_fee_paid
+
+		result = submit_application(**payload(email="disp3@example.invalid"))
+
+		sent = []
+		with patch.object(notifications, "outgoing_configured", return_value=True), patch.object(
+			frappe, "sendmail", side_effect=lambda **kw: sent.append(kw["recipients"][0])
+		):
+			mark_application_fee_paid(result["application"])
+
+		# two referees and one mentor from the standard payload
+		self.assertEqual(len(sent), 3)
+
+		doc = frappe.get_doc("Admission Application", result["application"])
+		for row in doc.reference_requests:
+			self.assertTrue(row.sent_on, "referee row was never stamped as sent")
+		self.assertTrue(doc.mentor_consents[0].sent_on)
+
+	def test_dispatch_does_not_resend(self):
+		from unittest.mock import patch
+
+		from sibbcs.admissions import notifications
+
+		result = submit_application(**payload(email="disp4@example.invalid"))
+		frappe.db.set_value(
+			"Admission Application", result["application"], "workflow_state", "In Review"
+		)
+
+		sent = []
+		with patch.object(notifications, "outgoing_configured", return_value=True), patch.object(
+			frappe, "sendmail", side_effect=lambda **kw: sent.append(kw["recipients"][0])
+		):
+			notifications.dispatch_requests(result["application"])
+			first = len(sent)
+			notifications.dispatch_requests(result["application"])
+
+		self.assertEqual(len(sent), first, "requests were sent twice")
