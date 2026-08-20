@@ -9,7 +9,12 @@ from frappe.utils import date_diff, getdate, nowdate
 from sibbcs.admissions.tokens import generate_token
 
 # Documents every applicant must supply before Documents Under Review can pass.
-REQUIRED_DOCUMENTS = ["10th Marksheet", "12th Marksheet", "ID Proof", "Photo"]
+REQUIRED_DOCUMENTS = [
+	"SSC/10th Mark Sheet",
+	"HSLC/12th Mark Sheet",
+	"National ID",
+	"Photo",
+]
 
 
 class AdmissionApplication(Document):

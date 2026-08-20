@@ -46,12 +46,12 @@ LEVELS = ["1", "2", "3", "4"]
 GENDERS = ["", "Male", "Female"]
 
 DOCUMENT_TYPES = [
-	"10th Marksheet",
-	"12th Marksheet",
-	"Degree Certificate",
-	"Degree Marksheet",
-	"Testimony",
-	"ID Proof",
+	"SSC/10th Mark Sheet",
+	"HSLC/12th Mark Sheet",
+	"Undergraduate Degree Certificate",
+	"Undergraduate Degree Mark Sheet",
+	"Personal Testimony",
+	"National ID",
 	"Ministry Proof",
 	"Photo",
 ]

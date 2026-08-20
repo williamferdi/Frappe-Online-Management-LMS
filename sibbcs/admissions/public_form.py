@@ -38,6 +38,13 @@ APPLICANT_FIELDS = (
 	"current_role",
 	"years_of_ministry",
 	"has_bachelors",
+	"ssc_status",
+	"ssc_year",
+	"hslc_status",
+	"hslc_year",
+	"ug_status",
+	"ug_year",
+	"previous_theological_education",
 	"program",
 	"intake_term",
 )
@@ -196,11 +203,18 @@ def submit_application(**values):
 			title=_("Already Applied"),
 		)
 
+	from sibbcs.admissions.uploads import new_upload_token
+
 	doc = frappe.get_doc({"doctype": "Admission Application", **cleaned})
 	for referee in referees:
 		doc.append("reference_requests", referee)
 	for row in mentor:
 		doc.append("mentor_consents", row)
+
+	# Minted here so the browser can attach documents straight afterwards. The
+	# token binds those uploads to this one application -- a guest can never
+	# upload a file that belongs to nothing.
+	doc.upload_token = new_upload_token()
 
 	doc.flags.ignore_permissions = True
 	doc.insert(ignore_permissions=True)
@@ -218,6 +232,7 @@ def submit_application(**values):
 		"application": doc.name,
 		"full_name": doc.full_name,
 		"program": doc.program,
+		"upload_token": doc.upload_token,
 		"fee_amount": payment.get("amount"),
 		"payment_url": payment.get("url"),
 		"payment_pending": True,

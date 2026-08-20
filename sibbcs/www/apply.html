@@ -107,6 +107,109 @@
     </fieldset>
 
     <fieldset>
+      <legend>Educational history &amp; required documents</legend>
+      <p class="text-muted small">
+        PDF, JPG or PNG, up to 5&nbsp;MB each. If you do not have a document to
+        hand, leave it and the Admissions Office will ask you for it later.
+      </p>
+
+      <div class="grid-2">
+        <div>
+          <div class="form-group">
+            <label for="ssc_status">SSC / 10th completion status <span class="req">*</span></label>
+            <select class="form-control" id="ssc_status" required>
+              <option value="">— Select —</option>
+              <option value="Completed">Completed</option>
+              <option value="Pursuing">Pursuing</option>
+              <option value="Not Completed">Not Completed</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ssc_year">SSC / 10th completion year</label>
+            <input type="text" class="form-control" id="ssc_year" maxlength="4"
+                   inputmode="numeric" placeholder="YYYY">
+          </div>
+          <div class="form-group">
+            <label for="doc_ssc">Upload SSC / 10th mark sheet</label>
+            <input type="file" class="form-control-file doc-input" id="doc_ssc"
+                   data-doctype="SSC/10th Mark Sheet" accept=".pdf,.jpg,.jpeg,.png">
+          </div>
+
+          <div class="form-group">
+            <label for="hslc_status">HSLC / 12th completion status <span class="req">*</span></label>
+            <select class="form-control" id="hslc_status" required>
+              <option value="">— Select —</option>
+              <option value="Completed">Completed</option>
+              <option value="Pursuing">Pursuing</option>
+              <option value="Not Completed">Not Completed</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="hslc_year">HSLC / 12th completion year</label>
+            <input type="text" class="form-control" id="hslc_year" maxlength="4"
+                   inputmode="numeric" placeholder="YYYY">
+          </div>
+          <div class="form-group">
+            <label for="doc_hslc">Upload HSLC / 12th mark sheet</label>
+            <input type="file" class="form-control-file doc-input" id="doc_hslc"
+                   data-doctype="HSLC/12th Mark Sheet" accept=".pdf,.jpg,.jpeg,.png">
+          </div>
+        </div>
+
+        <div>
+          <div class="form-group">
+            <label for="ug_status">Undergraduate degree completion status <span class="req">*</span></label>
+            <select class="form-control" id="ug_status" required>
+              <option value="">— Select —</option>
+              <option value="Completed">Completed</option>
+              <option value="Pursuing">Pursuing</option>
+              <option value="Not Completed">Not Completed</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ug_year">Undergraduate degree completion year</label>
+            <input type="text" class="form-control" id="ug_year" maxlength="4"
+                   inputmode="numeric" placeholder="YYYY">
+          </div>
+          <div class="form-group">
+            <label for="doc_ug_cert">Upload undergraduate degree certificate</label>
+            <input type="file" class="form-control-file doc-input" id="doc_ug_cert"
+                   data-doctype="Undergraduate Degree Certificate" accept=".pdf,.jpg,.jpeg,.png">
+          </div>
+          <div class="form-group">
+            <label for="doc_ug_marks">Upload undergraduate degree mark sheet</label>
+            <input type="file" class="form-control-file doc-input" id="doc_ug_marks"
+                   data-doctype="Undergraduate Degree Mark Sheet" accept=".pdf,.jpg,.jpeg,.png">
+          </div>
+          <div class="form-group">
+            <label for="doc_testimony">Upload personal testimony</label>
+            <input type="file" class="form-control-file doc-input" id="doc_testimony"
+                   data-doctype="Personal Testimony" accept=".pdf,.jpg,.jpeg,.png">
+          </div>
+          <div class="form-group">
+            <label for="doc_id">Upload national ID</label>
+            <input type="file" class="form-control-file doc-input" id="doc_id"
+                   data-doctype="National ID" accept=".pdf,.jpg,.jpeg,.png">
+          </div>
+          <div class="form-group">
+            <label for="doc_photo">Upload passport photograph</label>
+            <input type="file" class="form-control-file doc-input" id="doc_photo"
+                   data-doctype="Photo" accept=".jpg,.jpeg,.png">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="previous_theological_education">
+          Any previous theological education? <span class="req">*</span>
+        </label>
+        <textarea class="form-control" id="previous_theological_education" rows="2"
+                  maxlength="500" placeholder="Institution, qualification and year — or write None"
+                  required></textarea>
+      </div>
+    </fieldset>
+
+    <fieldset>
       <legend>What you want to study</legend>
 
       <div class="form-group">
@@ -226,6 +329,7 @@
         <b>Your application is not placed until the fee is paid.</b>
         Please keep your reference safe.
       </p>
+      <p id="upload-note" class="small" hidden></p>
     </div>
 
     <div id="pay-block" hidden>
@@ -309,7 +413,10 @@
     const message = document.getElementById('form-message');
     message.innerHTML = '';
 
-    const required = ['full_name', 'mobile', 'email', 'program'];
+    const required = [
+      'full_name', 'mobile', 'email', 'program',
+      'ssc_status', 'hslc_status', 'ug_status', 'previous_theological_education'
+    ];
     const missing = required.filter((id) => !String(val(id)).trim());
     if (missing.length) {
       message.innerHTML =
@@ -324,6 +431,8 @@
     const fields = [
       'full_name','dob','gender','mobile','whatsapp','email','address',
       'church_name','current_role','years_of_ministry','has_bachelors',
+      'ssc_status','ssc_year','hslc_status','hslc_year',
+      'ug_status','ug_year','previous_theological_education',
       'program','intake_term',
       'referee1_name','referee1_email','referee1_type',
       'referee2_name','referee2_email','referee2_type',
@@ -360,6 +469,65 @@
       }
 
       const result = body.message || {};
+
+      // The application exists now, so the files have somewhere to belong.
+      // Uploading afterwards means a guest can never put a file on the server
+      // that is not tied to a real record.
+      const chosen = Array.from(document.querySelectorAll('.doc-input'))
+        .filter((input) => input.files && input.files[0]);
+
+      if (chosen.length && result.upload_token) {
+        button.textContent = 'Uploading documents…';
+        let done = 0;
+        const failed = [];
+
+        for (const input of chosen) {
+          const file = input.files[0];
+          try {
+            const b64 = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result).split(',')[1]);
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+
+            const up = await fetch(
+              '/api/method/sibbcs.admissions.uploads.upload_document',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Frappe-CSRF-Token': window.csrf_token || '',
+                },
+                body: JSON.stringify({
+                  application: result.application,
+                  upload_token: result.upload_token,
+                  document_type: input.dataset.doctype,
+                  filename: file.name,
+                  content_type: file.type,
+                  content: b64,
+                }),
+              }
+            );
+            if (!up.ok) throw new Error(input.dataset.doctype);
+            done += 1;
+            button.textContent = 'Uploading documents… ' + done + '/' + chosen.length;
+          } catch (e) {
+            failed.push(input.dataset.doctype);
+          }
+        }
+
+        const note = document.getElementById('upload-note');
+        if (note) {
+          note.textContent = failed.length
+            ? done + ' of ' + chosen.length +
+              ' documents uploaded. These could not be accepted: ' +
+              failed.join(', ') + '. The Admissions Office will ask you for them.'
+            : done + ' document' + (done === 1 ? '' : 's') + ' uploaded successfully.';
+          note.hidden = false;
+        }
+      }
+
       document.getElementById('done-name').textContent = result.full_name || '';
       document.getElementById('done-ref').textContent = result.application || '';
       document.getElementById('done-ref-2').textContent = result.application || '';

@@ -19,7 +19,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Document Type",
-   "options": "10th Marksheet\n12th Marksheet\nDegree Certificate\nDegree Marksheet\nTestimony\nID Proof\nMinistry Proof\nPhoto",
+   "options": "SSC/10th Mark Sheet\nHSLC/12th Mark Sheet\nUndergraduate Degree Certificate\nUndergraduate Degree Mark Sheet\nPersonal Testimony\nNational ID\nMinistry Proof\nPhoto",
    "reqd": 1
   },
   {
@@ -56,7 +56,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-08-08 18:59:46.262115",
+ "modified": "2026-08-20 13:58:08.483378",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Application Document",

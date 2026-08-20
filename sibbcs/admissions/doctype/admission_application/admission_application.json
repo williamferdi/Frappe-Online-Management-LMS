@@ -29,6 +29,15 @@
   "years_of_ministry",
   "has_bachelors",
   "ministry_experience_doc",
+  "previous_theological_education",
+  "ug_year",
+  "ug_status",
+  "cb_education",
+  "hslc_year",
+  "hslc_status",
+  "ssc_year",
+  "ssc_status",
+  "sb_education",
   "sb_program",
   "program",
   "intake_term",
@@ -36,6 +45,7 @@
   "entry_level",
   "sb_workflow",
   "workflow_state",
+  "upload_token",
   "checklist",
   "sb_checklist",
   "sb_gates",
@@ -395,12 +405,73 @@
    "fieldname": "sb_onboarding",
    "fieldtype": "Section Break",
    "label": "Onboarding Decision"
+  },
+  {
+   "description": "Institution, qualification and year, or 'None'.",
+   "fieldname": "previous_theological_education",
+   "fieldtype": "Small Text",
+   "label": "Any Previous Theological Education?"
+  },
+  {
+   "fieldname": "ug_year",
+   "fieldtype": "Data",
+   "label": "Undergraduate Completion Year",
+   "length": 4
+  },
+  {
+   "fieldname": "ug_status",
+   "fieldtype": "Select",
+   "label": "Undergraduate Completion Status",
+   "options": "\nCompleted\nPursuing\nNot Completed"
+  },
+  {
+   "fieldname": "cb_education",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "hslc_year",
+   "fieldtype": "Data",
+   "label": "HSLC / 12th Completion Year",
+   "length": 4
+  },
+  {
+   "fieldname": "hslc_status",
+   "fieldtype": "Select",
+   "label": "HSLC / 12th Completion Status",
+   "options": "\nCompleted\nPursuing\nNot Completed"
+  },
+  {
+   "fieldname": "ssc_year",
+   "fieldtype": "Data",
+   "label": "SSC / 10th Completion Year",
+   "length": 4
+  },
+  {
+   "fieldname": "ssc_status",
+   "fieldtype": "Select",
+   "label": "SSC / 10th Completion Status",
+   "options": "\nCompleted\nPursuing\nNot Completed"
+  },
+  {
+   "fieldname": "sb_education",
+   "fieldtype": "Section Break",
+   "label": "Educational History"
+  },
+  {
+   "description": "Authorises document upload from the public form for this application only.",
+   "fieldname": "upload_token",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Upload Token",
+   "no_copy": 1,
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
+ "image_field": "photo",
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-20 13:02:06.892821",
+ "modified": "2026-08-20 14:11:25.710000",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Admission Application",
