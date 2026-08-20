@@ -151,6 +151,25 @@ class AdmissionApplication(Document):
 			elif mentor.sent_on:
 				move(6, "Request Sent")
 
+		# 7 - LMS account and exam link.
+		# Not through move(): "Created" already counts as done, so move()'s
+		# never-walk-backwards guard would freeze the row there and the step
+		# could never reach "Link Sent". This step has a known order, so
+		# advancing along it is safe where a general rule would not be.
+		row7 = rows.get(7)
+		if row7:
+			order = ["Awaiting", "Created", "Link Sent"]
+			target = None
+			if self.exam_link_sent_on:
+				target = "Link Sent"
+			elif self.applicant_user:
+				target = "Created"
+			current = row7.status if row7.status in order else "Awaiting"
+			if target and order.index(target) > order.index(current):
+				row7.status = target
+				row7.updated_by = frappe.session.user
+				row7.updated_on = frappe.utils.now_datetime()
+
 		# 10 - admission fee
 		if self.admission_fee_paid:
 			move(10, "Paid")

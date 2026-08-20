@@ -34,6 +34,19 @@ frappe.ui.form.on("Admission Application", {
 			);
 		}
 
+		// Step 7. Once the account exists the button becomes a resend, because
+		// the common follow-up is "they never got the email", not "make them a
+		// second account".
+		if (frm.doc.email) {
+			frm.add_custom_button(
+				frm.doc.applicant_user
+					? __("Resend Login and Exam Link")
+					: __("Create LMS Account"),
+				() => frm.trigger("create_lms_account"),
+				__("Send")
+			);
+		}
+
 		if (frm.doc.admission_fee_paid && !frm.doc.student) {
 			frm.add_custom_button(__("Convert to Student"), () =>
 				frm.trigger("convert_to_student")
@@ -264,6 +277,31 @@ frappe.ui.form.on("Admission Application", {
 			freeze: true,
 			freeze_message: __("Queueing mentor consent requests…"),
 			callback: () => frm.reload_doc(),
+		});
+	},
+
+	create_lms_account(frm) {
+		const again = Boolean(frm.doc.applicant_user);
+		const question = again
+			? __(
+					"This sends {0} their login and the entrance exam link again, with a fresh set-password link. Continue?",
+					[frm.doc.email]
+				)
+			: __(
+					"This creates an LMS account for {0} and emails them a set-password link and the entrance exam link. Continue?",
+					[frm.doc.email]
+				);
+
+		frappe.confirm(question, () => {
+			frappe.call({
+				method: again
+					? "sibbcs.admissions.lms_account.resend_exam_link"
+					: "sibbcs.admissions.lms_account.create_account",
+				args: { application: frm.doc.name },
+				freeze: true,
+				freeze_message: __("Creating the account…"),
+				callback: () => frm.reload_doc(),
+			});
 		});
 	},
 
