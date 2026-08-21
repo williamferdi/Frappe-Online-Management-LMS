@@ -75,6 +75,9 @@
   "cb_outcome",
   "enrolled_on",
   "exam_link_sent_on",
+  "interview_link_sent_on",
+  "interview_booking_url",
+  "sb_interview",
   "entrance_exam_link",
   "cb_lms",
   "lms_account_created_on",
@@ -521,13 +524,31 @@
    "fieldname": "sb_checklist_rows",
    "fieldtype": "Section Break",
    "label": "Checklist Rows"
+  },
+  {
+   "fieldname": "interview_link_sent_on",
+   "fieldtype": "Datetime",
+   "label": "Booking Link Sent On",
+   "read_only": 1
+  },
+  {
+   "description": "This candidate's own Calendly link, with their details prefilled and the application number attached. Copy it if you need to send it by WhatsApp.",
+   "fieldname": "interview_booking_url",
+   "fieldtype": "Small Text",
+   "label": "Booking Link",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_interview",
+   "fieldtype": "Section Break",
+   "label": "Interview Booking"
   }
  ],
  "grid_page_length": 50,
  "image_field": "photo",
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-21 12:11:23.535959",
+ "modified": "2026-08-21 12:41:30.225808",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Admission Application",

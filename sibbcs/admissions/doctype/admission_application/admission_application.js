@@ -47,6 +47,17 @@ frappe.ui.form.on("Admission Application", {
 			);
 		}
 
+		// Step 9.
+		if (frm.doc.email) {
+			frm.add_custom_button(
+				frm.doc.interview_link_sent_on
+					? __("Resend Interview Booking Link")
+					: __("Send Interview Booking Link"),
+				() => frm.trigger("send_interview_invite"),
+				__("Send")
+			);
+		}
+
 		// Step 12.
 		if (!frm.is_new()) {
 			frm.add_custom_button(
@@ -453,6 +464,27 @@ frappe.ui.form.on("Admission Application", {
 				callback: () => frm.reload_doc(),
 			});
 		});
+	},
+
+	send_interview_invite(frm) {
+		const again = Boolean(frm.doc.interview_link_sent_on);
+		frappe.confirm(
+			again
+				? __("Send {0} the interview booking link again?", [frm.doc.email])
+				: __(
+						"This emails {0} a Calendly link to pick their own interview slot. Continue?",
+						[frm.doc.email]
+					),
+			() => {
+				frappe.call({
+					method: "sibbcs.admissions.interview.send",
+					args: { application: frm.doc.name },
+					freeze: true,
+					freeze_message: __("Sending…"),
+					callback: () => frm.reload_doc(),
+				});
+			}
+		);
 	},
 
 	send_manuals(frm) {

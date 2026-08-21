@@ -57,7 +57,11 @@ STEPS = [
 	 "Awaiting", ["Passed"], OFFICER),
 
 	(9, "Zoom Interview Review",
-	 ["Awaiting", "Scheduled", "Cleared", "Rejected", "Deferred"],
+	 # Invite Sent sits between Awaiting and Scheduled because on Calendly's
+	 # free plan nobody here learns that a slot was taken until an officer
+	 # looks. Leaving the step at Awaiting after emailing the link would say
+	 # something untrue about work already done.
+	 ["Awaiting", "Invite Sent", "Scheduled", "Cleared", "Rejected", "Deferred"],
 	 "Awaiting", ["Cleared"], OFFICER),
 
 	(10, "Admission Fee Status",
@@ -281,6 +285,7 @@ ACTIONS = {
 	4: "resend_requests",
 	6: "resend_requests",
 	7: "create_lms_account",
+	9: "send_interview_invite",
 	12: "send_manuals",
 	13: "onboard_student",
 }

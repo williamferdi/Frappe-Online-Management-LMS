@@ -235,6 +235,28 @@ The raw child grid still exists, in a collapsed `Checklist Rows` section below t
 it is where remarks and the audit stamps are stored. The old `Admission Gates` dashboard
 summary was removed — the board says the same thing better.
 
+### Step 9 — `sibbcs/admissions/interview.py`
+
+Zoom interviews are booked through **Calendly on the free plan**, so this is deliberately
+one-way: the button emails the candidate a booking link and step 9 moves to **`Invite
+Sent`** — a new status between Awaiting and Scheduled, because a sent link is not a
+booking and nobody here learns a slot was taken until an officer looks. Calendly webhooks
+would close that loop but need a paid plan; the college has chosen not to buy one. The
+module is shaped so adding them later is an addition, not a rewrite.
+
+The link is not the bare event URL. It prefills `name` and `email`, and carries the
+application number in `utm_content`, which is what lets an officer match a booking to an
+application without guessing from the name — two candidates called Kumar is not
+hypothetical. It is also stored on `interview_booking_url`, because a good few of these
+conversations happen over WhatsApp.
+
+**`event_url()` discards the configured URL's query string on purpose.** A Calendly link
+copied out of a browser carries `?month=2026-08&date=2026-08-28`, which pins the widget to
+one month and one day; emailed a month later it opens on a date that has already passed.
+
+    bench --site online.sibbc.org set-config calendly_interview_url \
+        "https://calendly.com/admissions-online-sibbc/30min"
+
 ### 2.3 Formation — Phase 6, not built
 `Mentor`, `Mentor Monthly Report`, `Chapel Session` + `Chapel Attendance`,
 `Internship Record` (+ `Internship Log Entry`), `Campus Visit` + `Campus Visit Attendance`.
