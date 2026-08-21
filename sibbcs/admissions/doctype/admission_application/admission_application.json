@@ -72,6 +72,10 @@
   "onboard_level",
   "sb_onboarding",
   "scholarship_request",
+  "scholarship_form_sent_on",
+  "scholarship_form_url",
+  "scholarship_token",
+  "sb_scholarship",
   "cb_outcome",
   "enrolled_on",
   "exam_link_sent_on",
@@ -542,13 +546,37 @@
    "fieldname": "sb_interview",
    "fieldtype": "Section Break",
    "label": "Interview Booking"
+  },
+  {
+   "fieldname": "scholarship_form_sent_on",
+   "fieldtype": "Datetime",
+   "label": "Form Sent On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "scholarship_form_url",
+   "fieldtype": "Small Text",
+   "label": "Scholarship Form Link",
+   "read_only": 1
+  },
+  {
+   "fieldname": "scholarship_token",
+   "fieldtype": "Data",
+   "label": "Scholarship Token",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_scholarship",
+   "fieldtype": "Section Break",
+   "label": "Scholarship"
   }
  ],
  "grid_page_length": 50,
  "image_field": "photo",
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-21 12:41:30.225808",
+ "modified": "2026-08-21 13:16:41.150218",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Admission Application",

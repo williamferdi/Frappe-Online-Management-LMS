@@ -23,6 +23,7 @@ WWW = os.path.dirname(os.path.abspath(__file__))
 # legitimate (static content), so only these are required to resolve.
 PAGES_WITH_CONTROLLERS = [
 	"reference",
+	"scholarship",
 	"mentor-consent",
 	"manual-reading",
 	"my-courses",

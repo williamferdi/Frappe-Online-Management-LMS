@@ -27,7 +27,8 @@
   "sb_tuition",
   "monthly_tuition",
   "tuition_total",
-  "cap_on_gross"
+  "cap_on_gross",
+  "scholarship_max"
  ],
  "fields": [
   {
@@ -150,12 +151,18 @@
    "fieldname": "cap_on_gross",
    "fieldtype": "Check",
    "label": "Ceiling Applies to Gross"
+  },
+  {
+   "description": "The most a scholarship for this program can be worth in total. An approval above it is refused. Zero means no ceiling declared.",
+   "fieldname": "scholarship_max",
+   "fieldtype": "Currency",
+   "label": "Scholarship Maximum"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-21 12:40:58.238554",
+ "modified": "2026-08-21 13:16:39.795783",
  "modified_by": "Administrator",
  "module": "Academic",
  "name": "Program",

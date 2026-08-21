@@ -41,7 +41,11 @@ STEPS = [
 	 "Awaiting", ["Reviewed", "Not Applicable"], OFFICER),
 
 	(5, "Scholarship Form Review",
-	 ["Not Applicable", "Awaiting Review", "Received", "Approved", "Rejected"],
+	 # Form Sent, like step 9's Invite Sent: the default here is Not Applicable,
+	 # which counts as done because most candidates never ask. Once the form has
+	 # gone out the step is genuinely outstanding again, and saying so is the
+	 # whole point of tracking it.
+	 ["Not Applicable", "Form Sent", "Received", "Awaiting Review", "Approved", "Rejected"],
 	 "Not Applicable", ["Approved", "Rejected", "Not Applicable"], REGISTRAR),
 
 	(6, "Mentor Form Review",
@@ -283,6 +287,7 @@ def update_step(application, step_no, status, remarks=None):
 ACTIONS = {
 	3: "resend_requests",
 	4: "resend_requests",
+	5: "send_scholarship_form",
 	6: "resend_requests",
 	7: "create_lms_account",
 	9: "send_interview_invite",

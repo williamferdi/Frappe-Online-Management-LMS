@@ -17,6 +17,9 @@
   "sb_request",
   "requested_amount",
   "justification",
+  "ip_address",
+  "submitted_on",
+  "signature",
   "sb_approval",
   "approved_amount",
   "monthly_discount",
@@ -121,12 +124,32 @@
    "fieldtype": "Date",
    "label": "Approved On",
    "read_only": 1
+  },
+  {
+   "fieldname": "ip_address",
+   "fieldtype": "Data",
+   "label": "IP Address",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "submitted_on",
+   "fieldtype": "Datetime",
+   "label": "Submitted On",
+   "read_only": 1
+  },
+  {
+   "description": "Drawn by the candidate on the form. Stored privately.",
+   "fieldname": "signature",
+   "fieldtype": "Attach Image",
+   "label": "Signature",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-21 12:41:05.273497",
+ "modified": "2026-08-21 13:16:42.104918",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Scholarship Request",

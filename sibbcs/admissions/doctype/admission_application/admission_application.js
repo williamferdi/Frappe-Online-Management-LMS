@@ -47,6 +47,23 @@ frappe.ui.form.on("Admission Application", {
 			);
 		}
 
+		// Step 5.
+		if (frm.doc.email && !frm.doc.scholarship_request) {
+			frm.add_custom_button(
+				frm.doc.scholarship_form_sent_on
+					? __("Resend Scholarship Form")
+					: __("Send Scholarship Form"),
+				() => frm.trigger("send_scholarship_form"),
+				__("Send")
+			);
+		}
+
+		if (frm.doc.scholarship_request) {
+			frm.add_custom_button(__("Open Scholarship Request"), () =>
+				frappe.set_route("Form", "Scholarship Request", frm.doc.scholarship_request)
+			);
+		}
+
 		// Step 9.
 		if (frm.doc.email) {
 			frm.add_custom_button(
@@ -106,7 +123,9 @@ frappe.ui.form.on("Admission Application", {
 		// that belongs to the row they are looking at.
 		const ACTION_LABELS = {
 			resend_requests: __("Resend"),
+			send_scholarship_form: __("Form"),
 			create_lms_account: __("Account"),
+			send_interview_invite: __("Invite"),
 			send_manuals: __("Send"),
 			onboard_student: __("Onboard"),
 		};
@@ -464,6 +483,28 @@ frappe.ui.form.on("Admission Application", {
 				callback: () => frm.reload_doc(),
 			});
 		});
+	},
+
+	send_scholarship_form(frm) {
+		if (frm.doc.scholarship_request) {
+			frappe.set_route("Form", "Scholarship Request", frm.doc.scholarship_request);
+			return;
+		}
+		frappe.confirm(
+			__(
+				"This emails {0} the scholarship form. Applying does not affect their admission decision. Continue?",
+				[frm.doc.email]
+			),
+			() => {
+				frappe.call({
+					method: "sibbcs.admissions.scholarship.send",
+					args: { application: frm.doc.name },
+					freeze: true,
+					freeze_message: __("Sending…"),
+					callback: () => frm.reload_doc(),
+				});
+			}
+		);
 	},
 
 	send_interview_invite(frm) {

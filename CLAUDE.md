@@ -235,6 +235,39 @@ The raw child grid still exists, in a collapsed `Checklist Rows` section below t
 it is where remarks and the audit stamps are stored. The old `Admission Gates` dashboard
 summary was removed — the board says the same thing better.
 
+### Step 5 — `sibbcs/admissions/scholarship.py`
+
+The college's own scholarship form, rebuilt from their Zoho original: student name and
+email (prefilled, read-only), a financial-need statement capped at **250 words**, and a
+drawn signature. Public at `/scholarship?token=`.
+
+**It does not use `tokens.py`.** That controller resolves a token to one *child row* of a
+parent; a `Scholarship Request` is a standalone document referenced by
+`Admission Application.scholarship_request`, so there is no row to point at. The token
+lives on the application beside `upload_token` and is resolved in `scholarship.resolve`.
+One application, one form — the token is spent the moment a request exists.
+
+**Caps live on `Program.scholarship_max`**, seeded from the college's form: M.Div 24,000,
+M.A.C.S. 16,000, GDCS 8,000 — 8,000 a year over three, two and one year. `decide()`
+refuses an award above the cap. **BTH-TAM has no cap declared** and is therefore
+unchecked; set one when the college states it. The seeder never overwrites a figure edited
+in Desk.
+
+The signature arrives as a canvas data URL, so the bytes are ours to check rather than a
+file the candidate chose: PNG magic bytes, 512 KB ceiling, stored private. It is validated
+**before** the request is created, so a refused signature cannot leave an empty
+`Scholarship Request` behind.
+
+Approval is `scholarship.decide`, never a hand-edited `status`: it stamps the approver,
+checks the cap, and moves step 5. `conversion._apply_scholarship` then copies
+`approved_amount` and `monthly_discount` onto the Program Enrollment, which is what makes
+the cap real — the Phase 4 tuition job stops discounting once `scholarship_used_to_date`
+reaches it.
+
+Step 5 gained **`Form Sent`**, for the same reason step 9 gained `Invite Sent`: the
+default is `Not Applicable`, which counts as done because most candidates never ask. Once
+the form goes out the step is genuinely outstanding again.
+
 ### Step 9 — `sibbcs/admissions/interview.py`
 
 Zoom interviews are booked through **Calendly on the free plan**, so this is deliberately

@@ -43,7 +43,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Acknowledged\nAdmitted\nApproved\nAwaiting\nAwaiting Onboarding\nAwaiting Review\nCleared\nCreated\nDeferred\nFailed\nInvite Sent\nLink Sent\nNeeds Admin Inspection\nNot Applicable\nOnboarded\nPaid\nPartial Submission\nPassed\nReceived\nRejected\nRequest Sent\nResubmit Requested\nReviewed\nScheduled\nSent\nUnder Review\nVerified\nWaived",
+   "options": "Acknowledged\nAdmitted\nApproved\nAwaiting\nAwaiting Onboarding\nAwaiting Review\nCleared\nCreated\nDeferred\nFailed\nForm Sent\nInvite Sent\nLink Sent\nNeeds Admin Inspection\nNot Applicable\nOnboarded\nPaid\nPartial Submission\nPassed\nReceived\nRejected\nRequest Sent\nResubmit Requested\nReviewed\nScheduled\nSent\nUnder Review\nVerified\nWaived",
    "reqd": 1
   },
   {
@@ -87,7 +87,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-08-21 12:41:32.176485",
+ "modified": "2026-08-21 13:16:42.838502",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Admission Checklist Item",

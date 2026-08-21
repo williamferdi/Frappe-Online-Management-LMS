@@ -1,0 +1,269 @@
+{% extends "templates/web.html" %}
+
+{% block title %}Scholarship Form{% endblock %}
+
+{% block page_content %}
+<div class="sibbcs-scholarship">
+	{% if not valid %}
+		<div class="alert alert-warning">
+			<h4>This link cannot be opened</h4>
+			<p>{{ error }}</p>
+			<p class="text-muted small">
+				If you believe this is a mistake, please contact the Admissions Office.
+			</p>
+		</div>
+	{% else %}
+		<div class="form-banner">
+			<h3>Scholarship Form — SIBBCS Online Programs</h3>
+		</div>
+
+		<div class="intro text-muted">
+			<p>{{ intro.lead }}</p>
+			<p>{{ intro.body }}</p>
+			{% if intro.program_cap %}
+				<p class="cap">
+					Maximum scholarship available for
+					<b>{{ program_title }}</b>:
+					<b>&#8377;{{ "{:,.0f}".format(intro.program_cap) }}</b>
+				</p>
+			{% endif %}
+			<p>{{ intro.terms }}</p>
+		</div>
+
+		<h4 class="section-title">Student Details</h4>
+
+		<form id="scholarship-form">
+			<div class="form-group">
+				<label>Student Full Name</label>
+				<input type="text" class="form-control" value="{{ applicant_name }}" readonly>
+			</div>
+
+			<div class="form-group">
+				<label>Student Email</label>
+				<input type="text" class="form-control" value="{{ applicant_email }}" readonly>
+				<small class="text-muted">Applying for {{ program_title }}.</small>
+			</div>
+
+			<div class="form-group">
+				<label for="statement">
+					Explain Your Financial Need for this Scholarship
+					<span class="req">*</span>
+				</label>
+				<textarea class="form-control" id="statement" rows="8"></textarea>
+				<small class="text-muted">
+					<span id="word-count">0</span> of {{ intro.word_limit }} words used.
+				</small>
+			</div>
+
+			<div class="form-group">
+				<label>Signature <span class="req">*</span></label>
+				<div class="pad-wrap">
+					<canvas id="signature-pad" width="640" height="180"></canvas>
+				</div>
+				<button type="button" class="btn btn-default btn-sm" id="clear-pad">
+					Clear
+				</button>
+				<small class="text-muted">Draw your signature in the box above.</small>
+			</div>
+
+			<div class="actions">
+				<button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
+					Submit
+				</button>
+				<p class="text-muted small" style="margin-top:10px">
+					This form can be submitted once. The Registrar will review it and
+					write to you with the outcome.
+				</p>
+			</div>
+
+			<div id="form-message"></div>
+		</form>
+
+		<div id="scholarship-done" hidden>
+			<div class="alert alert-success">
+				<h4>Thank you</h4>
+				<p>
+					Your scholarship application has been received. The Registrar will
+					review it and write to you. You may close this page.
+				</p>
+			</div>
+		</div>
+	{% endif %}
+</div>
+
+<style>
+	.sibbcs-scholarship { max-width: 760px; margin: 0 auto; }
+	.form-banner {
+		background: var(--control-bg, #eef3fb); text-align: center;
+		padding: 12px; border-radius: 6px; margin-bottom: 16px;
+	}
+	.form-banner h3 { margin: 0; font-size: 1.15rem; }
+	.sibbcs-scholarship .intro {
+		font-size: 14.5px; line-height: 1.65; margin-bottom: 26px;
+		padding-left: 14px; border-left: 3px solid var(--border-color, #ddd);
+	}
+	.sibbcs-scholarship .intro p { margin-bottom: 12px; }
+	.sibbcs-scholarship .cap { color: var(--text-color, #1f272e); }
+	.sibbcs-scholarship .section-title {
+		border-bottom: 1px solid var(--border-color, #e5e5e5);
+		padding-bottom: 8px; margin-bottom: 20px;
+	}
+	.sibbcs-scholarship .form-group { margin-bottom: 18px; }
+	.sibbcs-scholarship label { font-weight: 600; display: block; margin-bottom: 5px; }
+	.sibbcs-scholarship input[readonly] { background: var(--control-bg, #f4f5f6); }
+	.req { color: #c0392b; }
+	.pad-wrap {
+		border: 1px solid var(--border-color, #d1d8dd); border-radius: 6px;
+		background: #fff; margin-bottom: 8px; overflow: hidden;
+	}
+	#signature-pad { display: block; width: 100%; height: 180px; touch-action: none; cursor: crosshair; }
+	.over-limit { color: #c0392b; font-weight: 600; }
+	.actions { margin-top: 24px; }
+	#form-message { margin-top: 16px; }
+</style>
+
+{% if valid %}
+<script>
+(function () {
+	const form = document.getElementById('scholarship-form');
+	const token = {{ token | tojson }};
+	const limit = {{ intro.word_limit | tojson }};
+
+	const statement = document.getElementById('statement');
+	const counter = document.getElementById('word-count');
+
+	function words(text) {
+		return text.trim().split(/\s+/).filter(Boolean).length;
+	}
+
+	statement.addEventListener('input', function () {
+		const used = words(statement.value);
+		counter.textContent = used;
+		counter.parentElement.classList.toggle('over-limit', used > limit);
+	});
+
+	// A small signature pad. No library: it is a canvas, three pointer events
+	// and a flag, and pulling in a dependency for that would be worse.
+	const canvas = document.getElementById('signature-pad');
+	const ctx = canvas.getContext('2d');
+	let drawing = false;
+	let signed = false;
+
+	function fit() {
+		// Redrawing on resize would lose the strokes, so size once and keep
+		// the backing store in step with the CSS box.
+		const ratio = window.devicePixelRatio || 1;
+		const width = canvas.clientWidth;
+		canvas.width = width * ratio;
+		canvas.height = 180 * ratio;
+		ctx.scale(ratio, ratio);
+		ctx.lineWidth = 2;
+		ctx.lineCap = 'round';
+		ctx.lineJoin = 'round';
+		ctx.strokeStyle = '#111';
+	}
+	fit();
+
+	function pointOf(event) {
+		const box = canvas.getBoundingClientRect();
+		return { x: event.clientX - box.left, y: event.clientY - box.top };
+	}
+
+	canvas.addEventListener('pointerdown', function (event) {
+		drawing = true;
+		signed = true;
+		canvas.setPointerCapture(event.pointerId);
+		const point = pointOf(event);
+		ctx.beginPath();
+		ctx.moveTo(point.x, point.y);
+	});
+	canvas.addEventListener('pointermove', function (event) {
+		if (!drawing) return;
+		const point = pointOf(event);
+		ctx.lineTo(point.x, point.y);
+		ctx.stroke();
+	});
+	['pointerup', 'pointerleave', 'pointercancel'].forEach(function (name) {
+		canvas.addEventListener(name, function () { drawing = false; });
+	});
+
+	document.getElementById('clear-pad').addEventListener('click', function () {
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		signed = false;
+	});
+
+	form.addEventListener('submit', async function (event) {
+		event.preventDefault();
+
+		const button = document.getElementById('submit-btn');
+		const message = document.getElementById('form-message');
+		message.innerHTML = '';
+
+		const text = statement.value.trim();
+		if (!text) {
+			message.innerHTML =
+				'<div class="alert alert-danger">Please explain your financial need.</div>';
+			statement.focus();
+			return;
+		}
+		if (words(text) > limit) {
+			message.innerHTML =
+				'<div class="alert alert-danger">Please keep your answer to ' +
+				limit + ' words or fewer.</div>';
+			statement.focus();
+			return;
+		}
+		if (!signed) {
+			message.innerHTML =
+				'<div class="alert alert-danger">Please sign the form.</div>';
+			canvas.scrollIntoView({ block: 'center' });
+			return;
+		}
+
+		button.disabled = true;
+		button.textContent = 'Submitting…';
+
+		try {
+			const response = await fetch(
+				'/api/method/sibbcs.admissions.scholarship.submit_form',
+				{
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'X-Frappe-CSRF-Token': window.csrf_token || '',
+					},
+					body: JSON.stringify({
+						token: token,
+						statement: text,
+						signature: canvas.toDataURL('image/png'),
+					}),
+				}
+			);
+
+			const payload = await response.json();
+			if (!response.ok) {
+				let detail = 'Your form could not be submitted.';
+				if (payload && payload._server_messages) {
+					try {
+						detail = JSON.parse(JSON.parse(payload._server_messages)[0]).message || detail;
+					} catch (e) { /* keep the default */ }
+				}
+				throw new Error(detail);
+			}
+
+			form.hidden = true;
+			document.getElementById('scholarship-done').hidden = false;
+			window.scrollTo({ top: 0, behavior: 'smooth' });
+		} catch (error) {
+			button.disabled = false;
+			button.textContent = 'Submit';
+			message.innerHTML =
+				'<div class="alert alert-danger">' +
+				String(error.message || error).replace(/<[^>]*>/g, '') +
+				'</div>';
+		}
+	});
+})();
+</script>
+{% endif %}
+{% endblock %}
