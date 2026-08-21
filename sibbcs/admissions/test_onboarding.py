@@ -9,7 +9,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from sibbcs.admissions import conversion, manuals
-from sibbcs.admissions.checklist import blocked_reason, set_status, status_of
+from sibbcs.admissions.checklist import NO, blocked_reason, set_status, status_of
 
 MANUAL = "Test Onboarding Manual"
 
@@ -65,17 +65,17 @@ def ready_to_onboard(app, level=None, fee="Paid"):
 			}
 		).insert(ignore_permissions=True)
 
-	set_status(app, 7, "Link Sent")
+	set_status(app, NO["lms_account"], "Link Sent")
 	app.reload()
-	set_status(app, 8, "Passed")
+	set_status(app, NO["entrance_exam"], "Passed")
 	app.reload()
 
 	if fee == "Paid":
 		app.db_set("admission_fee_paid", 1)
 		app.reload()
-	set_status(app, 10, fee)
+	set_status(app, NO["admission_fee"], fee)
 	app.reload()
-	set_status(app, 11, "Admitted")
+	set_status(app, NO["decision"], "Admitted")
 	app.reload()
 
 	with patch(
@@ -98,24 +98,24 @@ class TestOnboarding(FrappeTestCase):
 
 	def test_onboarding_is_blocked_before_the_admission_decision(self):
 		app = make_application()
-		self.assertIsNotNone(blocked_reason(app, 13))
+		self.assertIsNotNone(blocked_reason(app, NO["onboarding"]))
 		with self.assertRaises(frappe.ValidationError):
 			conversion.onboard(app.name)
 
 	def test_onboarding_is_blocked_while_a_manual_is_unread(self):
 		app = make_application()
-		set_status(app, 7, "Link Sent")
+		set_status(app, NO["lms_account"], "Link Sent")
 		app.reload()
-		set_status(app, 8, "Passed")
+		set_status(app, NO["entrance_exam"], "Passed")
 		app.reload()
 		app.db_set("admission_fee_paid", 1)
 		app.reload()
-		set_status(app, 10, "Paid")
+		set_status(app, NO["admission_fee"], "Paid")
 		app.reload()
-		set_status(app, 11, "Admitted")
+		set_status(app, NO["decision"], "Admitted")
 		app.reload()
 
-		self.assertIsNotNone(blocked_reason(app, 13))
+		self.assertIsNotNone(blocked_reason(app, NO["onboarding"]))
 		with self.assertRaises(frappe.ValidationError):
 			conversion.onboard(app.name)
 
@@ -161,12 +161,12 @@ class TestOnboarding(FrappeTestCase):
 
 	# -- the step ----------------------------------------------------------
 
-	def test_onboarding_completes_step_13_and_the_overall_state(self):
+	def test_onboarding_completes_the_step_and_the_overall_state(self):
 		app = ready_to_onboard(make_application(), level="2")
 		conversion.onboard(app.name)
 
 		app.reload()
-		self.assertEqual(status_of(app, 13), "Onboarded")
+		self.assertEqual(status_of(app, NO["onboarding"]), "Onboarded")
 		self.assertEqual(app.workflow_state, "Onboarded")
 		self.assertTrue(app.student)
 

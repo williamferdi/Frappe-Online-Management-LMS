@@ -8,7 +8,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from sibbcs.admissions import interview
-from sibbcs.admissions.checklist import set_status, status_of
+from sibbcs.admissions.checklist import NO, set_status, status_of
 
 EVENT = "https://calendly.com/admissions-online-sibbc/30min"
 # What a link actually looks like when copied out of a browser.
@@ -104,25 +104,25 @@ class TestInterviewBooking(FrappeTestCase):
 		self.assertNotIn(":8000", body)
 		self.assertNotIn("{{", body)
 
-	def test_step_9_says_invite_sent_not_scheduled(self):
+	def test_the_step_says_invite_sent_not_scheduled(self):
 		"""A sent link is not a booking; nobody here knows they booked yet."""
 		app = make_application()
-		self.assertEqual(status_of(app, 9), "Awaiting")
+		self.assertEqual(status_of(app, NO["interview"]), "Awaiting")
 
 		self._send(app)
 		app.reload()
-		self.assertEqual(status_of(app, 9), "Invite Sent")
+		self.assertEqual(status_of(app, NO["interview"]), "Invite Sent")
 
 	def test_resending_does_not_undo_an_officers_decision(self):
 		app = make_application()
 		self._send(app)
 		app.reload()
-		set_status(app, 9, "Scheduled")
+		set_status(app, NO["interview"], "Scheduled")
 		app.reload()
 
 		self._send(app)
 		app.reload()
-		self.assertEqual(status_of(app, 9), "Scheduled")
+		self.assertEqual(status_of(app, NO["interview"]), "Scheduled")
 
 	def test_without_an_event_nothing_is_sent_and_the_step_stays_put(self):
 		app = make_application()
@@ -136,7 +136,7 @@ class TestInterviewBooking(FrappeTestCase):
 		self.assertTrue(report["warnings"])
 
 		app.reload()
-		self.assertEqual(status_of(app, 9), "Awaiting")
+		self.assertEqual(status_of(app, NO["interview"]), "Awaiting")
 
 	def test_a_missing_mail_account_is_a_warning_not_an_exception(self):
 		app = make_application()
@@ -155,4 +155,4 @@ class TestInterviewBooking(FrappeTestCase):
 		"""Nothing has to happen before an interview can be booked."""
 		from sibbcs.admissions.checklist import blocked_reason
 
-		self.assertIsNone(blocked_reason(make_application(), 9))
+		self.assertIsNone(blocked_reason(make_application(), NO["interview"]))

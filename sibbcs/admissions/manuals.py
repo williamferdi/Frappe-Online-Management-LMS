@@ -1,12 +1,12 @@
-"""Step 12: sending the reading manuals, and recording that they were read.
+"""Manual Reading Review: sending the manuals, and recording that they were read.
 
 A candidate who has been admitted is sent the manuals they must read. They open
-a link, read the manual, type their name and confirm. Step 12 reaches
+a link, read the manual, type their name and confirm. The step reaches
 **Acknowledged** only when every manual that applies to them has been confirmed
 -- not the first one.
 
-No login, by design. The candidate does have an account by this point (step 7
-made one), but requiring a sign-in to acknowledge a document is friction that
+No login, by design. The candidate does have an account by this point (LMS
+Account Creation made one), but requiring a sign-in to acknowledge a document is friction that
 buys nothing: the token already identifies exactly one manual for exactly one
 applicant, and is spent on use.
 
@@ -25,9 +25,10 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
+from sibbcs.admissions.checklist import NO
 from sibbcs.admissions.doctype.admission_application.admission_application import token_url
 
-STEP = 12
+STEP = NO["manual_reading"]
 FORM_KEY = "manual-reading"
 
 

@@ -11,7 +11,7 @@ wrong. These tests pin the shape.
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from sibbcs.admissions.checklist import ACTIONS, STEPS, board, set_status, update_step
+from sibbcs.admissions.checklist import ACTIONS, NO, STEPS, board, set_status, update_step
 
 REQUIRED_KEYS = {
 	"step_no",
@@ -80,27 +80,29 @@ class TestChecklistBoard(FrappeTestCase):
 
 	def test_progress_counts_completed_steps(self):
 		app = make_application()
-		set_status(app, 1, "Approved")
+		set_status(app, NO["application_review"], "Approved")
 		app.reload()
 
 		data = board(app.name)
 		self.assertEqual(data["progress"]["done"], baseline_done() + 1)
-		row = next(r for r in data["rows"] if r["step_no"] == 1)
+		row = next(r for r in data["rows"] if r["step_no"] == NO["application_review"])
 		self.assertTrue(row["done"])
 
 	def test_a_blocked_step_says_why(self):
 		"""The reason is the tooltip and the line under the select."""
 		data = board(make_application().name)
 
-		row = next(r for r in data["rows"] if r["step_no"] == 8)
+		row = next(r for r in data["rows"] if r["step_no"] == NO["entrance_exam"])
 		self.assertTrue(row["blocked"])
-		self.assertIn("7", row["blocked"])
+		# Name the step, not its number: the number moves when the college
+		# reorders, and asserting on it makes a reorder look like a bug.
+		self.assertIn("LMS Account Creation", row["blocked"])
 
 	def test_done_statuses_are_what_the_board_greys_out(self):
 		"""The board disables exactly the options that would complete a step."""
 		data = board(make_application().name)
 
-		row = next(r for r in data["rows"] if r["step_no"] == 8)
+		row = next(r for r in data["rows"] if r["step_no"] == NO["entrance_exam"])
 		self.assertEqual(row["done_statuses"], ["Passed"])
 		for status in row["done_statuses"]:
 			self.assertIn(status, row["statuses"])
@@ -117,16 +119,16 @@ class TestChecklistBoard(FrappeTestCase):
 
 	def test_remarks_and_the_audit_stamp_reach_the_board(self):
 		app = make_application()
-		update_step(app.name, 1, "Under Review", remarks="Waiting on the referee.")
+		update_step(app.name, NO["application_review"], "Under Review", remarks="Waiting on the referee.")
 
-		row = next(r for r in board(app.name)["rows"] if r["step_no"] == 1)
+		row = next(r for r in board(app.name)["rows"] if r["step_no"] == NO["application_review"])
 		self.assertEqual(row["remarks"], "Waiting on the referee.")
 		self.assertEqual(row["updated_by"], frappe.session.user)
 		self.assertTrue(row["updated_on"])
 
 	def test_moving_a_step_through_the_board_returns_the_new_state(self):
 		app = make_application()
-		result = update_step(app.name, 1, "Approved")
+		result = update_step(app.name, NO["application_review"], "Approved")
 
 		self.assertEqual(result["step_no"], 1)
 		self.assertEqual(result["status"], "Approved")
@@ -136,15 +138,15 @@ class TestChecklistBoard(FrappeTestCase):
 		"""The select greys these out, but the server is what enforces it."""
 		app = make_application()
 		with self.assertRaises(frappe.ValidationError):
-			update_step(app.name, 8, "Passed")
+			update_step(app.name, NO["entrance_exam"], "Passed")
 
 	def test_an_intermediate_status_is_allowed_on_a_blocked_step(self):
 		"""Scheduling an exam early is fine; passing it early is not."""
 		app = make_application()
-		result = update_step(app.name, 8, "Scheduled")
+		result = update_step(app.name, NO["entrance_exam"], "Scheduled")
 		self.assertEqual(result["status"], "Scheduled")
 
 	def test_a_status_that_does_not_belong_to_the_step_is_refused(self):
 		app = make_application()
 		with self.assertRaises(frappe.ValidationError):
-			update_step(app.name, 1, "Onboarded")
+			update_step(app.name, NO["application_review"], "Onboarded")

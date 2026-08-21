@@ -21,8 +21,10 @@ from frappe.utils import now_datetime
 from sibbcs.admissions.doctype.admission_application.admission_application import token_url
 
 # Steps 3, 4 and 6 on the checklist mirror what has been sent.
-REFEREE_STEPS = {0: 3, 1: 4}
-MENTOR_STEP = 6
+from sibbcs.admissions.checklist import NO
+
+REFEREE_STEPS = {0: NO["reference_1"], 1: NO["reference_2"]}
+MENTOR_STEP = NO["mentor_form"]
 
 
 def outgoing_configured():

@@ -1,8 +1,8 @@
-"""Step 9: sending the candidate their interview booking link.
+"""Zoom Interview Review: sending the candidate their booking link.
 
 The college books Zoom interviews through Calendly on the free plan, so this
 is deliberately one-way: we send the link, the candidate picks a slot, and an
-officer records the booking. Calendly's webhooks -- which would move step 9 by
+officer records the booking. Calendly's webhooks -- which would move the step by
 themselves -- need a paid plan, and the college has chosen not to buy one. The
 module is shaped so that adding them later is an addition, not a rewrite: the
 link and the email stay exactly as they are.
@@ -29,7 +29,9 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
-STEP = 9
+from sibbcs.admissions.checklist import NO
+
+STEP = NO["interview"]
 
 
 def event_url():

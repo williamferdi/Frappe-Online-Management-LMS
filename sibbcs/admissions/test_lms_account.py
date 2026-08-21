@@ -7,7 +7,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from sibbcs.admissions import lms_account
-from sibbcs.admissions.checklist import status_of
+from sibbcs.admissions.checklist import NO, status_of
 
 APPLICANT_EMAIL = "step7.applicant@example.com"
 EXAM_URL = "https://exam.example.com/entrance"
@@ -192,13 +192,13 @@ class TestLMSAccount(FrappeTestCase):
 		self.assertIn("/update-password?key=", body)
 		self.assertNotIn(":8000", body)
 
-	def test_step_7_moves_to_link_sent(self):
+	def test_the_step_moves_to_link_sent(self):
 		app = make_application()
-		self.assertEqual(status_of(app, 7), "Awaiting")
+		self.assertEqual(status_of(app, NO["lms_account"]), "Awaiting")
 
 		self._run(app)
 		app.reload()
-		self.assertEqual(status_of(app, 7), "Link Sent")
+		self.assertEqual(status_of(app, NO["lms_account"]), "Link Sent")
 
 	def test_without_an_exam_link_the_account_is_still_made_but_nothing_is_sent(self):
 		app = make_application()
@@ -213,7 +213,7 @@ class TestLMSAccount(FrappeTestCase):
 		self.assertTrue(report["warnings"])
 
 		app.reload()
-		self.assertEqual(status_of(app, 7), "Created")
+		self.assertEqual(status_of(app, NO["lms_account"]), "Created")
 		self.assertFalse(app.exam_link_sent_on)
 
 	def test_a_missing_mail_account_is_a_warning_not_an_exception(self):
@@ -246,7 +246,7 @@ class TestLMSAccount(FrappeTestCase):
 		self._run(app, send=False)
 
 		app.reload()
-		self.assertEqual(status_of(app, 7), "Link Sent")
+		self.assertEqual(status_of(app, NO["lms_account"]), "Link Sent")
 
 	# -- the gate it opens ------------------------------------------------
 
@@ -255,12 +255,12 @@ class TestLMSAccount(FrappeTestCase):
 
 		app = make_application()
 		self.assertIsNotNone(
-			blocked_reason(app, 8), "the exam was sittable before an account existed"
+			blocked_reason(app, NO["entrance_exam"]), "the exam was sittable before an account existed"
 		)
 
 		self._run(app)
 		app.reload()
-		self.assertIsNone(blocked_reason(app, 8))
+		self.assertIsNone(blocked_reason(app, NO["entrance_exam"]))
 
 	# -- the account survives into studenthood ----------------------------
 

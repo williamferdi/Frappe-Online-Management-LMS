@@ -95,9 +95,9 @@ def _fee_settled(app):
 	payment, so `admission_fee_paid` stays false and a fee-paid-only check
 	would make every waived candidate impossible to onboard.
 	"""
-	from sibbcs.admissions.checklist import status_of
+	from sibbcs.admissions.checklist import NO, status_of
 
-	return bool(app.admission_fee_paid) or status_of(app, 10) == "Waived"
+	return bool(app.admission_fee_paid) or status_of(app, NO["admission_fee"]) == "Waived"
 
 
 def _assert_ready(app):
@@ -339,19 +339,19 @@ def onboard(application_name):
 	Creating the record and then discovering the manual was never acknowledged
 	would leave a half-onboarded candidate to unpick by hand.
 	"""
-	from sibbcs.admissions.checklist import blocked_reason, set_status
+	from sibbcs.admissions.checklist import NO, blocked_reason, set_status
 
 	app = frappe.get_doc("Admission Application", application_name)
 
 	if not app.student:
-		reason = blocked_reason(app, 13)
+		reason = blocked_reason(app, NO["onboarding"])
 		if reason:
 			frappe.throw(reason, title=_("Not Ready to Onboard"))
 
 	report = convert(application_name)
 
 	app.reload()
-	set_status(app, 13, "Onboarded")
+	set_status(app, NO["onboarding"], "Onboarded")
 
 	report["level"] = frappe.db.get_value(
 		"Program Enrollment", report["created"].get("program_enrollment"), "current_level"

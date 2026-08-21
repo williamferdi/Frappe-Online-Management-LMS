@@ -1,4 +1,7 @@
-"""Step 5: the scholarship form, and the Registrar's review of it.
+"""Scholarship Form Review: the form, and the Registrar's review of it.
+
+It sits after the Zoom interview, because that conversation is where the
+college learns whether a candidate needs a scholarship at all.
 
 The questions and the wording are the college's own, from their Zoho form:
 student name, student email, a financial-need statement capped at 250 words,
@@ -35,7 +38,9 @@ from frappe.utils import flt, now_datetime, today
 from sibbcs.admissions.doctype.admission_application.admission_application import token_url
 from sibbcs.admissions.tokens import TokenError, generate_token
 
-STEP = 5
+from sibbcs.admissions.checklist import NO
+
+STEP = NO["scholarship"]
 FORM_KEY = "scholarship"
 WORD_LIMIT = 250
 DEFAULT_PER_YEAR = 8000

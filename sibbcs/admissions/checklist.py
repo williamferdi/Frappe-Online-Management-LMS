@@ -22,67 +22,79 @@ from frappe.utils import now_datetime
 OFFICER = "Admissions Officer"
 REGISTRAR = "Registrar"
 
-# step_no, label, allowed statuses, default, statuses counting as done, owner role
+# step_no, label, allowed statuses, default, statuses counting as done,
+# owner role, stable key
+#
+# **The step number is a position, the key is the identity.** The college has
+# reordered these once already -- the scholarship form moved from second in the
+# list to after the interview, because until the interview nobody knows whether
+# a candidate needs one. Renumbering is therefore a thing that happens, and
+# nothing outside this file should hardcode a number. Use `NO["scholarship"]`.
+# Existing rows are remapped by their stored label; see
+# `patches/renumber_checklist_steps.py`.
 STEPS = [
 	(1, "Full Application Review",
 	 ["Needs Admin Inspection", "Under Review", "Approved", "Rejected"],
-	 "Needs Admin Inspection", ["Approved"], OFFICER),
+	 "Needs Admin Inspection", ["Approved"], OFFICER, "application_review"),
 
 	(2, "Applicant Documents Review",
 	 ["Awaiting", "Partial Submission", "Awaiting Review", "Resubmit Requested", "Verified"],
-	 "Awaiting", ["Verified"], OFFICER),
+	 "Awaiting", ["Verified"], OFFICER, "documents"),
 
 	(3, "Reference 1 Review",
 	 ["Awaiting", "Request Sent", "Received", "Awaiting Review", "Reviewed", "Not Applicable"],
-	 "Awaiting", ["Reviewed", "Not Applicable"], OFFICER),
+	 "Awaiting", ["Reviewed", "Not Applicable"], OFFICER, "reference_1"),
 
 	(4, "Reference 2 Review",
 	 ["Awaiting", "Request Sent", "Received", "Awaiting Review", "Reviewed", "Not Applicable"],
-	 "Awaiting", ["Reviewed", "Not Applicable"], OFFICER),
+	 "Awaiting", ["Reviewed", "Not Applicable"], OFFICER, "reference_2"),
 
-	(5, "Scholarship Form Review",
-	 # Form Sent, like step 9's Invite Sent: the default here is Not Applicable,
-	 # which counts as done because most candidates never ask. Once the form has
-	 # gone out the step is genuinely outstanding again, and saying so is the
-	 # whole point of tracking it.
-	 ["Not Applicable", "Form Sent", "Received", "Awaiting Review", "Approved", "Rejected"],
-	 "Not Applicable", ["Approved", "Rejected", "Not Applicable"], REGISTRAR),
-
-	(6, "Mentor Form Review",
+	(5, "Mentor Form Review",
 	 ["Awaiting", "Request Sent", "Received", "Verified", "Not Applicable"],
-	 "Awaiting", ["Verified", "Not Applicable"], OFFICER),
+	 "Awaiting", ["Verified", "Not Applicable"], OFFICER, "mentor_form"),
 
-	(7, "LMS Account Creation",
+	(6, "LMS Account Creation",
 	 ["Awaiting", "Created", "Link Sent"],
-	 "Awaiting", ["Created", "Link Sent"], OFFICER),
+	 "Awaiting", ["Created", "Link Sent"], OFFICER, "lms_account"),
 
-	(8, "Entrance Exam Review",
+	(7, "Entrance Exam Review",
 	 ["Awaiting", "Scheduled", "Passed", "Failed"],
-	 "Awaiting", ["Passed"], OFFICER),
+	 "Awaiting", ["Passed"], OFFICER, "entrance_exam"),
 
-	(9, "Zoom Interview Review",
+	(8, "Zoom Interview Review",
 	 # Invite Sent sits between Awaiting and Scheduled because on Calendly's
 	 # free plan nobody here learns that a slot was taken until an officer
 	 # looks. Leaving the step at Awaiting after emailing the link would say
 	 # something untrue about work already done.
 	 ["Awaiting", "Invite Sent", "Scheduled", "Cleared", "Rejected", "Deferred"],
-	 "Awaiting", ["Cleared"], OFFICER),
+	 "Awaiting", ["Cleared"], OFFICER, "interview"),
+
+	(9, "Scholarship Form Review",
+	 # After the interview, because that conversation is where the college
+	 # learns whether a candidate needs a scholarship at all.
+	 #
+	 # Form Sent, like the interview's Invite Sent: the default here is Not
+	 # Applicable, which counts as done because most candidates never ask. Once
+	 # the form has gone out the step is genuinely outstanding again, and saying
+	 # so is the whole point of tracking it.
+	 ["Not Applicable", "Form Sent", "Received", "Awaiting Review", "Approved", "Rejected"],
+	 "Not Applicable", ["Approved", "Rejected", "Not Applicable"], REGISTRAR, "scholarship"),
 
 	(10, "Admission Fee Status",
 	 ["Awaiting", "Paid", "Waived"],
-	 "Awaiting", ["Paid", "Waived"], REGISTRAR),
+	 "Awaiting", ["Paid", "Waived"], REGISTRAR, "admission_fee"),
 
 	(11, "Admission Decision",
 	 ["Awaiting Review", "Admitted", "Rejected", "Deferred"],
-	 "Awaiting Review", ["Admitted"], REGISTRAR),
+	 "Awaiting Review", ["Admitted"], REGISTRAR, "decision"),
 
 	(12, "Manual Reading Review",
 	 ["Awaiting", "Sent", "Acknowledged"],
-	 "Awaiting", ["Acknowledged"], OFFICER),
+	 "Awaiting", ["Acknowledged"], OFFICER, "manual_reading"),
 
 	(13, "Onboarding Status",
 	 ["Awaiting Onboarding", "Onboarded"],
-	 "Awaiting Onboarding", ["Onboarded"], REGISTRAR),
+	 "Awaiting Onboarding", ["Onboarded"], REGISTRAR, "onboarding"),
 ]
 
 BY_NO = {s[0]: s for s in STEPS}
@@ -90,16 +102,25 @@ LABELS = {s[0]: s[1] for s in STEPS}
 ALL_STATUSES = sorted({status for s in STEPS for status in s[2]})
 STEP_LABELS = [s[1] for s in STEPS]
 
+# The stable name of each step -> the position it currently sits at. Every
+# other module addresses steps through this, so a reorder is an edit to STEPS
+# and nothing else.
+NO = {s[6]: s[0] for s in STEPS}
+
+# A row's stored label is what survives a renumbering, so it is what the
+# migration matches on.
+NO_BY_LABEL = {s[1]: s[0] for s in STEPS}
+
 # The only four hard gates. Everything else is freely parallel.
 # step_no -> [(required_step_no, required_status or None meaning "done")]
 REQUIRES = {
-	8: [(7, None)],
-	11: [(10, None)],
+	NO["entrance_exam"]: [(NO["lms_account"], None)],
+	NO["decision"]: [(NO["admission_fee"], None)],
 	# Manuals go out after the admission decision, not after the exam: they are
 	# sent to people the college has actually admitted, so nobody is asked to
 	# read a handbook for a place they may not be offered.
-	12: [(11, "Admitted")],
-	13: [(11, "Admitted"), (12, None)],
+	NO["manual_reading"]: [(NO["decision"], "Admitted")],
+	NO["onboarding"]: [(NO["decision"], "Admitted"), (NO["manual_reading"], None)],
 }
 
 
@@ -131,7 +152,7 @@ def seed(doc):
 	rows = doc.get("checklist") or []
 	existing = {int(r.step_no) for r in rows if r.step_no}
 
-	for step_no, label, _statuses, default, _done, role in STEPS:
+	for step_no, label, _statuses, default, _done, role, _key in STEPS:
 		if step_no in existing:
 			continue
 		doc.append(
@@ -245,12 +266,15 @@ def derive_state(doc):
 	if doc.workflow_state == WITHDRAWN:
 		return WITHDRAWN
 
-	if status_of(doc, 11) == "Rejected" or status_of(doc, 1) == "Rejected":
+	if (
+		status_of(doc, NO["decision"]) == "Rejected"
+		or status_of(doc, NO["application_review"]) == "Rejected"
+	):
 		return REJECTED
 
-	if step_complete(doc, 13):
+	if step_complete(doc, NO["onboarding"]):
 		return ONBOARDED
-	if status_of(doc, 11) == "Admitted":
+	if status_of(doc, NO["decision"]) == "Admitted":
 		return ADMITTED
 	if not doc.application_fee_paid:
 		return DRAFT
@@ -285,14 +309,14 @@ def update_step(application, step_no, status, remarks=None):
 # puts the action next to the step rather than in a toolbar menu, because the
 # officer working the board is looking at the step, not at the toolbar.
 ACTIONS = {
-	3: "resend_requests",
-	4: "resend_requests",
-	5: "send_scholarship_form",
-	6: "resend_requests",
-	7: "create_lms_account",
-	9: "send_interview_invite",
-	12: "send_manuals",
-	13: "onboard_student",
+	NO["reference_1"]: "resend_requests",
+	NO["reference_2"]: "resend_requests",
+	NO["mentor_form"]: "resend_requests",
+	NO["lms_account"]: "create_lms_account",
+	NO["interview"]: "send_interview_invite",
+	NO["scholarship"]: "send_scholarship_form",
+	NO["manual_reading"]: "send_manuals",
+	NO["onboarding"]: "onboard_student",
 }
 
 
@@ -310,7 +334,7 @@ def board(application):
 	}
 
 	rows = []
-	for step_no, label, statuses, _default, _done, role in STEPS:
+	for step_no, label, statuses, _default, _done, role, _key in STEPS:
 		current = status_of(doc, step_no)
 		row = stored.get(step_no)
 		rows.append(

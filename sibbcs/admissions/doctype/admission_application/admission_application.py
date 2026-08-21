@@ -108,7 +108,7 @@ class AdmissionApplication(Document):
 		officer never has to tick the same fact twice, and the board cannot
 		drift from the data.
 		"""
-		from sibbcs.admissions.checklist import is_done, statuses_for
+		from sibbcs.admissions.checklist import NO, is_done, statuses_for
 
 		rows = {int(r.step_no): r for r in (self.get("checklist") or []) if r.step_no}
 
@@ -126,66 +126,67 @@ class AdmissionApplication(Document):
 			row.updated_by = frappe.session.user
 			row.updated_on = frappe.utils.now_datetime()
 
-		# 2 - documents
+		# documents
 		supplied = [d for d in self.application_documents if d.file]
 		if self.docs_verified:
-			move(2, "Verified")
+			move(NO["documents"], "Verified")
 		elif supplied and len(supplied) < len(REQUIRED_DOCUMENTS):
-			move(2, "Partial Submission")
+			move(NO["documents"], "Partial Submission")
 		elif supplied:
-			move(2, "Awaiting Review")
+			move(NO["documents"], "Awaiting Review")
 
-		# 3 and 4 - the two referees, tracked separately
+		# the two referees, tracked separately
+		referee_steps = [NO["reference_1"], NO["reference_2"]]
 		for index, row in enumerate(self.reference_requests[:2]):
-			step_no = 3 + index
+			step_no = referee_steps[index]
 			if row.submitted_on:
 				move(step_no, "Received")
 			elif row.sent_on:
 				move(step_no, "Request Sent")
 
-		# 6 - mentor
+		# mentor
 		mentor = self.mentor_consents[0] if self.mentor_consents else None
 		if mentor:
 			if mentor.consented_on:
-				move(6, "Received")
+				move(NO["mentor_form"], "Received")
 			elif mentor.sent_on:
-				move(6, "Request Sent")
+				move(NO["mentor_form"], "Request Sent")
 
-		# 7 - LMS account and exam link.
+		# LMS account and exam link.
 		# Not through move(): "Created" already counts as done, so move()'s
 		# never-walk-backwards guard would freeze the row there and the step
 		# could never reach "Link Sent". This step has a known order, so
 		# advancing along it is safe where a general rule would not be.
-		row7 = rows.get(7)
-		if row7:
+		lms_row = rows.get(NO["lms_account"])
+		if lms_row:
 			order = ["Awaiting", "Created", "Link Sent"]
 			target = None
 			if self.exam_link_sent_on:
 				target = "Link Sent"
 			elif self.applicant_user:
 				target = "Created"
-			current = row7.status if row7.status in order else "Awaiting"
+			current = lms_row.status if lms_row.status in order else "Awaiting"
 			if target and order.index(target) > order.index(current):
-				row7.status = target
-				row7.updated_by = frappe.session.user
-				row7.updated_on = frappe.utils.now_datetime()
+				lms_row.status = target
+				lms_row.updated_by = frappe.session.user
+				lms_row.updated_on = frappe.utils.now_datetime()
 
-		# 10 - admission fee
+		# admission fee
 		if self.admission_fee_paid:
-			move(10, "Paid")
+			move(NO["admission_fee"], "Paid")
 
-		# 12 - manuals. Acknowledged only when every one of them is in; one
+		# manuals. Acknowledged only when every one of them is in; one
 		# signed manual out of three is not a candidate who has read them.
 		manuals = self.get("manual_acknowledgements") or []
 		if manuals:
 			if all(m.acknowledged_on for m in manuals):
-				move(12, "Acknowledged")
+				move(NO["manual_reading"], "Acknowledged")
 			elif any(m.sent_on for m in manuals):
-				move(12, "Sent")
+				move(NO["manual_reading"], "Sent")
 
-		# 13 - a Student exists, so onboarding happened however it was reached.
+		# a Student exists, so onboarding happened however it was reached.
 		if self.student:
-			move(13, "Onboarded")
+			move(NO["onboarding"], "Onboarded")
 
 	# -- derived fields ---------------------------------------------------
 

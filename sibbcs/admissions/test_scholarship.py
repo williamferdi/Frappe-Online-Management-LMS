@@ -10,7 +10,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from sibbcs.admissions import scholarship
-from sibbcs.admissions.checklist import status_of
+from sibbcs.admissions.checklist import NO, status_of
 from sibbcs.admissions.tokens import TokenError
 
 _seq = itertools.count(1)
@@ -110,13 +110,13 @@ class TestScholarship(FrappeTestCase):
 		self.assertNotIn(":8000", app.scholarship_form_url)
 		self.assertTrue(app.scholarship_form_sent_on)
 
-	def test_step_5_leaves_not_applicable_once_the_form_goes_out(self):
+	def test_the_step_leaves_not_applicable_once_the_form_goes_out(self):
 		app = make_application()
-		self.assertEqual(status_of(app, 5), "Not Applicable")
+		self.assertEqual(status_of(app, NO["scholarship"]), "Not Applicable")
 
 		self._send(app)
 		app.reload()
-		self.assertEqual(status_of(app, 5), "Form Sent")
+		self.assertEqual(status_of(app, NO["scholarship"]), "Form Sent")
 
 	def test_resending_keeps_the_same_token(self):
 		app = make_application()
@@ -160,7 +160,7 @@ class TestScholarship(FrappeTestCase):
 
 		app.reload()
 		self.assertEqual(app.scholarship_request, request.name)
-		self.assertEqual(status_of(app, 5), "Received")
+		self.assertEqual(status_of(app, NO["scholarship"]), "Received")
 
 	def test_the_signature_is_stored_privately(self):
 		app = make_application()
@@ -246,7 +246,7 @@ class TestScholarship(FrappeTestCase):
 		result = self._submit(app)
 		return app, result["request"]
 
-	def test_approving_stamps_the_decision_and_moves_step_5(self):
+	def test_approving_stamps_the_decision_and_moves_the_step(self):
 		app, request = self._submitted_request()
 		scholarship.decide(request, "Approved", approved_amount=12000, monthly_discount=1000)
 
@@ -258,7 +258,7 @@ class TestScholarship(FrappeTestCase):
 		self.assertTrue(doc.approved_on)
 
 		app.reload()
-		self.assertEqual(status_of(app, 5), "Approved")
+		self.assertEqual(status_of(app, NO["scholarship"]), "Approved")
 
 	def test_an_award_above_the_program_cap_is_refused(self):
 		if not frappe.db.exists("Program", "MDIV"):
@@ -283,8 +283,8 @@ class TestScholarship(FrappeTestCase):
 		self.assertEqual(doc.monthly_discount, 0)
 
 		app.reload()
-		self.assertEqual(status_of(app, 5), "Rejected")
-		row = next(r for r in app.checklist if int(r.step_no) == 5)
+		self.assertEqual(status_of(app, NO["scholarship"]), "Rejected")
+		row = next(r for r in app.checklist if int(r.step_no) == NO["scholarship"])
 		self.assertIn("threshold", row.remarks)
 
 	def test_an_outcome_that_is_neither_is_refused(self):

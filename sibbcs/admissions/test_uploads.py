@@ -9,6 +9,8 @@ server, so nearly all of these tests are about what it refuses.
 import base64
 
 import frappe
+
+from sibbcs.admissions.checklist import NO
 from frappe.tests.utils import FrappeTestCase
 
 from sibbcs.admissions.public_form import submit_application
@@ -237,45 +239,45 @@ class TestChecklistGateOnSave(FrappeTestCase):
 
 	def test_grid_edit_cannot_bypass_a_gate(self):
 		doc = frappe.get_doc("Admission Application", self._application("gg1@example.invalid"))
-		self._row(doc, 8).status = "Passed"  # step 7 still Awaiting
+		self._row(doc, NO["entrance_exam"]).status = "Passed"  # the LMS account step is still Awaiting
 		with self.assertRaises(frappe.ValidationError):
 			doc.save(ignore_permissions=True)
 
 	def test_grid_edit_allows_progress_short_of_completion(self):
 		"""Gates guard completion, not progress: Scheduled is fine any time."""
 		doc = frappe.get_doc("Admission Application", self._application("gg2@example.invalid"))
-		self._row(doc, 8).status = "Scheduled"
+		self._row(doc, NO["entrance_exam"]).status = "Scheduled"
 		doc.save(ignore_permissions=True)
 		doc.reload()
-		self.assertEqual(self._row(doc, 8).status, "Scheduled")
+		self.assertEqual(self._row(doc, NO["entrance_exam"]).status, "Scheduled")
 
 	def test_grid_edit_works_once_the_gate_opens(self):
 		doc = frappe.get_doc("Admission Application", self._application("gg3@example.invalid"))
-		self._row(doc, 7).status = "Created"
+		self._row(doc, NO["lms_account"]).status = "Created"
 		doc.save(ignore_permissions=True)
 		doc.reload()
-		self._row(doc, 8).status = "Passed"
+		self._row(doc, NO["entrance_exam"]).status = "Passed"
 		doc.save(ignore_permissions=True)
 		doc.reload()
-		self.assertEqual(self._row(doc, 8).status, "Passed")
+		self.assertEqual(self._row(doc, NO["entrance_exam"]).status, "Passed")
 
 	def test_grid_edit_rejects_a_status_from_another_step(self):
 		doc = frappe.get_doc("Admission Application", self._application("gg4@example.invalid"))
-		self._row(doc, 10).status = "Onboarded"
+		self._row(doc, NO["admission_fee"]).status = "Onboarded"
 		with self.assertRaises(frappe.ValidationError):
 			doc.save(ignore_permissions=True)
 
 	def test_unrelated_edit_does_not_re_judge_settled_rows(self):
 		"""A record already in a valid combination must stay editable."""
 		doc = frappe.get_doc("Admission Application", self._application("gg5@example.invalid"))
-		self._row(doc, 10).status = "Paid"
+		self._row(doc, NO["admission_fee"]).status = "Paid"
 		doc.save(ignore_permissions=True)
 		doc.reload()
-		self._row(doc, 11).status = "Admitted"
+		self._row(doc, NO["decision"]).status = "Admitted"
 		doc.save(ignore_permissions=True)
 		doc.reload()
 
 		doc.church_name = "Somewhere Else"
 		doc.save(ignore_permissions=True)
 		doc.reload()
-		self.assertEqual(self._row(doc, 11).status, "Admitted")
+		self.assertEqual(self._row(doc, NO["decision"]).status, "Admitted")

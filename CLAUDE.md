@@ -169,7 +169,7 @@ child row of one parent — a reference token is rejected by the mentor form. Pa
 `sibbcs.admissions.tokens.submit`, which writes only fields present in the row's own meta,
 so a crafted payload cannot reach `parent`, `token`, or another document.
 
-### Step 7 — `sibbcs/admissions/lms_account.py`
+### LMS Account Creation — `sibbcs/admissions/lms_account.py`
 
 Creates the applicant's login and sends the entrance exam link. Step 8 (Entrance Exam
 Review) is gated on it because the exam is sat inside the LMS.
@@ -186,7 +186,7 @@ Where the exam lives is config, not code — `entrance_exam_url` wins over
 With **neither set the account is still created** and the step reports why nothing was
 sent, rather than mailing a dead link. **Neither is set on `online.sibbc.org` yet.**
 
-### Steps 12 and 13 — `sibbcs/admissions/manuals.py`, `conversion.onboard`
+### Manual Reading and Onboarding — `sibbcs/admissions/manuals.py`, `conversion.onboard`
 
 **Step 12, reading manuals.** A candidate who has passed the entrance exam is emailed a
 token link per applicable manual (`/manual-reading?token=`). They read it, type their
@@ -200,7 +200,7 @@ to those only. Attachments are private files, so the candidate fetches them thro
 `tokens.download_manual` (resolved with `allow_used`) rather than a `/files/` link a
 guest cannot open.
 
-**The gate.** `REQUIRES[12]` is `(11, "Admitted")`: manuals go out after the admission
+**The gate.** `REQUIRES[NO["manual_reading"]]` is `(NO["decision"], "Admitted")`: manuals go out after the admission
 decision, so nobody is asked to read a handbook for a place they may not be offered. This
 was briefly changed to gate on the exam pass instead and the college corrected it. Step 13
 requires `(11, "Admitted")` **and** `(12, None)`.
@@ -211,6 +211,27 @@ enrollment is made at `onboard_level` (falling back to Level 1) in `onboard_term
 intake term. A **waived** admission fee counts as settled: a waiver is a decision recorded
 at step 10, not a payment, so `admission_fee_paid` stays false and a fee-paid-only check
 would block every waived candidate.
+
+### Step order — a position, not an identity
+
+`step_no` is **where a step sits**, not what it is. The college has reordered once already
+(the scholarship form moved from second to after the interview, because the interview is
+where they learn whether a candidate needs one) and will again. So:
+
+- Each entry in `STEPS` carries a **stable key** as its last element, and `NO["scholarship"]`
+  is how every other module addresses it. `REQUIRES` and `ACTIONS` are keyed through `NO`
+  too. **Nothing outside `checklist.py` may hardcode a step number** — tests included.
+- Existing rows are remapped by their stored **label**, never by their old number, in
+  `patches/renumber_checklist_steps.py`. An unrecognised label is reported and skipped
+  rather than guessed at: a wrong guess silently rewrites somebody's admission record.
+- `test_step_order.py` pins the invariants — contiguous 1..n, unique keys and labels,
+  defaults inside their own status list, and **no gate pointing at a later step** (which
+  could never be satisfied).
+
+**Deploy order matters.** Upload the code and run `bench migrate` together. In between,
+the running code believes the new numbering while the rows still hold the old one, so any
+save writes a status onto the wrong step. Nothing was saved during the window this time —
+an audit of all eight live applications confirmed it — but the window is real.
 
 ### The checklist board — `checklist.board()` + the form script
 
@@ -235,7 +256,10 @@ The raw child grid still exists, in a collapsed `Checklist Rows` section below t
 it is where remarks and the audit stamps are stored. The old `Admission Gates` dashboard
 summary was removed — the board says the same thing better.
 
-### Step 5 — `sibbcs/admissions/scholarship.py`
+### Scholarship Form Review — `sibbcs/admissions/scholarship.py`
+
+It sits **after the Zoom interview and before the admission fee**: the interview is where
+the college learns whether a candidate needs a scholarship at all.
 
 The college's own scholarship form, rebuilt from their Zoho original: student name and
 email (prefilled, read-only), a financial-need statement capped at **250 words**, and a
@@ -268,7 +292,7 @@ Step 5 gained **`Form Sent`**, for the same reason step 9 gained `Invite Sent`: 
 default is `Not Applicable`, which counts as done because most candidates never ask. Once
 the form goes out the step is genuinely outstanding again.
 
-### Step 9 — `sibbcs/admissions/interview.py`
+### Zoom Interview Review — `sibbcs/admissions/interview.py`
 
 Zoom interviews are booked through **Calendly on the free plan**, so this is deliberately
 one-way: the button emails the candidate a booking link and step 9 moves to **`Invite

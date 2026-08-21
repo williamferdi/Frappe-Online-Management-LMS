@@ -1,6 +1,6 @@
-"""Step 7: the applicant's LMS account, and the entrance exam link.
+"""LMS Account Creation: the applicant's login, and the entrance exam link.
 
-Step 8 (Entrance Exam Review) is gated on this step, and the reason is
+Entrance Exam Review is gated on this step, and the reason is
 practical rather than bureaucratic: the entrance exam is sat inside the LMS,
 so an applicant with no account cannot sit it.
 
@@ -36,10 +36,11 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
+from sibbcs.admissions.checklist import NO
 from sibbcs.finance.gateway import public_url
 
 LMS_ROLE = "LMS Student"
-STEP = 7
+STEP = NO["lms_account"]
 
 
 # ---------------------------------------------------------------------------

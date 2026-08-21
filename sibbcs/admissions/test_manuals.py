@@ -7,7 +7,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from sibbcs.admissions import manuals
-from sibbcs.admissions.checklist import blocked_reason, set_status, status_of
+from sibbcs.admissions.checklist import NO, blocked_reason, set_status, status_of
 from sibbcs.admissions.tokens import TokenError, resolve
 
 UNIVERSAL = "Test Universal Manual"
@@ -60,20 +60,20 @@ def make_application(**overrides):
 
 
 def admit(app):
-	"""Take an application up to the point step 12 becomes reachable.
+	"""Take an application to where the manual step becomes reachable.
 
-	Manuals follow the admission decision, so that is steps 7 and 8 (the exam
-	gates 11 through 10), then the fee, then the decision itself.
+	Manuals follow the admission decision, so: the LMS account, the exam, the
+	fee, then the decision itself.
 	"""
-	set_status(app, 7, "Link Sent")
+	set_status(app, NO["lms_account"], "Link Sent")
 	app.reload()
-	set_status(app, 8, "Passed")
+	set_status(app, NO["entrance_exam"], "Passed")
 	app.reload()
 	app.db_set("admission_fee_paid", 1)
 	app.reload()
-	set_status(app, 10, "Paid")
+	set_status(app, NO["admission_fee"], "Paid")
 	app.reload()
-	set_status(app, 11, "Admitted")
+	set_status(app, NO["decision"], "Admitted")
 	app.reload()
 	return app
 
@@ -112,14 +112,14 @@ class TestReadingManuals(FrappeTestCase):
 		make_manual(UNIVERSAL)
 		app = make_application()
 
-		self.assertIsNotNone(blocked_reason(app, 12))
+		self.assertIsNotNone(blocked_reason(app, NO["manual_reading"]))
 		with self.assertRaises(frappe.ValidationError):
 			manuals.send_manuals(app.name)
 
 	def test_being_admitted_opens_the_step(self):
 		make_manual(UNIVERSAL)
 		app = admit(make_application())
-		self.assertIsNone(blocked_reason(app, 12))
+		self.assertIsNone(blocked_reason(app, NO["manual_reading"]))
 
 	# -- sending ----------------------------------------------------------
 
@@ -188,15 +188,15 @@ class TestReadingManuals(FrappeTestCase):
 
 		self.assertFalse(sendmail.called)
 		self.assertTrue(report["warnings"])
-		self.assertEqual(status_of(app, 12), "Awaiting")
+		self.assertEqual(status_of(app, NO["manual_reading"]), "Awaiting")
 
-	def test_step_12_moves_to_sent(self):
+	def test_the_step_moves_to_sent(self):
 		make_manual(UNIVERSAL)
 		app = admit(make_application())
 		self._send(app)
 
 		app.reload()
-		self.assertEqual(status_of(app, 12), "Sent")
+		self.assertEqual(status_of(app, NO["manual_reading"]), "Sent")
 
 	# -- acknowledging -----------------------------------------------------
 
@@ -277,12 +277,12 @@ class TestReadingManuals(FrappeTestCase):
 		self._acknowledge(app, index=0)
 		app.reload()
 		self.assertEqual(
-			status_of(app, 12), "Sent", "one manual out of two counted as read"
+			status_of(app, NO["manual_reading"]), "Sent", "one manual out of two counted as read"
 		)
 
 		self._acknowledge(app, index=1)
 		app.reload()
-		self.assertEqual(status_of(app, 12), "Acknowledged")
+		self.assertEqual(status_of(app, NO["manual_reading"]), "Acknowledged")
 
 	def test_the_step_does_not_walk_backwards(self):
 		make_manual(UNIVERSAL)
@@ -290,8 +290,8 @@ class TestReadingManuals(FrappeTestCase):
 		self._send(app)
 		self._acknowledge(app)
 		app.reload()
-		self.assertEqual(status_of(app, 12), "Acknowledged")
+		self.assertEqual(status_of(app, NO["manual_reading"]), "Acknowledged")
 
 		# A manual added afterwards must not undo the recorded acknowledgement.
 		manuals._set_step(app.name)
-		self.assertEqual(status_of(app, 12), "Acknowledged")
+		self.assertEqual(status_of(app, NO["manual_reading"]), "Acknowledged")
