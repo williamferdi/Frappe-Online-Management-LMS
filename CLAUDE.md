@@ -200,10 +200,10 @@ to those only. Attachments are private files, so the candidate fetches them thro
 `tokens.download_manual` (resolved with `allow_used`) rather than a `/files/` link a
 guest cannot open.
 
-**The gate moved.** `REQUIRES[12]` was `(11, "Admitted")` and is now `(8, None)` — the
-college sends manuals to whoever **passed the exam**, so the reading is done by the time a
-decision is made. Step 13 still requires `(11, "Admitted")` **and** `(12, None)`, so a
-pass alone never reaches onboarding.
+**The gate.** `REQUIRES[12]` is `(11, "Admitted")`: manuals go out after the admission
+decision, so nobody is asked to read a handbook for a place they may not be offered. This
+was briefly changed to gate on the exam pass instead and the college corrected it. Step 13
+requires `(11, "Admitted")` **and** `(12, None)`.
 
 **Step 13, onboarding.** `conversion.onboard()` checks the step-13 gate *before* creating
 anything — a Student created and then found to be ungated is unpicked by hand. The

@@ -87,11 +87,10 @@ STEP_LABELS = [s[1] for s in STEPS]
 REQUIRES = {
 	8: [(7, None)],
 	11: [(10, None)],
-	# The manuals follow the entrance exam, not the admission decision: the
-	# college sends them to whoever passed, so that the reading is done by the
-	# time a decision is made rather than after it. Onboarding still requires
-	# an actual admission, so nobody reaches step 13 on a pass alone.
-	12: [(8, None)],
+	# Manuals go out after the admission decision, not after the exam: they are
+	# sent to people the college has actually admitted, so nobody is asked to
+	# read a handbook for a place they may not be offered.
+	12: [(11, "Admitted")],
 	13: [(11, "Admitted"), (12, None)],
 }
 

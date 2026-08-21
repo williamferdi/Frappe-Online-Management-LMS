@@ -20,11 +20,11 @@ TEMPLATE = {
 <p>Dear {{ applicant_name }},</p>
 
 <p>
-	Congratulations on completing the entrance exam. Before your admission to the
-	<strong>{{ program }}</strong> program at South India Baptist Bible College
-	&amp; Seminary (Online) can be finalised, please read
-	<strong>{{ manual_title }}</strong>{% if manual_version %} (version
-	{{ manual_version }}){% endif %} and confirm that you have done so.
+	Congratulations on your admission to the <strong>{{ program }}</strong> program
+	at South India Baptist Bible College &amp; Seminary (Online). Before your
+	enrolment can be completed, please read <strong>{{ manual_title }}</strong>{%
+	if manual_version %} (version {{ manual_version }}){% endif %} and confirm
+	that you have done so.
 </p>
 
 <p style="margin:24px 0">

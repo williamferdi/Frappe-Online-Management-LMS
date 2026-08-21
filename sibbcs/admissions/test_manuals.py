@@ -59,11 +59,21 @@ def make_application(**overrides):
 	return doc
 
 
-def pass_the_exam(app):
-	"""Take an application up to the point step 12 becomes reachable."""
+def admit(app):
+	"""Take an application up to the point step 12 becomes reachable.
+
+	Manuals follow the admission decision, so that is steps 7 and 8 (the exam
+	gates 11 through 10), then the fee, then the decision itself.
+	"""
 	set_status(app, 7, "Link Sent")
 	app.reload()
 	set_status(app, 8, "Passed")
+	app.reload()
+	app.db_set("admission_fee_paid", 1)
+	app.reload()
+	set_status(app, 10, "Paid")
+	app.reload()
+	set_status(app, 11, "Admitted")
 	app.reload()
 	return app
 
@@ -98,7 +108,7 @@ class TestReadingManuals(FrappeTestCase):
 
 	# -- the gate ---------------------------------------------------------
 
-	def test_manuals_cannot_be_sent_before_the_entrance_exam_is_passed(self):
+	def test_manuals_cannot_be_sent_before_the_admission_decision(self):
 		make_manual(UNIVERSAL)
 		app = make_application()
 
@@ -106,9 +116,9 @@ class TestReadingManuals(FrappeTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			manuals.send_manuals(app.name)
 
-	def test_passing_the_exam_opens_the_step(self):
+	def test_being_admitted_opens_the_step(self):
 		make_manual(UNIVERSAL)
-		app = pass_the_exam(make_application())
+		app = admit(make_application())
 		self.assertIsNone(blocked_reason(app, 12))
 
 	# -- sending ----------------------------------------------------------
@@ -122,7 +132,7 @@ class TestReadingManuals(FrappeTestCase):
 
 	def test_sending_attaches_a_row_per_applicable_manual(self):
 		make_manual(UNIVERSAL)
-		app = pass_the_exam(make_application())
+		app = admit(make_application())
 
 		report, sendmail = self._send(app)
 
@@ -137,7 +147,7 @@ class TestReadingManuals(FrappeTestCase):
 
 	def test_the_link_is_openable_and_carries_no_dev_port(self):
 		make_manual(UNIVERSAL)
-		app = pass_the_exam(make_application())
+		app = admit(make_application())
 		_report, sendmail = self._send(app)
 
 		body = sendmail.call_args.kwargs["message"]
@@ -147,7 +157,7 @@ class TestReadingManuals(FrappeTestCase):
 
 	def test_sending_twice_does_not_email_twice(self):
 		make_manual(UNIVERSAL)
-		app = pass_the_exam(make_application())
+		app = admit(make_application())
 
 		self._send(app)
 		app.reload()
@@ -158,7 +168,7 @@ class TestReadingManuals(FrappeTestCase):
 
 	def test_force_resends(self):
 		make_manual(UNIVERSAL)
-		app = pass_the_exam(make_application())
+		app = admit(make_application())
 
 		self._send(app)
 		app.reload()
@@ -172,7 +182,7 @@ class TestReadingManuals(FrappeTestCase):
 			if frappe.db.exists("Reading Manual", title):
 				frappe.db.set_value("Reading Manual", title, "is_active", 0)
 
-		app = pass_the_exam(make_application())
+		app = admit(make_application())
 		with patch("frappe.sendmail") as sendmail:
 			report = manuals.send_manuals(app.name)
 
@@ -182,7 +192,7 @@ class TestReadingManuals(FrappeTestCase):
 
 	def test_step_12_moves_to_sent(self):
 		make_manual(UNIVERSAL)
-		app = pass_the_exam(make_application())
+		app = admit(make_application())
 		self._send(app)
 
 		app.reload()
@@ -197,7 +207,7 @@ class TestReadingManuals(FrappeTestCase):
 
 	def test_acknowledging_records_the_name_they_typed(self):
 		make_manual(UNIVERSAL)
-		app = pass_the_exam(make_application())
+		app = admit(make_application())
 		self._send(app)
 
 		# Deliberately different from full_name: what they typed is the record.
@@ -210,7 +220,7 @@ class TestReadingManuals(FrappeTestCase):
 
 	def test_an_unticked_box_is_refused(self):
 		make_manual(UNIVERSAL)
-		app = pass_the_exam(make_application())
+		app = admit(make_application())
 		self._send(app)
 		app.reload()
 		token = app.manual_acknowledgements[0].token
@@ -220,7 +230,7 @@ class TestReadingManuals(FrappeTestCase):
 
 	def test_a_name_that_is_not_a_name_is_refused(self):
 		make_manual(UNIVERSAL)
-		app = pass_the_exam(make_application())
+		app = admit(make_application())
 		self._send(app)
 		app.reload()
 		token = app.manual_acknowledgements[0].token
@@ -230,7 +240,7 @@ class TestReadingManuals(FrappeTestCase):
 
 	def test_a_token_is_spent_on_use(self):
 		make_manual(UNIVERSAL)
-		app = pass_the_exam(make_application())
+		app = admit(make_application())
 		self._send(app)
 		app.reload()
 		token = app.manual_acknowledgements[0].token
@@ -241,7 +251,7 @@ class TestReadingManuals(FrappeTestCase):
 
 	def test_a_reference_token_cannot_open_a_manual(self):
 		make_manual(UNIVERSAL)
-		app = pass_the_exam(
+		app = admit(
 			make_application(
 				reference_requests=[
 					{"referee_name": "Ref One", "referee_email": "ref.one@example.com"}
@@ -259,7 +269,7 @@ class TestReadingManuals(FrappeTestCase):
 		make_manual(UNIVERSAL)
 		make_manual(SCOPED, programs=[a_program()] if other else None)
 
-		app = pass_the_exam(make_application())
+		app = admit(make_application())
 		self._send(app)
 		app.reload()
 		self.assertEqual(len(app.manual_acknowledgements), 2)
@@ -276,7 +286,7 @@ class TestReadingManuals(FrappeTestCase):
 
 	def test_the_step_does_not_walk_backwards(self):
 		make_manual(UNIVERSAL)
-		app = pass_the_exam(make_application())
+		app = admit(make_application())
 		self._send(app)
 		self._acknowledge(app)
 		app.reload()

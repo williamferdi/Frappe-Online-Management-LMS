@@ -1,9 +1,9 @@
 """Step 12: sending the reading manuals, and recording that they were read.
 
-A candidate who has passed the entrance exam is sent the manuals they must
-read. They open a link, read the manual, type their name and confirm. Step 12
-reaches **Acknowledged** only when every manual that applies to them has been
-confirmed -- not the first one.
+A candidate who has been admitted is sent the manuals they must read. They open
+a link, read the manual, type their name and confirm. Step 12 reaches
+**Acknowledged** only when every manual that applies to them has been confirmed
+-- not the first one.
 
 No login, by design. The candidate does have an account by this point (step 7
 made one), but requiring a sign-in to acknowledge a document is friction that
@@ -87,9 +87,9 @@ def attach_manuals(doc):
 FALLBACK_MANUAL = (
 	"Please read: {{ manual_title }}",
 	"<p>Dear {{ applicant_name }},</p>"
-	"<p>Before your admission to South India Baptist Bible College &amp; Seminary "
-	"can be completed, please read <b>{{ manual_title }}</b> and confirm that you "
-	"have done so.</p>"
+	"<p>Congratulations on your admission to South India Baptist Bible College "
+	"&amp; Seminary. Before your enrolment can be completed, please read "
+	"<b>{{ manual_title }}</b> and confirm that you have done so.</p>"
 	"<p>Open it here:<br>"
 	'<a href="{{ link }}">{{ link }}</a></p>'
 	"<p>Admissions Office</p>",
