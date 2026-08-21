@@ -13,6 +13,8 @@
   "cb_identity",
   "is_active",
   "require_scroll",
+  "lms_course",
+  "delivery",
   "sb_scope",
   "applies_to_programs",
   "sb_content",
@@ -83,12 +85,27 @@
    "fieldname": "attachment",
    "fieldtype": "Attach",
    "label": "Attachment"
+  },
+  {
+   "depends_on": "eval:doc.delivery=='LMS Course'",
+   "fieldname": "lms_course",
+   "fieldtype": "Link",
+   "label": "LMS Course",
+   "options": "LMS Course"
+  },
+  {
+   "default": "Document",
+   "description": "A Document is read on the acknowledgement page. An LMS Course enrols the candidate and holds their signature back until every lesson is complete.",
+   "fieldname": "delivery",
+   "fieldtype": "Select",
+   "label": "Delivered As",
+   "options": "Document\nLMS Course"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-21 14:04:51.228180",
+ "modified": "2026-08-21 18:30:05.185136",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Reading Manual",

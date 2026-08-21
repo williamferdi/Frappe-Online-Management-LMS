@@ -32,6 +32,15 @@ def get_context(context):
 			raise TokenError("This manual is no longer available.")
 
 		context.manual = manual
+
+		# A course-backed manual holds the signature back until every lesson is
+		# done. The page needs to say how far they have got, not just refuse.
+		from sibbcs.admissions.manuals import course_progress, manual_course
+
+		course = manual_course(context.row.get("manual"))
+		context.course = course
+		context.progress = course_progress(context.application, course) if course else None
+		context.course_url = f"/lms/courses/{course}" if course else None
 		# The file is private, so it is fetched through the token endpoint
 		# rather than a /files/ link the candidate cannot open.
 		context.attachment_url = (

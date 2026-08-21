@@ -32,6 +32,23 @@
 			</p>
 		{% endif %}
 
+		{% if course %}
+			<div class="course-panel {{ "is-done" if progress.complete else "is-open" }}">
+				<h4>Orientation course</h4>
+				{% if progress.complete %}
+					<p class="done">You have completed all {{ progress.total }} lessons. Please sign below.</p>
+				{% else %}
+					<p>
+						<b>{{ progress.done }} of {{ progress.total }}</b> lessons complete.
+						The acknowledgement can be signed once every lesson is finished.
+					</p>
+					<div class="bar"><span style="width:{{ (100 * progress.done / progress.total) if progress.total else 0 }}%"></span></div>
+				{% endif %}
+				<p><a href="{{ course_url }}" class="btn btn-default btn-sm">Open the course</a>
+				<span class="text-muted small">You will be asked to sign in.</span></p>
+			</div>
+		{% endif %}
+
 		{% if manual.content %}
 			<div id="manual-body" class="manual-body">
 				{{ manual.content }}
@@ -61,10 +78,27 @@
 				</label>
 			</div>
 
-			<div class="actions">
-				<button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
-					Confirm
+			<div class="form-group">
+				<label>Signature <span class="req">*</span></label>
+				<div class="pad-wrap">
+					<canvas id="signature-pad" width="640" height="180"></canvas>
+				</div>
+				<button type="button" class="btn btn-default btn-sm" id="clear-pad">
+					Clear
 				</button>
+				<small class="text-muted">Sign in the box above.</small>
+			</div>
+
+			<div class="actions">
+				<button type="submit" class="btn btn-primary btn-lg" id="submit-btn"
+				        {% if course and not progress.complete %}disabled{% endif %}>
+					Sign and confirm
+				</button>
+				{% if course and not progress.complete %}
+					<p class="text-muted small">
+						Finish every lesson of the course, then reload this page.
+					</p>
+				{% endif %}
 				<p class="text-muted small" id="scroll-hint" hidden>
 					Please scroll to the end of the manual before confirming.
 				</p>
@@ -107,6 +141,25 @@
 	.checkline input { width: auto; margin-top: 4px; }
 	.actions { margin-top: 20px; }
 	#form-message { margin-top: 16px; }
+	.course-panel {
+		border: 1px solid var(--border-color, #e5e5e5); border-left-width: 3px;
+		border-radius: 0 6px 6px 0; padding: 14px 16px; margin-bottom: 24px;
+	}
+	.course-panel.is-open { border-left-color: #f0a500; }
+	.course-panel.is-done { border-left-color: #28a745; }
+	.course-panel h4 { margin: 0 0 8px; font-size: 1rem; }
+	.course-panel p { margin-bottom: 10px; }
+	.course-panel .done { color: #1e7e34; font-weight: 600; }
+	.course-panel .bar {
+		height: 6px; border-radius: 3px; background: var(--control-bg, #eee);
+		overflow: hidden; margin-bottom: 12px;
+	}
+	.course-panel .bar span { display: block; height: 100%; background: #f0a500; }
+	.pad-wrap {
+		border: 1px solid var(--border-color, #d1d8dd); border-radius: 6px;
+		background: #fff; margin-bottom: 8px; overflow: hidden;
+	}
+	#signature-pad { display: block; width: 100%; height: 180px; touch-action: none; cursor: crosshair; }
 </style>
 
 {% if valid %}
@@ -118,6 +171,52 @@
 	const body = document.getElementById('manual-body');
 	const hint = document.getElementById('scroll-hint');
 	let reachedEnd = !requireScroll;
+
+	// The same small signature pad as the scholarship form: a canvas, three
+	// pointer events and a flag. A library for that would be worse.
+	const canvas = document.getElementById('signature-pad');
+	const ctx = canvas.getContext('2d');
+	let drawing = false;
+	let signed = false;
+
+	(function fit() {
+		const ratio = window.devicePixelRatio || 1;
+		canvas.width = canvas.clientWidth * ratio;
+		canvas.height = 180 * ratio;
+		ctx.scale(ratio, ratio);
+		ctx.lineWidth = 2;
+		ctx.lineCap = 'round';
+		ctx.lineJoin = 'round';
+		ctx.strokeStyle = '#111';
+	})();
+
+	function pointOf(event) {
+		const box = canvas.getBoundingClientRect();
+		return { x: event.clientX - box.left, y: event.clientY - box.top };
+	}
+
+	canvas.addEventListener('pointerdown', function (event) {
+		drawing = true;
+		signed = true;
+		canvas.setPointerCapture(event.pointerId);
+		const point = pointOf(event);
+		ctx.beginPath();
+		ctx.moveTo(point.x, point.y);
+	});
+	canvas.addEventListener('pointermove', function (event) {
+		if (!drawing) return;
+		const point = pointOf(event);
+		ctx.lineTo(point.x, point.y);
+		ctx.stroke();
+	});
+	['pointerup', 'pointerleave', 'pointercancel'].forEach(function (name) {
+		canvas.addEventListener(name, function () { drawing = false; });
+	});
+
+	document.getElementById('clear-pad').addEventListener('click', function () {
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		signed = false;
+	});
 
 	if (requireScroll && body) {
 		hint.hidden = false;
@@ -157,6 +256,12 @@
 				'<div class="alert alert-danger">Please scroll to the end of the manual first.</div>';
 			return;
 		}
+		if (!signed) {
+			message.innerHTML =
+				'<div class="alert alert-danger">Please sign in the box above.</div>';
+			canvas.scrollIntoView({ block: 'center' });
+			return;
+		}
 
 		button.disabled = true;
 		button.textContent = 'Recording…';
@@ -174,6 +279,7 @@
 						token: token,
 						reader_name: name,
 						confirmed: 1,
+						signature: canvas.toDataURL('image/png'),
 					}),
 				}
 			);
@@ -194,7 +300,7 @@
 			window.scrollTo({ top: 0, behavior: 'smooth' });
 		} catch (error) {
 			button.disabled = false;
-			button.textContent = 'Confirm';
+			button.textContent = 'Sign and confirm';
 			message.innerHTML =
 				'<div class="alert alert-danger">' +
 				String(error.message || error).replace(/<[^>]*>/g, '') +

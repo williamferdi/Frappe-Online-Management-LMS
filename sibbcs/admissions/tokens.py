@@ -219,12 +219,12 @@ def submit_mentor_form(token, answers):
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-def submit_manual_acknowledgement(token, reader_name, confirmed):
+def submit_manual_acknowledgement(token, reader_name, confirmed, signature=None):
 	"""Record that a candidate has read one manual."""
 	from sibbcs.admissions.manuals import acknowledge
 
 	try:
-		return acknowledge(token, reader_name, confirmed)
+		return acknowledge(token, reader_name, confirmed, signature)
 	except TokenError:
 		raise
 	except frappe.ValidationError:

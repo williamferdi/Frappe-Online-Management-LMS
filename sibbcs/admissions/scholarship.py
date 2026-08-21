@@ -238,14 +238,19 @@ def _decode_signature(data_url):
 	return raw
 
 
-def _store_signature(raw, request_name, applicant):
-	"""Attach already-validated signature bytes to the request, privately."""
+def _store_signature(raw, docname, applicant, doctype="Scholarship Request"):
+	"""Attach already-validated signature bytes to a document, privately.
+
+	Shared with the manual acknowledgement, which signs the same way. A
+	signature is a person's mark: private, always, regardless of what it is
+	attached to.
+	"""
 	file_doc = frappe.get_doc(
 		{
 			"doctype": "File",
 			"file_name": f"signature-{frappe.scrub(applicant or 'candidate')}.png",
-			"attached_to_doctype": "Scholarship Request",
-			"attached_to_name": request_name,
+			"attached_to_doctype": doctype,
+			"attached_to_name": docname,
 			"attached_to_field": "signature",
 			"is_private": 1,
 			"content": raw,

@@ -186,6 +186,33 @@ Where the exam lives is config, not code — `entrance_exam_url` wins over
 With **neither set the account is still created** and the step reports why nothing was
 sent, rather than mailing a dead link. **Neither is set on `online.sibbc.org` yet.**
 
+### The preliminary orientation course
+
+Step 12 is delivered as an **LMS course**, not a PDF. `Reading Manual.delivery` is
+`Document` or `LMS Course`; on the course path the candidate is enrolled, and
+`/manual-reading` refuses their signature until **every lesson** is complete.
+
+That distinction is the point: onboarding is gated on this step, and acknowledging a PDF
+is one click — it records that somebody pressed a button, not that anybody read anything.
+A course records a lesson at a time.
+
+`setup/phase2j_preliminary_course.py` imports the college's two handbooks into
+**`m-div-preliminary-orientation`** — 5 chapters, 49 lessons, both PDFs attached. It
+reflows the PDF's hard line breaks back into paragraphs by line width, since extracted
+text has one line per *visual* line and paragraph boundaries are gone.
+
+**The Formation Handbook is only partly imported, on purpose.** Its Level 1-4 sections are
+reflection and goal-setting forms filled at the start of each level *with a mentor*.
+Importing them would have a new admit writing Level 4 goals before beginning Level 1,
+guided by a mentor not assigned until Phase 6. Only the Welcome Note, "Before You Begin"
+and the Formation Covenant are in. Sections 9-12 (FAQs, Your Mentor & You, Choosing a
+Mentor, Suggested Practices) are not level-bound either and can be added to
+`HANDBOOK_PARTS`.
+
+`course_progress()` counts completed lessons against lessons that exist rather than
+reading `LMS Enrollment.progress`, which is a rounded figure the LMS maintains and can
+read 100 with a lesson skipped.
+
 ### Manual Reading and Onboarding — `sibbcs/admissions/manuals.py`, `conversion.onboard`
 
 **Step 12, reading manuals.** A candidate who has passed the entrance exam is emailed a

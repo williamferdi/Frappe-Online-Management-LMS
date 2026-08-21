@@ -27,6 +27,7 @@ from frappe.utils import now_datetime
 
 from sibbcs.admissions.checklist import NO
 from sibbcs.admissions.doctype.admission_application.admission_application import token_url
+from sibbcs.finance.gateway import public_url
 
 STEP = NO["manual_reading"]
 FORM_KEY = "manual-reading"
@@ -58,6 +59,92 @@ def applicable_manuals(program=None):
 			applicable.append(name)
 
 	return sorted(applicable)
+
+
+# ---------------------------------------------------------------------------
+# course-backed manuals
+# ---------------------------------------------------------------------------
+
+
+def manual_course(manual):
+	"""The LMS course a manual is delivered through, or None.
+
+	A manual can be a document to read or a course to complete. The course
+	form is what makes "acknowledged" mean something: a PDF acknowledgement is
+	one click, whereas a course records a lesson at a time.
+	"""
+	if not manual:
+		return None
+	row = frappe.db.get_value(
+		"Reading Manual", manual, ["delivery", "lms_course"], as_dict=True
+	)
+	if not row or row.delivery != "LMS Course" or not row.lms_course:
+		return None
+	if not frappe.db.exists("LMS Course", row.lms_course):
+		frappe.log_error(
+			title="Reading Manual points at a course that does not exist",
+			message=f"{manual} -> {row.lms_course}",
+		)
+		return None
+	return row.lms_course
+
+
+def course_progress(application, course):
+	"""How far this applicant has got. Counted from lessons, not a percentage.
+
+	`LMS Enrollment.progress` is maintained by the LMS and would be simpler to
+	read, but it is a rounded figure kept up to date by the LMS's own hooks --
+	so a course whose last lesson is skipped can still round to 100. Counting
+	completed lessons against the lessons that exist cannot.
+	"""
+	user = frappe.db.get_value("Admission Application", application, "applicant_user")
+	total = frappe.db.count("Course Lesson", {"course": course})
+
+	if not user or not total:
+		return {"user": user, "total": total, "done": 0, "complete": False}
+
+	done = frappe.db.count(
+		"LMS Course Progress",
+		{"member": user, "course": course, "status": "Complete"},
+	)
+	return {
+		"user": user,
+		"total": total,
+		"done": min(done, total),
+		"complete": done >= total,
+	}
+
+
+def enroll_in_course(doc, course):
+	"""Put the applicant into the course. Idempotent.
+
+	They already have a login from LMS Account Creation; ensure_user adopts it
+	rather than making a second, and covers the case where that step was
+	skipped.
+	"""
+	from sibbcs.admissions import lms_account
+
+	user = doc.applicant_user
+	if not user:
+		user, _created = lms_account.ensure_user(doc)
+		doc.db_set("applicant_user", user, update_modified=False)
+
+	if not frappe.db.exists("LMS Enrollment", {"member": user, "course": course}):
+		try:
+			frappe.get_doc(
+				{
+					"doctype": "LMS Enrollment",
+					"member": user,
+					"course": course,
+					"member_type": "Student",
+					"role": "Member",
+				}
+			).insert(ignore_permissions=True)
+		except Exception:
+			frappe.log_error(title=f"Preliminary course enrollment failed for {doc.name}")
+			return None
+
+	return user
 
 
 def attach_manuals(doc):
@@ -97,6 +184,21 @@ FALLBACK_MANUAL = (
 )
 
 
+FALLBACK_COURSE = (
+	"Complete your orientation course -- {{ manual_title }}",
+	"<p>Dear {{ applicant_name }},</p>"
+	"<p>Congratulations on your admission to South India Baptist Bible College "
+	"&amp; Seminary. Before your enrolment can be completed, please work through "
+	"the orientation course. It carries no credit and every lesson must be "
+	"finished.</p>"
+	"<p>Sign in as <b>{{ login_email }}</b> and open the course:<br>"
+	'<a href="{{ course_url }}">{{ course_url }}</a></p>'
+	"<p>When you have finished every lesson, sign the acknowledgement here:<br>"
+	'<a href="{{ link }}">{{ link }}</a></p>'
+	"<p>Admissions Office</p>",
+)
+
+
 def send_manual_row(doc, row):
 	"""Email one manual link. Returns the address, or None."""
 	from sibbcs.admissions.notifications import render_template
@@ -108,15 +210,26 @@ def send_manual_row(doc, row):
 		"Reading Manual", row.manual, ["manual_title", "version"]
 	)
 
+	# A course-backed manual has to be enrolled before the link is any use.
+	course = manual_course(row.manual)
+	course_url = None
+	if course:
+		enroll_in_course(doc, course)
+		course_url = public_url(f"/lms/courses/{course}")
+
 	context = {
 		"applicant_name": doc.full_name,
 		"manual_title": title,
 		"manual_version": version,
 		"program": doc.program,
 		"link": token_url(FORM_KEY, row.token),
+		"course_url": course_url,
+		"login_email": doc.applicant_user or doc.email,
 		"application_id": doc.name,
 	}
-	subject, message = render_template("manual_reading", context, *FALLBACK_MANUAL)
+	template = "preliminary_course" if course else "manual_reading"
+	fallback = FALLBACK_COURSE if course else FALLBACK_MANUAL
+	subject, message = render_template(template, context, *fallback)
 
 	frappe.sendmail(
 		recipients=[doc.email],
@@ -194,8 +307,9 @@ def send_manuals(application, force=False):
 # ---------------------------------------------------------------------------
 
 
-def acknowledge(token, reader_name, confirmed):
+def acknowledge(token, reader_name, confirmed, signature=None):
 	"""Record that one manual was read. Called from the guest endpoint."""
+	from sibbcs.admissions.scholarship import _decode_signature, _store_signature
 	from sibbcs.admissions.tokens import mark_submitted, resolve
 
 	if str(confirmed) not in ("1", "true", "on", "yes", "True"):
@@ -209,6 +323,26 @@ def acknowledge(token, reader_name, confirmed):
 		frappe.throw(_("Please type your full name."), title=_("Name Needed"))
 
 	resolved = resolve(FORM_KEY, token)
+	row = frappe.db.get_value(
+		"Manual Acknowledgement", resolved["row_name"], "manual"
+	)
+
+	# A course-backed manual is not "read" until the course is finished. The
+	# page hides the button, but the button is not the rule.
+	course = manual_course(row)
+	if course:
+		progress = course_progress(resolved["parent"], course)
+		if not progress["complete"]:
+			frappe.throw(
+				_("Please finish the course first — {0} of {1} lessons done.").format(
+					progress["done"], progress["total"]
+				),
+				title=_("Course Not Complete"),
+			)
+
+	# Validated before anything is written, so a bad signature cannot leave a
+	# half-recorded acknowledgement. Same rule as the scholarship form.
+	raw_signature = _decode_signature(signature) if signature else None
 
 	result = mark_submitted(
 		FORM_KEY,
@@ -219,6 +353,19 @@ def acknowledge(token, reader_name, confirmed):
 			"ip_address": frappe.local.request_ip or "",
 		},
 	)
+
+	if raw_signature:
+		file_url = _store_signature(
+			raw_signature, resolved["parent"], reader_name, doctype="Admission Application"
+		)
+		if file_url:
+			frappe.db.set_value(
+				"Manual Acknowledgement",
+				resolved["row_name"],
+				"signature",
+				file_url,
+				update_modified=False,
+			)
 
 	_set_step(resolved["parent"])
 	return result
