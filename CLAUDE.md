@@ -186,6 +186,32 @@ Where the exam lives is config, not code — `entrance_exam_url` wins over
 With **neither set the account is still created** and the step reports why nothing was
 sent, rather than mailing a dead link. **Neither is set on `online.sibbc.org` yet.**
 
+### Steps 12 and 13 — `sibbcs/admissions/manuals.py`, `conversion.onboard`
+
+**Step 12, reading manuals.** A candidate who has passed the entrance exam is emailed a
+token link per applicable manual (`/manual-reading?token=`). They read it, type their
+name, tick a box. `Manual Acknowledgement.acknowledged_name` is **what they typed**, not
+what the office believes their name to be — if those differ, that difference is the
+evidence, and overwriting it would destroy the only thing the record is for. The step
+reaches `Acknowledged` only when **every** applicable manual is in.
+
+A `Reading Manual` with no programs listed is universal; one with programs listed applies
+to those only. Attachments are private files, so the candidate fetches them through
+`tokens.download_manual` (resolved with `allow_used`) rather than a `/files/` link a
+guest cannot open.
+
+**The gate moved.** `REQUIRES[12]` was `(11, "Admitted")` and is now `(8, None)` — the
+college sends manuals to whoever **passed the exam**, so the reading is done by the time a
+decision is made. Step 13 still requires `(11, "Admitted")` **and** `(12, None)`, so a
+pass alone never reaches onboarding.
+
+**Step 13, onboarding.** `conversion.onboard()` checks the step-13 gate *before* creating
+anything — a Student created and then found to be ungated is unpicked by hand. The
+enrollment is made at `onboard_level` (falling back to Level 1) in `onboard_term` or the
+intake term. A **waived** admission fee counts as settled: a waiver is a decision recorded
+at step 10, not a payment, so `admission_fee_paid` stays false and a fee-paid-only check
+would block every waived candidate.
+
 ### 2.3 Formation — Phase 6, not built
 `Mentor`, `Mentor Monthly Report`, `Chapel Session` + `Chapel Attendance`,
 `Internship Record` (+ `Internship Log Entry`), `Campus Visit` + `Campus Visit Attendance`.

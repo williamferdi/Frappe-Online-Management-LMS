@@ -21,7 +21,14 @@ WWW = os.path.dirname(os.path.abspath(__file__))
 
 # Pages whose context is built in Python. A template with no controller is
 # legitimate (static content), so only these are required to resolve.
-PAGES_WITH_CONTROLLERS = ["reference", "mentor-consent", "my-courses", "apply", "fee-paid"]
+PAGES_WITH_CONTROLLERS = [
+	"reference",
+	"mentor-consent",
+	"manual-reading",
+	"my-courses",
+	"apply",
+	"fee-paid",
+]
 
 
 def controller_for(page):

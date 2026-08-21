@@ -174,6 +174,19 @@ class AdmissionApplication(Document):
 		if self.admission_fee_paid:
 			move(10, "Paid")
 
+		# 12 - manuals. Acknowledged only when every one of them is in; one
+		# signed manual out of three is not a candidate who has read them.
+		manuals = self.get("manual_acknowledgements") or []
+		if manuals:
+			if all(m.acknowledged_on for m in manuals):
+				move(12, "Acknowledged")
+			elif any(m.sent_on for m in manuals):
+				move(12, "Sent")
+
+		# 13 - a Student exists, so onboarding happened however it was reached.
+		if self.student:
+			move(13, "Onboarded")
+
 	# -- derived fields ---------------------------------------------------
 
 	def normalise(self):
@@ -229,6 +242,12 @@ class AdmissionApplication(Document):
 			if not row.token:
 				row.token = generate_token()
 		for row in self.mentor_consents:
+			if not row.token:
+				row.token = generate_token()
+		# Manual rows are normally created by manuals.attach_manuals, which
+		# issues its own tokens; this covers a row added by hand in the grid,
+		# which would otherwise have an unopenable link.
+		for row in self.get("manual_acknowledgements") or []:
 			if not row.token:
 				row.token = generate_token()
 

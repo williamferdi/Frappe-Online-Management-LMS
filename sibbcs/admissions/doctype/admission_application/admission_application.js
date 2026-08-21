@@ -47,9 +47,20 @@ frappe.ui.form.on("Admission Application", {
 			);
 		}
 
-		if (frm.doc.admission_fee_paid && !frm.doc.student) {
-			frm.add_custom_button(__("Convert to Student"), () =>
-				frm.trigger("convert_to_student")
+		// Step 12.
+		if (!frm.is_new()) {
+			frm.add_custom_button(
+				__("Send Reading Manuals"),
+				() => frm.trigger("send_manuals"),
+				__("Send")
+			);
+		}
+
+		// Step 13. The primary action once it is reachable, because it is the
+		// end of the process and the one an officer is looking for.
+		if (!frm.doc.student) {
+			frm.add_custom_button(__("Onboard Student"), () =>
+				frm.trigger("onboard_student")
 			).addClass("btn-primary");
 		}
 
@@ -305,17 +316,96 @@ frappe.ui.form.on("Admission Application", {
 		});
 	},
 
-	convert_to_student(frm) {
+	send_manuals(frm) {
+		frappe.call({
+			method: "sibbcs.admissions.manuals.status",
+			args: { application: frm.doc.name },
+			freeze: true,
+			callback: ({ message }) => {
+				if (!message) return;
+				frm.events.render_manual_dialog(frm, message);
+			},
+		});
+	},
+
+	render_manual_dialog(frm, data) {
+		if (!data.applicable.length) {
+			frappe.msgprint({
+				title: __("No Manuals"),
+				indicator: "orange",
+				message: __(
+					"No active Reading Manual applies to this program. Add one under Reading Manual first."
+				),
+			});
+			return;
+		}
+
+		const rows = data.rows.length
+			? data.rows
+					.map((row) => {
+						let state;
+						if (row.acknowledged_on) {
+							state = `<span style="color:var(--green-600)">${__("read by")} ${frappe.utils.escape_html(
+								row.acknowledged_name || ""
+							)} ${frappe.datetime.str_to_user(row.acknowledged_on)}</span>`;
+						} else if (row.sent_on) {
+							state = `${__("sent")} ${frappe.datetime.str_to_user(row.sent_on)}`;
+						} else {
+							state = `<span style="color:var(--orange-600)">${__("never sent")}</span>`;
+						}
+						return `<div style="margin-bottom:6px">${frappe.utils.escape_html(
+							row.manual
+						)} — ${state}</div>`;
+					})
+					.join("")
+			: `<p class="text-muted">${__("Nothing sent yet. {0} manual(s) apply.", [
+					data.applicable.length,
+				])}</p>`;
+
+		const dialog = new frappe.ui.Dialog({
+			title: __("Reading manuals"),
+			fields: [
+				{ fieldtype: "HTML", options: rows },
+				{
+					fieldtype: "Check",
+					fieldname: "force",
+					label: __("Send again to those who have already been emailed"),
+					default: 0,
+				},
+			],
+			primary_action_label: __("Send"),
+			primary_action: (values) => {
+				frappe.call({
+					method: "sibbcs.admissions.manuals.send",
+					args: { application: frm.doc.name, force: values.force ? 1 : 0 },
+					freeze: true,
+					freeze_message: __("Sending…"),
+					callback: () => {
+						dialog.hide();
+						frm.reload_doc();
+					},
+				});
+			},
+		});
+
+		dialog.show();
+	},
+
+	onboard_student(frm) {
+		const level = frm.doc.onboard_level;
+		const term = frm.doc.onboard_term || frm.doc.intake_term;
+
 		frappe.confirm(
 			__(
-				"This creates the Student, their login, and their Program Enrollment. Continue?"
+				"This creates the Student, their login and their Program Enrollment at level <b>{0}</b> in <b>{1}</b>. Continue?",
+				[level || __("1 (nothing chosen)"), term || __("no term")]
 			),
 			() => {
 				frappe.call({
-					method: "sibbcs.admissions.conversion.convert_application",
+					method: "sibbcs.admissions.conversion.onboard_application",
 					args: { application_name: frm.doc.name },
 					freeze: true,
-					freeze_message: __("Enrolling…"),
+					freeze_message: __("Onboarding…"),
 					callback: () => frm.reload_doc(),
 				});
 			}

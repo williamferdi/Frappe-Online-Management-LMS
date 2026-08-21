@@ -38,6 +38,13 @@ TOKEN_TARGETS = {
 		"submitted_field": "consented_on",
 		"label": "Mentor Consent",
 	},
+	"manual-reading": {
+		"child_doctype": "Manual Acknowledgement",
+		"parent_doctype": "Admission Application",
+		"parentfield": "manual_acknowledgements",
+		"submitted_field": "acknowledged_on",
+		"label": "Reading Manual",
+	},
 }
 
 
@@ -209,6 +216,52 @@ def submit_mentor_form(token, answers):
 	except Exception:
 		frappe.log_error(title="Mentor form submission failed")
 		frappe.throw(_("Could not save your response. Please try again."))
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def submit_manual_acknowledgement(token, reader_name, confirmed):
+	"""Record that a candidate has read one manual."""
+	from sibbcs.admissions.manuals import acknowledge
+
+	try:
+		return acknowledge(token, reader_name, confirmed)
+	except TokenError:
+		raise
+	except frappe.ValidationError:
+		raise
+	except Exception:
+		frappe.log_error(title="Manual acknowledgement failed")
+		frappe.throw(_("Could not record your acknowledgement. Please try again."))
+
+
+@frappe.whitelist(allow_guest=True)
+def download_manual(token):
+	"""Stream a manual's attachment to the holder of its token.
+
+	Manual attachments are private files, so a plain /files/ link 403s for
+	someone who is not logged in -- and the whole point of the link is that
+	they are not. The token is the authorisation, exactly as it is for the
+	form itself; it is resolved with allow_used so a candidate can still open
+	the manual they have already acknowledged.
+	"""
+	resolved = resolve("manual-reading", token, allow_used=True)
+
+	manual = frappe.db.get_value(
+		"Manual Acknowledgement", resolved["row_name"], "manual"
+	)
+	attachment = frappe.db.get_value("Reading Manual", manual, "attachment")
+	if not attachment:
+		frappe.throw(_("This manual has no attached file."))
+
+	file_name = frappe.db.get_value("File", {"file_url": attachment}, "name")
+	if not file_name:
+		frappe.throw(_("The attached file is missing."))
+
+	file_doc = frappe.get_doc("File", file_name)
+
+	frappe.local.response.filename = file_doc.file_name
+	frappe.local.response.filecontent = file_doc.get_content()
+	frappe.local.response.type = "download"
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])

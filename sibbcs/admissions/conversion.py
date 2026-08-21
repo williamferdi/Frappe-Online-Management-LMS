@@ -88,11 +88,23 @@ def convert(application_name, ignore_permissions=False):
 	return report
 
 
+def _fee_settled(app):
+	"""Paid, or waived on the checklist.
+
+	A waiver is a decision the Registrar records at step 10; it is not a
+	payment, so `admission_fee_paid` stays false and a fee-paid-only check
+	would make every waived candidate impossible to onboard.
+	"""
+	from sibbcs.admissions.checklist import status_of
+
+	return bool(app.admission_fee_paid) or status_of(app, 10) == "Waived"
+
+
 def _assert_ready(app):
 	"""Refuse to convert an application that has not cleared its gates."""
-	if not app.admission_fee_paid:
+	if not _fee_settled(app):
 		frappe.throw(
-			_("Admission fee is not marked paid. Conversion is the fee-paid step."),
+			_("The admission fee is neither paid nor waived."),
 			title=_("Not Ready"),
 		)
 
@@ -184,10 +196,14 @@ def _create_program_enrollment(app, student):
 			"student": student.name,
 			"program": app.program,
 			"enrollment_date": today(),
-			"start_term": app.intake_term,
-			# Architecture doc §4: enrollment always starts at level 1, regardless
-			# of the entry_level captured on the application, which is advisory.
-			"current_level": "1",
+			"start_term": app.onboard_term or app.intake_term,
+			# The level is the Registrar's decision at step 13, recorded in
+			# `onboard_level`. This deliberately overrides architecture doc §4
+			# ("always Level 1"): the college has since confirmed a candidate
+			# may be admitted at any level 1-4. `entry_level` on the
+			# application stays advisory, and Level 1 is the fallback when
+			# nobody has decided.
+			"current_level": app.onboard_level or "1",
 			"status": "Active",
 			"expected_completion": expected_completion,
 		}
@@ -290,14 +306,14 @@ def _register_orientation(app, student, enrollment, report):
 
 	offering = frappe.db.get_value(
 		"Course Offering",
-		{"course": course, "term": app.intake_term},
+		{"course": course, "term": app.onboard_term or app.intake_term},
 		"name",
 	)
 	if not offering:
 		_deferred(
 			report,
 			"orientation",
-			f"no {course} offering for term {app.intake_term}",
+			f"no {course} offering for term {app.onboard_term or app.intake_term}",
 		)
 		return
 
@@ -312,6 +328,67 @@ def _register_orientation(app, student, enrollment, report):
 	)
 	registration.insert(ignore_permissions=True)
 	report["created"]["orientation_registration"] = registration.name
+
+
+def onboard(application_name):
+	"""Step 13. The gated way in: convert, then record the step.
+
+	`convert()` stays callable on its own -- it is what the fee-paid path and
+	the tests use -- but step 13 is the one that must not run early, so the
+	checklist gate is checked *before* a Student exists rather than after.
+	Creating the record and then discovering the manual was never acknowledged
+	would leave a half-onboarded candidate to unpick by hand.
+	"""
+	from sibbcs.admissions.checklist import blocked_reason, set_status
+
+	app = frappe.get_doc("Admission Application", application_name)
+
+	if not app.student:
+		reason = blocked_reason(app, 13)
+		if reason:
+			frappe.throw(reason, title=_("Not Ready to Onboard"))
+
+	report = convert(application_name)
+
+	app.reload()
+	set_status(app, 13, "Onboarded")
+
+	report["level"] = frappe.db.get_value(
+		"Program Enrollment", report["created"].get("program_enrollment"), "current_level"
+	)
+	return report
+
+
+@frappe.whitelist()
+def onboard_application(application_name):
+	"""Desk-callable step 13."""
+	app = frappe.get_doc("Admission Application", application_name)
+	app.check_permission("write")
+	report = onboard(application_name)
+
+	if report["already_converted"]:
+		frappe.msgprint(
+			_("Already onboarded -- Student {0}.").format(report["created"]["student"]),
+			indicator="orange",
+		)
+		return report
+
+	_report_msgprint(report, _("Onboarding Complete"))
+	return report
+
+
+def _report_msgprint(report, title):
+	lines = [_("Created:")]
+	for key, value in report["created"].items():
+		lines.append(f"&nbsp;&nbsp;&bull; {frappe.unscrub(key)}: <b>{value}</b>")
+	if report.get("level"):
+		lines.append("<br>" + _("Enrolled at level <b>{0}</b>.").format(report["level"]))
+	if report["deferred"]:
+		lines.append("<br>" + _("Deferred to a later phase:"))
+		for item in report["deferred"]:
+			lines.append(f"&nbsp;&nbsp;&bull; {frappe.unscrub(item['step'])} — {item['reason']}")
+
+	frappe.msgprint("<br>".join(lines), title=title, indicator="green")
 
 
 @frappe.whitelist()
