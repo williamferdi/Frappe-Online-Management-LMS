@@ -201,6 +201,15 @@ A course records a lesson at a time.
 reflows the PDF's hard line breaks back into paragraphs by line width, since extracted
 text has one line per *visual* line and paragraph boundaries are gone.
 
+**The handbooks say Canvas.** The college wrote them for Canvas; the courses run here.
+`setup/phase2l_lms_naming.py` corrects the lessons — mostly a rename, but six sentences
+asserted Canvas behaviour this LMS does not have (a mobile app, `Account → Settings`, an
+emailed password, an enrolment invitation, an Announcements section, and a claim that the
+seminary cannot reset a password — which is false here). Renaming those would have left
+the handbook confidently wrong rather than merely out of date, so they are rewritten and
+listed in `REWRITES` for the college to review. **The attached PDFs are untouched** and
+still say Canvas.
+
 **The Formation Handbook is only partly imported, on purpose.** Its Level 1-4 sections are
 reflection and goal-setting forms filled at the start of each level *with a mentor*.
 Importing them would have a new admit writing Level 4 goals before beginning Level 1,
