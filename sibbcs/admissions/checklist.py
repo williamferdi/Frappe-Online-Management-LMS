@@ -273,15 +273,36 @@ def update_step(application, step_no, status, remarks=None):
 	}
 
 
+# Steps that have something to *do*, not just a status to record. The board
+# puts the action next to the step rather than in a toolbar menu, because the
+# officer working the board is looking at the step, not at the toolbar.
+ACTIONS = {
+	3: "resend_requests",
+	4: "resend_requests",
+	6: "resend_requests",
+	7: "create_lms_account",
+	12: "send_manuals",
+	13: "onboard_student",
+}
+
+
 @frappe.whitelist()
 def board(application):
 	"""Everything the Desk board needs to draw itself."""
 	doc = frappe.get_doc("Admission Application", application)
 	doc.check_permission("read")
 
+	# Remarks and the audit stamps live on the child rows, not in STEPS.
+	stored = {
+		int(r.step_no): r
+		for r in (doc.get("checklist") or [])
+		if r.step_no
+	}
+
 	rows = []
 	for step_no, label, statuses, _default, _done, role in STEPS:
 		current = status_of(doc, step_no)
+		row = stored.get(step_no)
 		rows.append(
 			{
 				"step_no": step_no,
@@ -290,7 +311,12 @@ def board(application):
 				"statuses": statuses,
 				"owner_role": role,
 				"done": bool(current and is_done(step_no, current)),
+				"done_statuses": BY_NO[step_no][4],
 				"blocked": blocked_reason(doc, step_no),
+				"remarks": row.remarks if row else None,
+				"updated_by": row.updated_by if row else None,
+				"updated_on": str(row.updated_on) if row and row.updated_on else None,
+				"action": ACTIONS.get(step_no),
 			}
 		)
 
@@ -299,4 +325,7 @@ def board(application):
 		"state": doc.workflow_state,
 		"progress": progress(doc),
 		"rows": rows,
+		# The board greys itself out rather than offering controls that will be
+		# refused; the server still checks on every update_step.
+		"can_write": bool(doc.has_permission("write")),
 	}

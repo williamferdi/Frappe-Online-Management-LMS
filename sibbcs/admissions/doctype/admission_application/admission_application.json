@@ -46,8 +46,10 @@
   "sb_workflow",
   "workflow_state",
   "upload_token",
-  "checklist",
   "sb_checklist",
+  "checklist_board",
+  "sb_checklist_rows",
+  "checklist",
   "sb_gates",
   "application_fee_paid",
   "docs_verified",
@@ -506,13 +508,26 @@
    "fieldname": "sb_lms",
    "fieldtype": "Section Break",
    "label": "LMS Access"
+  },
+  {
+   "description": "Drawn by the form script from admissions.checklist.board.",
+   "fieldname": "checklist_board",
+   "fieldtype": "HTML",
+   "label": "Checklist"
+  },
+  {
+   "collapsible": 1,
+   "description": "The stored rows behind the board. Remarks and the audit stamps live here.",
+   "fieldname": "sb_checklist_rows",
+   "fieldtype": "Section Break",
+   "label": "Checklist Rows"
   }
  ],
  "grid_page_length": 50,
  "image_field": "photo",
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-21 11:51:09.665729",
+ "modified": "2026-08-21 12:11:23.535959",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Admission Application",

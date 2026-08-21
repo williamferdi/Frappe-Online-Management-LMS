@@ -5,7 +5,7 @@ frappe.ui.form.on("Admission Application", {
 	refresh(frm) {
 		if (frm.is_new()) return;
 
-		frm.trigger("show_gate_status");
+		frm.trigger("render_board");
 		frm.trigger("show_submitted_references");
 		frm.trigger("show_submitted_mentor");
 
@@ -71,37 +71,176 @@ frappe.ui.form.on("Admission Application", {
 		}
 	},
 
-	show_gate_status(frm) {
-		// A compact read of where this application actually stands, so an
-		// officer does not have to open three child tables to find out.
-		const pending_refs = (frm.doc.reference_requests || []).filter(
-			(r) => !r.submitted_on
-		).length;
-		const has_mentor = (frm.doc.mentor_consents || []).some((c) => c.consented_on);
+	render_board(frm) {
+		const field = frm.get_field("checklist_board");
+		if (!field) return;
 
-		const rows = [
-			[__("Application fee"), frm.doc.application_fee_paid],
-			[__("Documents verified"), frm.doc.docs_verified],
-			[__("References received"), pending_refs === 0],
-			[__("Mentor consent"), has_mentor],
-			[__("Admission fee"), frm.doc.admission_fee_paid],
-		];
+		frappe.call({
+			method: "sibbcs.admissions.checklist.board",
+			args: { application: frm.doc.name },
+			callback: ({ message }) => {
+				if (message) frm.events.draw_board(frm, field, message);
+			},
+		});
+	},
 
-		const html = rows
-			.map(([label, done]) => {
-				const colour = done ? "green" : "orange";
-				const mark = done ? "&#10003;" : "&#8226;";
-				return `<div style="margin-bottom:4px">
-					<span style="color:var(--text-on-${colour}, ${colour});font-weight:600">${mark}</span>
-					<span style="margin-left:6px">${label}</span>
-				</div>`;
+	draw_board(frm, field, data) {
+		const esc = frappe.utils.escape_html;
+		const done = data.progress.done;
+		const total = data.progress.total || 13;
+		const pct = total ? Math.round((done / total) * 100) : 0;
+
+		// One action per step that has something to do, so the officer works
+		// the board rather than hunting through the toolbar for the button
+		// that belongs to the row they are looking at.
+		const ACTION_LABELS = {
+			resend_requests: __("Resend"),
+			create_lms_account: __("Account"),
+			send_manuals: __("Send"),
+			onboard_student: __("Onboard"),
+		};
+
+		const rows = data.rows
+			.map((row) => {
+				const options = row.statuses
+					.map((status) => {
+						// A blocked step can still move to an intermediate status;
+						// only the ones that would complete it are shut off.
+						const shuts = row.blocked && row.done_statuses.includes(status);
+						return `<option value="${esc(status)}"${
+							status === row.status ? " selected" : ""
+						}${shuts ? " disabled" : ""}>${esc(status)}</option>`;
+					})
+					.join("");
+
+				const mark = row.done
+					? `<span class="sib-tick" title="${__("Complete")}">&#10003;</span>`
+					: row.blocked
+						? `<span class="sib-lock" title="${esc(row.blocked)}">&#9679;</span>`
+						: `<span class="sib-open">&#9675;</span>`;
+
+				let meta = "";
+				if (row.updated_on) {
+					meta = `${esc(frappe.user.full_name(row.updated_by) || "")} · ${frappe.datetime.str_to_user(
+						row.updated_on
+					)}`;
+				}
+				if (row.remarks) {
+					meta += `${meta ? "<br>" : ""}<i>${esc(row.remarks)}</i>`;
+				}
+
+				const action =
+					row.action && data.can_write
+						? `<button class="btn btn-xs btn-default sib-act" data-action="${esc(
+								row.action
+							)}">${ACTION_LABELS[row.action] || __("Open")}</button>`
+						: "";
+
+				return `
+					<div class="sib-row${row.done ? " is-done" : ""}${row.blocked ? " is-blocked" : ""}">
+						<div class="sib-no">${row.step_no}</div>
+						<div class="sib-mark">${mark}</div>
+						<div class="sib-name">
+							<div class="sib-title">${esc(row.step)}</div>
+							<div class="sib-role">${esc(row.owner_role)}</div>
+						</div>
+						<div class="sib-status">
+							<select class="form-control sib-select" data-step="${row.step_no}"
+							        ${data.can_write ? "" : "disabled"}>${options}</select>
+							${row.blocked ? `<div class="sib-why">${esc(row.blocked)}</div>` : ""}
+						</div>
+						<div class="sib-meta">${meta}</div>
+						<div class="sib-actions">
+							${action}
+							<button class="btn btn-xs btn-default sib-note" data-step="${row.step_no}"
+							        title="${__("Add a remark")}">&#9998;</button>
+						</div>
+					</div>`;
 			})
 			.join("");
 
-		frm.dashboard.add_section(
-			`<div style="padding:4px 0">${html}</div>`,
-			__("Admission Gates")
-		);
+		field.$wrapper.html(`
+			<style>
+				.sib-board { font-size: 13px; }
+				.sib-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+				.sib-count { font-weight: 600; white-space: nowrap; }
+				.sib-bar { flex: 1; height: 6px; border-radius: 3px;
+				           background: var(--control-bg, #eee); overflow: hidden; }
+				.sib-fill { height: 100%; background: var(--green-500, #28a745); }
+				.sib-row { display: grid; grid-template-columns: 24px 20px 1fr 200px 1fr 92px;
+				           gap: 10px; align-items: start; padding: 8px 6px;
+				           border-top: 1px solid var(--border-color, #ebeef0); }
+				.sib-row:last-child { border-bottom: 1px solid var(--border-color, #ebeef0); }
+				.sib-row.is-done { background: var(--bg-green, transparent); }
+				.sib-no { color: var(--text-muted, #8d99a6); padding-top: 5px; }
+				.sib-mark { padding-top: 4px; font-size: 14px; }
+				.sib-tick { color: var(--green-600, #28a745); font-weight: 700; }
+				.sib-lock { color: var(--orange-500, #f0a500); }
+				.sib-open { color: var(--text-muted, #b9c0c7); }
+				.sib-title { padding-top: 4px; }
+				.sib-role { color: var(--text-muted, #8d99a6); font-size: 11px; }
+				.sib-select { height: 26px; padding: 2px 6px; font-size: 12px; }
+				.sib-why { color: var(--orange-600, #b97400); font-size: 11px; margin-top: 3px; }
+				.sib-meta { color: var(--text-muted, #8d99a6); font-size: 11px; padding-top: 6px; }
+				.sib-actions { text-align: right; padding-top: 2px; white-space: nowrap; }
+				.sib-actions .btn { margin-left: 3px; }
+				@media (max-width: 991px) {
+					.sib-row { grid-template-columns: 24px 20px 1fr; }
+					.sib-status, .sib-meta, .sib-actions { grid-column: 3; text-align: left; }
+				}
+			</style>
+			<div class="sib-board">
+				<div class="sib-head">
+					<span class="sib-count">${done} / ${total} ${__("complete")}</span>
+					<span class="sib-bar"><span class="sib-fill" style="width:${pct}%"></span></span>
+					<span class="text-muted">${esc(data.state || "")}</span>
+				</div>
+				${rows}
+			</div>
+		`);
+
+		field.$wrapper.find(".sib-select").on("change", function () {
+			frm.events.move_step(frm, $(this).data("step"), $(this).val());
+		});
+
+		field.$wrapper.find(".sib-act").on("click", function () {
+			frm.trigger($(this).data("action"));
+		});
+
+		field.$wrapper.find(".sib-note").on("click", function () {
+			const step = $(this).data("step");
+			const row = data.rows.find((r) => r.step_no === step);
+			frappe.prompt(
+				{
+					fieldtype: "Small Text",
+					fieldname: "remarks",
+					label: __("Remark"),
+					default: row ? row.remarks : "",
+				},
+				(values) => frm.events.move_step(frm, step, row.status, values.remarks),
+				__("{0} — remark", [row ? row.step : ""]),
+				__("Save")
+			);
+		});
+	},
+
+	move_step(frm, step_no, status, remarks) {
+		frappe.call({
+			method: "sibbcs.admissions.checklist.update_step",
+			args: {
+				application: frm.doc.name,
+				step_no: step_no,
+				status: status,
+				remarks: remarks,
+			},
+			freeze: true,
+			// reload_doc re-runs refresh, which redraws the board -- so a
+			// refused move puts the select back to what the server believes
+			// rather than leaving the officer looking at a status that was
+			// never saved.
+			callback: () => frm.reload_doc(),
+			error: () => frm.reload_doc(),
+		});
 	},
 
 	show_submitted_mentor(frm) {

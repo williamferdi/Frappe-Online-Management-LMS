@@ -212,6 +212,29 @@ intake term. A **waived** admission fee counts as settled: a waiver is a decisio
 at step 10, not a payment, so `admission_fee_paid` stays false and a fee-paid-only check
 would block every waived candidate.
 
+### The checklist board — `checklist.board()` + the form script
+
+The 13 steps render as one row each at the top of the application: number, status
+tick/lock/circle, step name with its owner role, a status select, who last moved it and
+when, and — for the six steps that have something to *do* — the action button for that
+step sitting next to it. A progress bar counts completed steps.
+
+`ACTIONS` in `checklist.py` maps step → form-script trigger, so the toolbar and the board
+cannot drift: adding an action is one entry there plus the handler.
+
+Two things the board deliberately does:
+
+- A blocked step still offers its **intermediate** statuses and greys out only the ones
+  that would complete it — an exam can be Scheduled before step 7 is done, not Passed.
+  The select is a convenience; `update_step` re-checks every gate server-side.
+- A **new application already reads 1/13**, because Scholarship Form Review defaults to
+  Not Applicable, which is a done status. Most candidates never ask for one, so the
+  default is the finished state rather than a task nobody will do.
+
+The raw child grid still exists, in a collapsed `Checklist Rows` section below the board:
+it is where remarks and the audit stamps are stored. The old `Admission Gates` dashboard
+summary was removed — the board says the same thing better.
+
 ### 2.3 Formation — Phase 6, not built
 `Mentor`, `Mentor Monthly Report`, `Chapel Session` + `Chapel Attendance`,
 `Internship Record` (+ `Internship Log Entry`), `Campus Visit` + `Campus Visit Attendance`.
