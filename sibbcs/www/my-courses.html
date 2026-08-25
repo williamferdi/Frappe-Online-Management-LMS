@@ -3,6 +3,7 @@
 {% block title %}My Courses{% endblock %}
 
 {% block page_content %}
+{% include "templates/includes/csrf.html" %}
 <div class="sibbcs-portal">
 	{% if no_enrollment %}
 		<div class="alert alert-warning">
@@ -168,7 +169,7 @@ document.querySelectorAll('.register-btn').forEach(function (button) {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					'X-Frappe-CSRF-Token': window.csrf_token || '',
+					'X-Frappe-CSRF-Token': sibbcsCsrfToken(),
 				},
 				body: JSON.stringify({ course_offering: button.dataset.offering }),
 			});

@@ -3,6 +3,7 @@
 {% block title %}Apply — SIBBCS Online{% endblock %}
 
 {% block page_content %}
+{% include "templates/includes/csrf.html" %}
 <div class="sibbcs-apply">
 
   <div id="apply-intro">
@@ -449,7 +450,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Frappe-CSRF-Token': window.csrf_token || '',
+            'X-Frappe-CSRF-Token': sibbcsCsrfToken(),
           },
           body: JSON.stringify(payload),
         }
@@ -497,7 +498,7 @@
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  'X-Frappe-CSRF-Token': window.csrf_token || '',
+                  'X-Frappe-CSRF-Token': sibbcsCsrfToken(),
                 },
                 body: JSON.stringify({
                   application: result.application,

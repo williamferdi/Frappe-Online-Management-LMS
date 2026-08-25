@@ -3,6 +3,7 @@
 {% block title %}Mentor Consent Form{% endblock %}
 
 {% block page_content %}
+{% include "templates/includes/csrf.html" %}
 <div class="sibbcs-mentor">
 	{% if not valid %}
 		<div class="alert alert-warning">
@@ -195,7 +196,7 @@
 						method: 'POST',
 						headers: {
 							'Content-Type': 'application/json',
-							'X-Frappe-CSRF-Token': window.csrf_token || '',
+							'X-Frappe-CSRF-Token': sibbcsCsrfToken(),
 						},
 						body: JSON.stringify({
 							token: token,
@@ -224,7 +225,7 @@
 					method: 'POST',
 					headers: {
 						'Content-Type': 'application/json',
-						'X-Frappe-CSRF-Token': window.csrf_token || '',
+						'X-Frappe-CSRF-Token': sibbcsCsrfToken(),
 					},
 					body: JSON.stringify({ token: token, answers: JSON.stringify(answers) }),
 				}

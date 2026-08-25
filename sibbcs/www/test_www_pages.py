@@ -83,3 +83,59 @@ class TestWwwPages(FrappeTestCase):
 		# every variable undefined.
 		self.assertIn("no_enrollment", context)
 		self.assertTrue(context.no_enrollment)
+
+
+class TestCsrfHeader(FrappeTestCase):
+	"""Every form must read the CSRF token the way Frappe actually sets it.
+
+	Frappe injects `frappe.csrf_token` into a rendered web page; it never sets
+	`window.csrf_token`, which only exists inside the Desk bundle. A Guest
+	session carries no CSRF token at all and validate_csrf_token() returns
+	early when there is none -- so a form reading the wrong name works
+	perfectly for the outsiders it was built for and fails with "Invalid
+	Request" the first time a signed-in user submits it. That is exactly how
+	the manual acknowledgement broke: the candidate has to sign in to take the
+	orientation course, so they are never a Guest.
+	"""
+
+	def _posting_pages(self):
+		pages = []
+		for name in os.listdir(WWW):
+			if not name.endswith(".html"):
+				continue
+			with open(os.path.join(WWW, name), encoding="utf-8") as handle:
+				body = handle.read()
+			if "X-Frappe-CSRF-Token" in body:
+				pages.append((name, body))
+		return pages
+
+	def test_there_are_pages_that_post(self):
+		self.assertTrue(self._posting_pages(), "no page posts; this suite would pass vacuously")
+
+	def test_no_page_reads_window_csrf_token(self):
+		for name, body in self._posting_pages():
+			self.assertNotIn(
+				"window.csrf_token ||",
+				body,
+				f"{name} reads window.csrf_token, which is undefined on a web page",
+			)
+
+	def test_every_posting_page_uses_the_shared_helper(self):
+		for name, body in self._posting_pages():
+			self.assertIn(
+				"sibbcsCsrfToken()",
+				body,
+				f"{name} sends a CSRF header without going through sibbcsCsrfToken()",
+			)
+			self.assertIn(
+				'include "templates/includes/csrf.html"',
+				body,
+				f"{name} calls sibbcsCsrfToken() but never includes its definition",
+			)
+
+	def test_the_helper_prefers_the_name_frappe_sets(self):
+		path = os.path.join(os.path.dirname(WWW), "templates", "includes", "csrf.html")
+		self.assertTrue(os.path.exists(path), "the shared csrf include is missing")
+		with open(path, encoding="utf-8") as handle:
+			body = handle.read()
+		self.assertIn("frappe.csrf_token", body)

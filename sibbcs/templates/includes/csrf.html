@@ -1,0 +1,25 @@
+{#
+	One definition of how to find the CSRF token on a website page.
+
+	Frappe injects `frappe.csrf_token` into rendered web pages -- see
+	`website/page_renderers/base_template_page.py::add_csrf_token`, which
+	replaces an `<!-- csrf_token -->` comment in base.html. It does **not** set
+	`window.csrf_token`; that name only exists inside the Desk bundle.
+
+	Our public forms all read `window.csrf_token`, which is undefined here, so
+	they sent an empty header. That went unnoticed because a Guest session
+	carries no CSRF token at all and `validate_csrf_token()` returns early when
+	the session has none -- so every form worked for the outsiders they were
+	built for, and failed with "Invalid Request" the moment a signed-in user
+	submitted one. The candidate finishing the orientation course is signed in
+	by definition.
+
+	Guest pages render the token as the literal string "None", which is
+	harmless but not worth sending.
+#}
+<script>
+	window.sibbcsCsrfToken = function () {
+		var token = (window.frappe && window.frappe.csrf_token) || window.csrf_token || "";
+		return token === "None" ? "" : token;
+	};
+</script>
