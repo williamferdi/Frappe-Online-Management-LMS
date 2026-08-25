@@ -220,6 +220,8 @@ def courses_required(program_enrollment):
 		return DEFAULT_COURSES_PER_LEVEL
 
 	value = frappe.db.get_value("Program", program, "courses_per_level")
+	# None only when the Program record itself has gone; the column is NOT NULL
+	# with a default of 8, so a real row always answers with a number.
 	if value is None:
 		return DEFAULT_COURSES_PER_LEVEL
 	return cint(value)
@@ -271,19 +273,95 @@ def eligibility(program_enrollment):
 
 
 @frappe.whitelist()
-def eligible_for_promotion(limit=200):
-	"""Every enrollment ready to move up. The Dean's working list."""
+@frappe.whitelist()
+def promotion_board(include_blocked=0, limit=500):
+	"""Every active enrollment, with its promotion verdict. The Dean's list.
+
+	Three queries for the whole college, not three per student. The obvious
+	implementation calls eligibility() in a loop, which is a get_doc and two
+	counts each -- fine for a demo, three thousand queries at a thousand
+	students. The counts are aggregated once and matched up in Python instead.
+	"""
 	if not may_approve():
 		frappe.throw(
 			_("Only the Dean, Registrar or Academic Coordinator may see this."),
 			frappe.PermissionError,
 		)
 
-	rows = []
-	for name in frappe.get_all(
-		"Program Enrollment", filters={"status": "Active"}, pluck="name", limit=limit
+	include_blocked = int(include_blocked or 0)
+
+	enrollments = frappe.get_all(
+		"Program Enrollment",
+		filters={"status": "Active"},
+		fields=["name", "student", "student_name", "program", "current_level"],
+		order_by="student_name asc",
+		limit=limit,
+	)
+	if not enrollments:
+		return []
+
+	# `courses_per_level` is a NOT NULL Int with a default of 8, so it is never
+	# None here and zero always means somebody typed zero. An "unset means the
+	# default" branch would be unreachable -- the same trap as the Time fields
+	# that are never empty.
+	thresholds = {
+		row.name: cint(row.courses_per_level)
+		for row in frappe.get_all("Program", fields=["name", "courses_per_level"])
+	}
+
+	# One grouped count for every student at once.
+	counts = {}
+	for row in frappe.get_all(
+		"Course Registration",
+		filters={
+			"passed": 1,
+			"program_enrollment": ("in", [e.name for e in enrollments]),
+		},
+		fields=["program_enrollment", "level_at_registration", "count(name) as n"],
+		group_by="program_enrollment, level_at_registration",
 	):
-		verdict = eligibility(name)
-		if verdict["eligible"]:
-			rows.append(verdict)
+		counts[(row.program_enrollment, str(row.level_at_registration))] = cint(row.n)
+
+	rows = []
+	for enrollment in enrollments:
+		from_level = cint(enrollment.current_level)
+		required = thresholds.get(enrollment.program, DEFAULT_COURSES_PER_LEVEL)
+		passed = counts.get((enrollment.name, str(from_level)), 0)
+
+		blocked = None
+		if from_level >= 4:
+			blocked = _("Already at the final level.")
+		elif required and passed < required:
+			blocked = _("{0} of {1} courses passed at Level {2}.").format(
+				passed, required, from_level
+			)
+		elif from_level == 3 and outstanding_level_three(enrollment.name, enrollment.program):
+			# Only for the handful who otherwise qualify, so the expensive
+			# per-student check stays off the main path.
+			blocked = _("Level 3 courses are still outstanding.")
+
+		if blocked and not include_blocked:
+			continue
+
+		rows.append(
+			{
+				"program_enrollment": enrollment.name,
+				"student": enrollment.student,
+				"student_name": enrollment.student_name,
+				"program": enrollment.program,
+				"from_level": from_level,
+				"to_level": from_level + 1 if from_level < 4 else from_level,
+				"required": required,
+				"passed": passed,
+				"eligible": blocked is None,
+				"blocked": blocked,
+			}
+		)
+
 	return rows
+
+
+@frappe.whitelist()
+def eligible_for_promotion(limit=200):
+	"""Every enrollment ready to move up."""
+	return promotion_board(include_blocked=0, limit=limit)

@@ -163,6 +163,18 @@ lets an approver promote anyway, with the reason in Remarks.
 `may_approve()` guards both the DocType and `eligible_for_promotion()`, the working list
 of students ready to move up.
 
+**The Dean's page** is a Desk page at `/app/level-promotions` (module `Academic`, roles
+Dean / Registrar / Academic Coordinator / System Manager). It lists active enrollments with
+passed-vs-required, a progress bar and a Promote button; a checkbox shows the ones who are
+not ready yet, because "who is nearly ready" is the same question a fortnight earlier.
+Promoting asks for Remarks as a required field — a level change is the one thing on a
+transcript nobody can reconstruct later.
+
+`promotion_board()` is **three queries for the whole college**, not three per student. The
+obvious version calls `eligibility()` in a loop, which is a `get_doc` and two counts each:
+fine for eight students, three thousand queries at a thousand. A test asserts the loop has
+not crept back.
+
 Students see the fee state on `/my-courses` with a Pay button per row, and an unpaid row
 reads "Opens on payment" rather than a bare "Pending".
 
