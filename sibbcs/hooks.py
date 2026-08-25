@@ -264,6 +264,9 @@ doc_events = {
 	"Course Registration": {
 		"on_update": "sibbcs.finance.hooks_handlers.course_registration_on_update",
 	},
+	"Fee Invoice": {
+		"on_update": "sibbcs.finance.hooks_handlers.open_course_when_fee_settled",
+	},
 }
 
 scheduler_events["daily"] = [

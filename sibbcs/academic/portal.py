@@ -87,15 +87,45 @@ def my_registrations(enrollment=None):
 	if not enrollment:
 		return []
 
-	return frappe.get_all(
+	rows = frappe.get_all(
 		"Course Registration",
 		filters={"program_enrollment": enrollment},
 		fields=[
 			"name", "course", "course_title", "term", "status",
 			"credits", "grade", "final_marks", "passed", "lms_enrollment_created",
+			"registration_fee_invoice",
 		],
 		order_by="registration_date desc",
 	)
+
+	# The course opens on payment, so "why can I not see my course?" is
+	# answered on this page rather than by email.
+	for row in rows:
+		row["fee"] = _fee_state(row.get("registration_fee_invoice"))
+
+	return rows
+
+
+def _fee_state(invoice):
+	if not invoice:
+		return {"invoice": None, "status": "Pending", "outstanding": 0, "settled": False,
+		        "label": _("Fee not yet raised")}
+
+	row = frappe.db.get_value(
+		"Fee Invoice", invoice,
+		["status", "outstanding_amount", "net_amount", "payment_link"],
+		as_dict=True,
+	) or {}
+	settled = row.get("status") in ("Paid", "Waived", "Cancelled")
+	return {
+		"invoice": invoice,
+		"status": row.get("status"),
+		"outstanding": row.get("outstanding_amount") or 0,
+		"amount": row.get("net_amount") or 0,
+		"payment_link": row.get("payment_link"),
+		"settled": settled,
+		"label": _("Paid") if settled else _("Payment pending"),
+	}
 
 
 @frappe.whitelist()
@@ -144,3 +174,55 @@ def withdraw(registration):
 	doc.status = "Withdrawn"
 	doc.save(ignore_permissions=True)
 	return {"registration": doc.name, "status": doc.status}
+
+
+@frappe.whitelist()
+def pay_registration(registration):
+	"""A payment link for one registration fee, for the student's own row.
+
+	Scoped to the caller's own enrollment: a registration name is guessable,
+	and this returns a payable link.
+	"""
+	enrollment = get_enrollment()
+	if not enrollment:
+		frappe.throw(_("No active enrollment found for your account."), frappe.PermissionError)
+
+	row = frappe.db.get_value(
+		"Course Registration",
+		registration,
+		["program_enrollment", "registration_fee_invoice"],
+		as_dict=True,
+	)
+	if not row or row.program_enrollment != enrollment:
+		frappe.throw(_("Registration not found."), frappe.PermissionError)
+
+	if not row.registration_fee_invoice:
+		frappe.throw(
+			_("The fee for this registration has not been raised yet. Please try "
+			  "again shortly, or contact the Accounts Office."),
+			title=_("Not Ready"),
+		)
+
+	invoice = frappe.db.get_value(
+		"Fee Invoice",
+		row.registration_fee_invoice,
+		["status", "payment_link"],
+		as_dict=True,
+	)
+	if invoice.status in ("Paid", "Waived", "Cancelled"):
+		return {"settled": True, "url": None}
+
+	if invoice.payment_link:
+		return {"settled": False, "url": invoice.payment_link}
+
+	from sibbcs.finance import gateway
+
+	if not gateway.is_configured():
+		frappe.throw(
+			_("Online payment is not available yet. Please contact the Accounts "
+			  "Office to settle this fee."),
+			title=_("Payment Unavailable"),
+		)
+
+	url = gateway.create_payment_link(row.registration_fee_invoice)
+	return {"settled": False, "url": url}

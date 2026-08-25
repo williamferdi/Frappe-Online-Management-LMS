@@ -145,12 +145,54 @@ class CourseRegistration(Document):
 		)
 
 	def maybe_sync_lms(self):
-		"""§6. Never let an LMS problem undo an accepted registration."""
+		"""§6. Never let an LMS problem undo an accepted registration.
+
+		The course opens when the registration fee is settled, not when the
+		student presses Register. Registering is the student saying yes; paying
+		is what buys the seat.
+		"""
 		if self.lms_enrollment_created:
 			return
 		if self.status not in ("Registered", "Active"):
 			return
+		if not registration_fee_settled(self):
+			return
 		lms_sync.sync_registration(self)
+
+
+def require_fee_before_lms():
+	"""Whether the fee gates LMS access.
+
+	On by default, because that is the rule the college asked for. It is a
+	setting and not a constant because the gate is only as good as the payment
+	gateway behind it -- with no gateway configured, turning this off is the
+	difference between a working term and nobody reaching a course:
+
+	    bench --site <site> set-config require_fee_for_lms_access 0
+	"""
+	value = frappe.conf.get("require_fee_for_lms_access")
+	return True if value is None else bool(int(value))
+
+
+def registration_fee_settled(registration):
+	"""Paid, waived, or not chargeable. Anything else keeps the course shut."""
+	doc = (
+		registration
+		if hasattr(registration, "doctype")
+		else frappe.get_doc("Course Registration", registration)
+	)
+
+	if not require_fee_before_lms():
+		return True
+
+	invoice = doc.registration_fee_invoice
+	if not invoice:
+		# No invoice yet means the fee run has not caught up, not that the
+		# student has paid. The hourly sweep raises it; the course waits.
+		return False
+
+	status = frappe.db.get_value("Fee Invoice", invoice, "status")
+	return status in ("Paid", "Waived", "Cancelled")
 
 
 # ---------------------------------------------------------------------------

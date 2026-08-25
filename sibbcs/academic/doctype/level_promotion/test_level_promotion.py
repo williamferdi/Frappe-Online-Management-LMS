@@ -32,6 +32,23 @@ class TestLevelPromotion(FrappeTestCase):
 		super().setUpClass()
 		cls.term = make_term("TST-PROMO-TERM", status="Open").name
 
+	def setUp(self):
+		# These test the mechanics of moving a level -- the one-at-a-time rule,
+		# the Level 4 gate, the audit trail. The eight-course requirement is
+		# tested in test_registration_payment.py; switching it off here keeps
+		# each test about one rule.
+		for program in frappe.get_all("Program", pluck="name"):
+			frappe.db.set_value(
+				"Program", program, "courses_per_level", 0, update_modified=False
+			)
+		self.addCleanup(self._restore_course_counts)
+
+	def _restore_course_counts(self):
+		for program in frappe.get_all("Program", pluck="name"):
+			frappe.db.set_value(
+				"Program", program, "courses_per_level", 8, update_modified=False
+			)
+
 	def _enrollment(self, email, level="1"):
 		student = make_student(full_name=f"Promo {email}", email=email)
 		enrollment = make_enrollment(student.name)

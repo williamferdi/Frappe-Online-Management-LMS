@@ -32,7 +32,7 @@
 					<thead>
 						<tr>
 							<th>Course</th><th>Term</th><th>Status</th>
-							<th>Grade</th><th>LMS</th>
+							<th>Fee</th><th>Grade</th><th>LMS</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -44,10 +44,23 @@
 							</td>
 							<td>{{ r.term }}</td>
 							<td><span class="badge">{{ r.status }}</span></td>
+							<td>
+								{% if r.fee.settled %}
+									<span class="fee-paid">Paid</span>
+								{% else %}
+									<button class="btn btn-xs btn-primary pay-btn"
+									        data-registration="{{ r.name }}">Pay</button>
+									{% if r.fee.outstanding %}
+										<div class="text-muted small">&#8377;{{ "{:,.0f}".format(r.fee.outstanding) }}</div>
+									{% endif %}
+								{% endif %}
+							</td>
 							<td>{{ r.grade or "—" }}</td>
 							<td>
 								{% if r.lms_enrollment_created %}
 									<a href="/lms/courses">Open</a>
+								{% elif not r.fee.settled %}
+									<span class="text-muted small">Opens on payment</span>
 								{% else %}
 									<span class="text-muted">Pending</span>
 								{% endif %}
@@ -150,6 +163,56 @@
 </style>
 
 <script>
+// The course opens on payment, so the pay action lives next to the row that
+// is waiting on it rather than on a separate fees page.
+document.querySelectorAll('.pay-btn').forEach(function (button) {
+	button.addEventListener('click', async function () {
+		button.disabled = true;
+		button.textContent = 'Opening…';
+
+		try {
+			const response = await fetch(
+				'/api/method/sibbcs.academic.portal.pay_registration',
+				{
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'X-Frappe-CSRF-Token': sibbcsCsrfToken(),
+					},
+					body: JSON.stringify({ registration: button.dataset.registration }),
+				}
+			);
+
+			const payload = await response.json();
+			if (!response.ok) {
+				let text = 'The payment page could not be opened.';
+				if (payload && payload._server_messages) {
+					try {
+						text = JSON.parse(JSON.parse(payload._server_messages)[0]).message || text;
+					} catch (e) { /* keep the default */ }
+				}
+				throw new Error(text);
+			}
+
+			if (payload.message && payload.message.url) {
+				window.location.href = payload.message.url;
+				return;
+			}
+			window.location.reload();
+		} catch (error) {
+			button.disabled = false;
+			button.textContent = 'Pay';
+			const message = document.getElementById('portal-message');
+			if (message) {
+				message.innerHTML =
+					'<div class="alert alert-danger">' +
+					String(error.message || error).replace(/<[^>]*>/g, '') +
+					'</div>';
+			}
+		}
+	});
+});
+
 document.querySelectorAll('.register-btn').forEach(function (button) {
 	button.addEventListener('click', async function () {
 		const message = document.getElementById('portal-message');

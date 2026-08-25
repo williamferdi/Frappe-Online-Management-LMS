@@ -54,3 +54,38 @@ def sweep_missing_registration_fees(limit=500):
 	if raised:
 		frappe.logger("sibbcs").info(f"registration fee sweep raised {len(raised)} invoices")
 	return {"raised": raised}
+
+
+def open_course_when_fee_settled(fee_invoice, method=None):
+	"""A settled registration fee is what opens the course in the LMS.
+
+	Called from Fee Invoice.refresh_payment_state as well as the doc hook,
+	because payment usually arrives through a Payment Entry allocation, which
+	updates the invoice with db_set and so never runs on_update.
+	"""
+	doc = (
+		fee_invoice
+		if hasattr(fee_invoice, "doctype")
+		else frappe.get_doc("Fee Invoice", fee_invoice)
+	)
+
+	if not doc.get("course_registration"):
+		return
+	if doc.status not in ("Paid", "Waived", "Cancelled"):
+		return
+	if not frappe.db.exists("Course Registration", doc.course_registration):
+		return
+
+	try:
+		from sibbcs.academic import lms_sync
+
+		registration = frappe.get_doc("Course Registration", doc.course_registration)
+		if registration.lms_enrollment_created:
+			return
+		if registration.status not in ("Registered", "Active", "Completed"):
+			return
+		lms_sync.sync_registration(registration)
+	except Exception:
+		# The student has paid; an LMS problem must not undo that. The hourly
+		# sync_pending sweep retries.
+		frappe.log_error(title=f"Opening course after payment failed for {doc.name}")

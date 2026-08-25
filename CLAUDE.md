@@ -141,6 +141,31 @@ course — batch membership alone leaves the student staring at an empty dashboa
 never raises into the registration: a misconfigured LMS must not undo a registration the
 registrar accepted. An hourly `sync_pending` sweep retries anything left behind.
 
+### Registration, payment and promotion — Phase 5
+
+**The course opens on payment, not on Register.** `Course Registration.maybe_sync_lms`
+now also requires `registration_fee_settled()` — the invoice Paid, Waived or Cancelled.
+Settling it fires the sync from `Fee Invoice.refresh_payment_state`, not from a doc hook:
+payment almost always arrives as a Payment Entry allocation, which uses `db_set` and so
+never runs `on_update`.
+
+**The gate is only as good as the gateway behind it.** With none configured it would shut
+everyone out, so it is a setting and `require_fee_for_lms_access` is currently **0** on
+`online.sibbc.org`. Turn it on the day Razorpay or Jodo goes live.
+
+**A level takes eight passed courses**, counted on `level_at_registration` — the level the
+student was at when they took them, not a lifetime total, which would let a Level 3
+student promote on courses passed years earlier at Level 1. The figure lives on
+`Program.courses_per_level` (seeded 8; zero disables). `Level Promotion.override_shortfall`
+lets an approver promote anyway, with the reason in Remarks.
+
+**Promotion is a Dean, Registrar or Academic Coordinator decision.** `Dean` is a new role.
+`may_approve()` guards both the DocType and `eligible_for_promotion()`, the working list
+of students ready to move up.
+
+Students see the fee state on `/my-courses` with a Pay button per row, and an unpaid row
+reads "Opens on payment" rather than a bare "Pending".
+
 ### The conversion point — `sibbcs/admissions/conversion.py`
 
 `convert(application)` does the six things in architecture doc §4 in one transaction.

@@ -155,7 +155,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-25 15:35:56.327696",
+ "modified": "2026-08-25 18:13:18.282653",
  "modified_by": "Administrator",
  "module": "Academic",
  "name": "Course",
@@ -206,6 +206,13 @@
    "read": 1,
    "report": 1,
    "role": "Student"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Dean"
   }
  ],
  "row_format": "Dynamic",

@@ -7,6 +7,8 @@ course", so these tests assert on the LMS records that actually grant access,
 not just on our own `lms_enrollment_created` flag.
 """
 
+from unittest.mock import patch
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import today
@@ -41,6 +43,14 @@ class TestLMSSync(FrappeTestCase):
 	def setUpClass(cls):
 		super().setUpClass()
 		cls.term = make_term("TST-LMS-TERM", status="Open").name
+
+	def setUp(self):
+		# These test how a registration reaches the LMS, not when it is allowed
+		# to. The fee gate has its own tests in test_registration_payment.py;
+		# leaving it on here would make every one of them a test of billing.
+		self._conf = patch.dict(frappe.conf, {"require_fee_for_lms_access": 0})
+		self._conf.start()
+		self.addCleanup(self._conf.stop)
 
 	def _student_with_login(self, email, code):
 		user = make_user(email)
@@ -222,3 +232,62 @@ class TestPortal(FrappeTestCase):
 		)
 		self.assertTrue(row["already_registered"])
 		self.assertFalse(row["eligibility"]["allowed"])
+
+
+class TestFeeGateBlocksSync(FrappeTestCase):
+	"""Registering is the student saying yes; paying is what buys the seat."""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.term = make_term("TST-FEEGATE-TERM", status="Open").name
+
+	def _registration(self, email, code):
+		user = make_user(email)
+		student = make_student(full_name=f"Gate {email}", email=email)
+		frappe.db.set_value("Student", student.name, "user", user, update_modified=False)
+		enrollment = make_enrollment(student.name)
+		course = make_course(code, level="1")
+		offering = make_offering(course.name, self.term, status="Published")
+		return frappe.get_doc(
+			{
+				"doctype": "Course Registration",
+				"program_enrollment": enrollment.name,
+				"course_offering": offering.name,
+				"registration_date": frappe.utils.today(),
+				"status": "Registered",
+			}
+		)
+
+	def test_an_unpaid_registration_does_not_open_the_course(self):
+		with patch.dict(frappe.conf, {"require_fee_for_lms_access": 1}):
+			registration = self._registration("feegate1@example.com", "TSTFEE101")
+			registration.insert(ignore_permissions=True)
+			registration.reload()
+
+		self.assertFalse(
+			registration.lms_enrollment_created,
+			"the LMS opened before the registration fee was settled",
+		)
+
+	def test_settling_the_fee_opens_the_course(self):
+		with patch.dict(frappe.conf, {"require_fee_for_lms_access": 1}):
+			registration = self._registration("feegate2@example.com", "TSTFEE102")
+			registration.insert(ignore_permissions=True)
+			registration.reload()
+			self.assertFalse(registration.lms_enrollment_created)
+
+			# What Accounts marking the invoice paid amounts to.
+			with patch(
+				"sibbcs.academic.doctype.course_registration.course_registration"
+				".registration_fee_settled",
+				return_value=True,
+			):
+				registration.reload()
+				registration.maybe_sync_lms()
+
+		registration.reload()
+		self.assertTrue(
+			registration.lms_enrollment_created,
+			"the course did not open once the fee was settled",
+		)

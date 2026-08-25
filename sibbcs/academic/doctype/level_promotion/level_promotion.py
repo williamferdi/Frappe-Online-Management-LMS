@@ -20,7 +20,9 @@ class LevelPromotion(Document):
 	"""
 
 	def validate(self):
+		self.validate_approver()
 		self.validate_levels()
+		self.validate_course_count_gate()
 		self.validate_level_four_gate()
 		self.capture_evidence()
 
@@ -54,6 +56,47 @@ class LevelPromotion(Document):
 					from_level, to_level
 				),
 				title=_("Invalid Promotion"),
+			)
+
+	def validate_course_count_gate(self):
+		"""A level is finished when its courses are: eight of them, by default.
+
+		Counted on `level_at_registration`, which every registration already
+		stores, rather than on a lifetime total. A lifetime count would let a
+		Level 3 student promote to Level 4 on eight courses passed years
+		earlier at Level 1.
+		"""
+		required = courses_required(self.program_enrollment)
+		if not required:
+			return
+
+		passed = passed_at_level(self.program_enrollment, cint(self.from_level))
+		if passed >= required:
+			return
+
+		if self.override_shortfall:
+			if not may_approve():
+				frappe.throw(
+					_("Only the Dean, Registrar or Academic Coordinator may promote "
+					  "a student who is short of the course requirement."),
+					frappe.PermissionError,
+				)
+			return
+
+		frappe.throw(
+			_(
+				"Level {0} requires {1} passed courses; this student has {2}. "
+				"Tick Override Shortfall to promote anyway."
+			).format(self.from_level, required, passed),
+			title=_("Not Enough Courses"),
+		)
+
+	def validate_approver(self):
+		"""Promotion is a Dean, Registrar or Academic Coordinator decision."""
+		if not may_approve():
+			frappe.throw(
+				_("Only the Dean, Registrar or Academic Coordinator may promote a student."),
+				frappe.PermissionError,
 			)
 
 	def validate_level_four_gate(self):
@@ -149,3 +192,98 @@ def promote(program_enrollment, to_level, remarks=None):
 	)
 	promotion.insert(ignore_permissions=True)
 	return promotion.name
+
+
+# ---------------------------------------------------------------------------
+# who may promote, and on what evidence
+# ---------------------------------------------------------------------------
+
+APPROVER_ROLES = ("Dean", "Registrar", "Academic Coordinator", "System Manager")
+
+DEFAULT_COURSES_PER_LEVEL = 8
+
+
+def may_approve(user=None):
+	"""Dean, Registrar or Academic Coordinator. Nobody else moves a level."""
+	roles = set(frappe.get_roles(user or frappe.session.user))
+	return bool(roles.intersection(APPROVER_ROLES))
+
+
+def courses_required(program_enrollment):
+	"""How many passed courses a level takes, from the Program.
+
+	On `Program.courses_per_level` rather than in code, because the figure is
+	the college's to revise. Zero switches the gate off for that program.
+	"""
+	program = frappe.db.get_value("Program Enrollment", program_enrollment, "program")
+	if not program:
+		return DEFAULT_COURSES_PER_LEVEL
+
+	value = frappe.db.get_value("Program", program, "courses_per_level")
+	if value is None:
+		return DEFAULT_COURSES_PER_LEVEL
+	return cint(value)
+
+
+def passed_at_level(program_enrollment, level):
+	"""Passed courses the student took while at this level."""
+	return frappe.db.count(
+		"Course Registration",
+		{
+			"program_enrollment": program_enrollment,
+			"passed": 1,
+			"level_at_registration": str(cint(level)),
+		},
+	)
+
+
+@frappe.whitelist()
+def eligibility(program_enrollment):
+	"""Is this student ready for the next level, and on what evidence."""
+	enrollment = frappe.get_doc("Program Enrollment", program_enrollment)
+	enrollment.check_permission("read")
+
+	from_level = cint(enrollment.current_level)
+	required = courses_required(program_enrollment)
+	passed = passed_at_level(program_enrollment, from_level)
+
+	blocked = None
+	if from_level >= 4:
+		blocked = _("Already at the final level.")
+	elif required and passed < required:
+		blocked = _("{0} of {1} courses passed at Level {2}.").format(
+			passed, required, from_level
+		)
+	elif from_level == 3 and outstanding_level_three(program_enrollment):
+		blocked = _("Level 3 courses are still outstanding.")
+
+	return {
+		"program_enrollment": program_enrollment,
+		"student": enrollment.student,
+		"from_level": from_level,
+		"to_level": from_level + 1 if from_level < 4 else from_level,
+		"required": required,
+		"passed": passed,
+		"eligible": blocked is None,
+		"blocked": blocked,
+		"may_approve": may_approve(),
+	}
+
+
+@frappe.whitelist()
+def eligible_for_promotion(limit=200):
+	"""Every enrollment ready to move up. The Dean's working list."""
+	if not may_approve():
+		frappe.throw(
+			_("Only the Dean, Registrar or Academic Coordinator may see this."),
+			frappe.PermissionError,
+		)
+
+	rows = []
+	for name in frappe.get_all(
+		"Program Enrollment", filters={"status": "Active"}, pluck="name", limit=limit
+	):
+		verdict = eligibility(name)
+		if verdict["eligible"]:
+			rows.append(verdict)
+	return rows

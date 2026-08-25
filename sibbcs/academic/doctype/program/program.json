@@ -28,7 +28,8 @@
   "monthly_tuition",
   "tuition_total",
   "cap_on_gross",
-  "scholarship_max"
+  "scholarship_max",
+  "courses_per_level"
  ],
  "fields": [
   {
@@ -157,12 +158,19 @@
    "fieldname": "scholarship_max",
    "fieldtype": "Currency",
    "label": "Scholarship Maximum"
+  },
+  {
+   "default": "8",
+   "description": "Passed courses a student must have at their current level before they can be promoted. Zero switches the check off.",
+   "fieldname": "courses_per_level",
+   "fieldtype": "Int",
+   "label": "Courses per Level"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-25 15:35:55.397697",
+ "modified": "2026-08-25 18:13:17.518646",
  "modified_by": "Administrator",
  "module": "Academic",
  "name": "Program",
@@ -213,6 +221,13 @@
    "read": 1,
    "report": 1,
    "role": "Student"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Dean"
   }
  ],
  "row_format": "Dynamic",

@@ -105,6 +105,13 @@ class FeeInvoice(Document):
 			update_modified=False,
 		)
 
+		# db_set does not run on_update, and payment almost always arrives as a
+		# Payment Entry allocation rather than a save -- so the course would
+		# never open if this were left to the doc hook alone.
+		from sibbcs.finance.hooks_handlers import open_course_when_fee_settled
+
+		open_course_when_fee_settled(self)
+
 
 def outstanding_for_student(student):
 	"""Every unpaid or partly paid invoice, oldest first."""
