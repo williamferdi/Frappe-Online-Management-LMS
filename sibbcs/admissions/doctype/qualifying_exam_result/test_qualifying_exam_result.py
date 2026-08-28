@@ -32,19 +32,36 @@ class TestQualifyingExamResult(FrappeTestCase):
 		)
 		self.assertEqual(result.total, 75)
 
-	def test_pass_at_or_above_sixty(self):
+	def test_pass_at_or_above_the_pass_mark(self):
+		"""The rule, not the figure: the college has moved the pass mark once
+		already, from 60 to 70, and will again."""
 		app = make_application(email="qer2@example.com")
 		result = make_result(
-			app.name, english_score=60, bible_score=60, theology_score=60, ministry_score=60
+			app.name,
+			pass_mark=60,
+			english_score=60,
+			bible_score=60,
+			theology_score=60,
+			ministry_score=60,
 		)
 		self.assertEqual(result.result, "Pass")
 
-	def test_fail_below_sixty(self):
+	def test_fail_below_the_pass_mark(self):
 		app = make_application(email="qer3@example.com")
 		result = make_result(
-			app.name, english_score=59, bible_score=59, theology_score=59, ministry_score=59
+			app.name,
+			pass_mark=60,
+			english_score=59,
+			bible_score=59,
+			theology_score=59,
+			ministry_score=59,
 		)
 		self.assertEqual(result.result, "Fail")
+
+	def test_the_pass_mark_now_defaults_to_seventy(self):
+		meta = frappe.get_meta("Qualifying Exam Result")
+		field = next(df for df in meta.fields if df.fieldname == "pass_mark")
+		self.assertEqual(float(field.default), 70.0)
 
 	def test_negative_score_rejected(self):
 		app = make_application(email="qer4@example.com")

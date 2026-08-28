@@ -20,6 +20,10 @@
   "cb_scores",
   "theology_score",
   "ministry_score",
+  "essay_motivation",
+  "essay_calling",
+  "essay_gospel",
+  "sb_essays",
   "sb_result",
   "total",
   "cb_result",
@@ -123,12 +127,33 @@
    "label": "Result",
    "options": "\nPass\nFail",
    "read_only": 1
+  },
+  {
+   "fieldname": "essay_motivation",
+   "fieldtype": "Float",
+   "label": "Motivation for Theological Education (/25)"
+  },
+  {
+   "fieldname": "essay_calling",
+   "fieldtype": "Float",
+   "label": "Sense of Calling to Ministry (/25)"
+  },
+  {
+   "description": "Marked against the rubric in the entrance exam course.",
+   "fieldname": "essay_gospel",
+   "fieldtype": "Float",
+   "label": "Understanding of the Gospel (/25)"
+  },
+  {
+   "fieldname": "sb_essays",
+   "fieldtype": "Section Break",
+   "label": "Essay Marks"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-25 18:30:19.215411",
+ "modified": "2026-08-28 11:59:15.226191",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Qualifying Exam Result",

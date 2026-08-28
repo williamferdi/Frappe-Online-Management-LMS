@@ -285,6 +285,29 @@ intake term. A **waived** admission fee counts as settled: a waiver is a decisio
 at step 10, not a payment, so `admission_fee_paid` stays false and a fee-paid-only check
 would block every waived candidate.
 
+### The entrance exam — `setup/phase2m_entrance_exam.py`
+
+Three essays in the LMS course `entrance-exam`: 25 marks each, **75 total, pass at 70%**,
+one attempt. The course was empty until this; candidates enrolled at step 6 were being sent
+somewhere with nothing in it.
+
+**Open Ended, and the LMS is strict.** `LMS Quiz.validate_open_ended_questions` refuses to
+mix Open Ended with any other type in one quiz — fine for an all-essay paper. The
+consequence: an open-ended answer scores **0 at submission** and stays there until an
+instructor marks it, so `passing_percentage` judges the *marked* script, not the submitted
+one. Every candidate reads 0/75 until somebody grades them. That is the LMS working, not a
+fault.
+
+**Rubrics are not in the questions.** A candidate reading the mark scheme is not sitting
+the same exam, so they live in the lesson's `instructor_content`, which the LMS shows only
+to instructors and moderators. The source PDF is attached to the course as a **private**
+file for the same reason. Tests assert no rubric fragment leaks into a question.
+
+**`Qualifying Exam Result` records both papers.** It was built for four subject scores
+averaged into a percentage; the real exam is three essays out of 75. `compute_total` uses
+the essay marks when any are present and the old four-subject mean otherwise, so results
+already recorded keep the answer they had. `pass_mark` now defaults to **70**.
+
 ### Step order — a position, not an identity
 
 `step_no` is **where a step sits**, not what it is. The college has reordered once already
