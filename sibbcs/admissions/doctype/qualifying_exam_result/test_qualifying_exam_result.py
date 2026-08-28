@@ -58,10 +58,10 @@ class TestQualifyingExamResult(FrappeTestCase):
 		)
 		self.assertEqual(result.result, "Fail")
 
-	def test_the_pass_mark_now_defaults_to_seventy(self):
+	def test_the_pass_mark_now_defaults_to_forty(self):
 		meta = frappe.get_meta("Qualifying Exam Result")
 		field = next(df for df in meta.fields if df.fieldname == "pass_mark")
-		self.assertEqual(float(field.default), 70.0)
+		self.assertEqual(float(field.default), 40.0)
 
 	def test_negative_score_rejected(self):
 		app = make_application(email="qer4@example.com")

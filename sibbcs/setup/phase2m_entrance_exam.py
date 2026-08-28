@@ -1,4 +1,4 @@
-"""The entrance exam: three essays in the LMS, marked out of 75, pass at 70%.
+"""The entrance exam: three essays in the LMS, marked out of 75, pass at 40%.
 
     bench --site online.sibbc.org execute sibbcs.setup.phase2m_entrance_exam.build
 
@@ -16,7 +16,7 @@ on the submitted one -- every candidate reads 0/75 until somebody grades them.
 while writing the essay is not sitting the same exam. They go in the lesson's
 `instructor_content`, which the LMS shows to instructors and moderators only.
 
-Marks: 25 an essay, 75 the paper, 70% to pass. The pass figure is the
+Marks: 25 an essay, 75 the paper, 40% to pass. The pass figure is the
 college's and lives on the quiz, not in this file's logic.
 """
 
@@ -27,7 +27,7 @@ CHAPTER = "Entrance Exam"
 LESSON = "Essay Paper"
 QUIZ_TITLE = "Entrance Exam — Essays"
 
-PASSING_PERCENTAGE = 70
+PASSING_PERCENTAGE = 40
 MARKS_PER_ESSAY = 25
 MAX_ATTEMPTS = 1
 
@@ -62,7 +62,7 @@ ESSAYS = [
 
 LESSON_BODY = """## Entrance Exam
 
-Three essays, **25 marks each**, 75 marks in total. The pass mark is **70%**.
+Three essays, **25 marks each**, 75 marks in total. The pass mark is **40%**.
 
 Write each answer in **200–300 words**, in your own words. Your answers are read
 by the admissions panel; they are not marked automatically, so you will not see
@@ -85,7 +85,7 @@ RUBRIC_BLOCKS = [
 	(
 		"paragraph",
 		"<b>These are not shown to the candidate.</b> Each essay is out of 25; "
-		"the paper is out of 75 and the pass mark is 70%.",
+		"the paper is out of 75 and the pass mark is 40%.",
 	),
 	("header", "Essay 1 — Understanding of the Gospel (25)", 5),
 	(
@@ -256,6 +256,8 @@ def ensure_quiz(lesson=None, replace=False):
 	quiz.shuffle_questions = 0
 	quiz.show_answers = 0
 
+	# Always reset on replace. Matching the existing rows by title is what let a
+	# hand-edited question title orphan the set and silently grow duplicates.
 	if created or replace or not quiz.get("questions"):
 		quiz.set("questions", [])
 		for name in questions:
@@ -383,3 +385,150 @@ def build(rubric_pdf=None, replace=False):
 	print(f"Qualifying Exam Result pass_mark default: {PASSING_PERCENTAGE}")
 	print("Open Ended answers score 0 until an instructor marks them in the LMS.")
 	return quiz
+
+
+# ---------------------------------------------------------------------------
+# putting it back after somebody edits it by hand
+# ---------------------------------------------------------------------------
+#
+# Building a quiz through the LMS UI is easy to get wrong -- the rubric bands
+# read like separate questions, and deleting a quiz leaves the lesson pointing
+# at something that no longer exists. `tidy()` reports what it would remove and
+# `tidy(apply=True)` removes it. It refuses to touch anything a candidate has
+# actually answered.
+
+
+def _our_quiz_names():
+	return set(frappe.get_all("LMS Quiz", filters={"title": QUIZ_TITLE}, pluck="name"))
+
+
+def survey():
+	"""What is currently attached to the exam, and what is loose."""
+	kept_questions = set()
+	for quiz in frappe.get_all("LMS Quiz", pluck="name"):
+		for row in frappe.get_all(
+			"LMS Quiz Question", filters={"parent": quiz}, pluck="question"
+		):
+			kept_questions.add(row)
+
+	stray_questions = [
+		row.name
+		for row in frappe.get_all(
+			"LMS Question", filters={"type": "Open Ended"}, fields=["name"]
+		)
+		if row.name not in kept_questions
+	]
+
+	# A quiz with no course and no lesson is attached to nothing.
+	loose_quizzes = [
+		row.name
+		for row in frappe.get_all(
+			"LMS Quiz", fields=["name", "course", "lesson", "title"]
+		)
+		if not row.course and not row.lesson and row.title != QUIZ_TITLE
+	]
+
+	dangling_lessons = [
+		row.name
+		for row in frappe.get_all(
+			"Course Lesson",
+			filters={"course": COURSE},
+			fields=["name", "quiz_id"],
+		)
+		if row.quiz_id and not frappe.db.exists("LMS Quiz", row.quiz_id)
+	]
+
+	empty_lessons = [
+		row.name
+		for row in frappe.get_all(
+			"Course Lesson", filters={"course": COURSE}, fields=["name", "title", "body"]
+		)
+		if not (row.body or "").strip() and row.title != LESSON
+	]
+
+	return {
+		"stray_questions": stray_questions,
+		"loose_quizzes": loose_quizzes,
+		"dangling_lessons": dangling_lessons,
+		"empty_lessons": empty_lessons,
+	}
+
+
+def _has_submissions(quiz):
+	return bool(frappe.db.count("LMS Quiz Submission", {"quiz": quiz}))
+
+
+def tidy(apply=False):
+	"""Report -- or clear -- what hand-editing left behind.
+
+	Nothing with a submission against it is touched: a candidate's answers are
+	the one thing here that cannot be rebuilt.
+	"""
+	found = survey()
+
+	for quiz in list(found["loose_quizzes"]):
+		if _has_submissions(quiz):
+			found["loose_quizzes"].remove(quiz)
+			print(f"  keeping {quiz}: it has submissions")
+
+	print("Loose quizzes      :", found["loose_quizzes"] or "none")
+	print("Stray questions    :", found["stray_questions"] or "none")
+	print("Lessons pointing at a deleted quiz:", found["dangling_lessons"] or "none")
+	print("Empty extra lessons:", found["empty_lessons"] or "none")
+
+	if not apply:
+		print("\nNothing removed. Call tidy(apply=True) to clear the above.")
+		return found
+
+	for quiz in found["loose_quizzes"]:
+		frappe.delete_doc("LMS Quiz", quiz, force=True, ignore_permissions=True)
+
+	# Re-survey: a question only counts as stray once the quiz holding it is
+	# gone, so the first pass could not see the ones inside a loose quiz.
+	if found["loose_quizzes"]:
+		after = survey()
+		newly_stray = [
+			q for q in after["stray_questions"] if q not in found["stray_questions"]
+		]
+		if newly_stray:
+			print("Freed by removing those quizzes:", newly_stray)
+		found["stray_questions"] = after["stray_questions"]
+
+	for question in found["stray_questions"]:
+		frappe.delete_doc("LMS Question", question, force=True, ignore_permissions=True)
+	for lesson in found["empty_lessons"]:
+		frappe.delete_doc("Course Lesson", lesson, force=True, ignore_permissions=True)
+	for lesson in found["dangling_lessons"]:
+		frappe.db.set_value("Course Lesson", lesson, "quiz_id", None, update_modified=False)
+
+	# The Frappe demo quiz picked up a pointer at our orientation course while
+	# somebody was experimenting. It is Frappe's, so only the pointer is cleared.
+	demo = "do-you-know-frappe-learning"
+	if frappe.db.exists("LMS Quiz", demo):
+		course = frappe.db.get_value("LMS Quiz", demo, "course")
+		if course and course != "a-guide-to-frappe-learning":
+			frappe.db.set_value(
+				"LMS Quiz", demo, {"course": None, "lesson": None}, update_modified=False
+			)
+			print(f"  cleared {demo}'s pointer at {course}")
+
+	frappe.db.commit()
+	print("Cleared.")
+	return found
+
+
+def rebuild(rubric_pdf=None):
+	"""Tidy first, then build. What to run after a hand-edit goes wrong."""
+	tidy(apply=True)
+
+	# The lesson may have been retitled; put it back so ensure_lesson finds it.
+	for row in frappe.get_all(
+		"Course Lesson", filters={"course": COURSE}, fields=["name", "title", "body"]
+	):
+		if row.title != LESSON and (row.body or "").strip():
+			frappe.db.set_value(
+				"Course Lesson", row.name, "title", LESSON, update_modified=False
+			)
+			print(f"  retitled {row.name} back to {LESSON!r}")
+
+	return build(rubric_pdf=rubric_pdf, replace=True)

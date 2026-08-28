@@ -18,7 +18,7 @@ from sibbcs.admissions.doctype.qualifying_exam_result.qualifying_exam_result imp
 )
 from sibbcs.setup.schema import add_fields, f, section
 
-PASS_MARK = 70
+PASS_MARK = 40
 
 
 def _essay_fields():

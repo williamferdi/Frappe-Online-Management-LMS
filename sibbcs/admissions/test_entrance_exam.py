@@ -1,6 +1,6 @@
 # Copyright (c) 2026, South India Baptist Bible College & Seminary and contributors
 # For license information, please see license.txt
-"""The entrance exam: three essays out of 75, pass at 70%."""
+"""The entrance exam: three essays out of 75, pass at 40%."""
 
 import itertools
 
@@ -14,7 +14,7 @@ from sibbcs.admissions.doctype.qualifying_exam_result.qualifying_exam_result imp
 )
 from sibbcs.setup import phase2m_entrance_exam as exam
 
-PASS = 70
+PASS = 40
 
 
 _seq = itertools.count(1)
@@ -52,13 +52,14 @@ class TestEssayScoring(FrappeTestCase):
 		doc = make_result(essay_gospel=20, essay_calling=20, essay_motivation=20)
 		self.assertEqual(doc.total, 80.0)  # 60 of 75
 
-	def test_seventy_percent_passes_and_a_mark_below_it_fails(self):
-		passing = make_result(essay_gospel=18, essay_calling=18, essay_motivation=17)
-		self.assertEqual(passing.total, 70.67)
+	def test_the_pass_mark_decides_the_verdict(self):
+		"""40% of 75 is 30 marks."""
+		passing = make_result(essay_gospel=10, essay_calling=10, essay_motivation=10)
+		self.assertEqual(passing.total, 40.0)
 		self.assertEqual(passing.result, "Pass")
 
-		failing = make_result(essay_gospel=17, essay_calling=17, essay_motivation=18)
-		self.assertEqual(failing.total, 69.33)
+		failing = make_result(essay_gospel=10, essay_calling=10, essay_motivation=9)
+		self.assertEqual(failing.total, 38.67)
 		self.assertEqual(failing.result, "Fail")
 
 	def test_a_full_paper_is_a_hundred_percent(self):
@@ -118,8 +119,12 @@ class TestEssayScoring(FrappeTestCase):
 
 
 class TestExamCourseBuilder(FrappeTestCase):
-	def test_the_pass_mark_is_seventy(self):
+	def test_the_pass_mark_matches_the_desk_record(self):
+		"""Two places carry the figure; they must not drift apart."""
+		from sibbcs.setup import phase2n_exam_fields
+
 		self.assertEqual(exam.PASSING_PERCENTAGE, PASS)
+		self.assertEqual(phase2n_exam_fields.PASS_MARK, PASS)
 
 	def test_the_paper_is_worth_seventy_five(self):
 		self.assertEqual(exam.MARKS_PER_ESSAY * len(exam.ESSAYS), 75)
@@ -176,3 +181,57 @@ class TestExamCourseBuilder(FrappeTestCase):
 
 	def test_the_exam_is_sat_once(self):
 		self.assertEqual(exam.MAX_ATTEMPTS, 1)
+
+
+class TestExamTidy(FrappeTestCase):
+	"""Rebuilding after somebody edits the quiz by hand.
+
+	Building a quiz through the LMS UI is easy to get wrong -- the rubric bands
+	read like separate questions, and deleting a quiz leaves the lesson
+	pointing at nothing. tidy() finds that wreckage; the one thing it must
+	never remove is a candidate's answers.
+	"""
+
+	def test_survey_reports_the_four_things_that_go_wrong(self):
+		found = exam.survey()
+		for key in (
+			"stray_questions",
+			"loose_quizzes",
+			"dangling_lessons",
+			"empty_lessons",
+		):
+			self.assertIn(key, found)
+			self.assertIsInstance(found[key], list)
+
+	def test_a_dry_run_removes_nothing(self):
+		before = {
+			"quizzes": frappe.db.count("LMS Quiz"),
+			"questions": frappe.db.count("LMS Question"),
+			"lessons": frappe.db.count("Course Lesson"),
+		}
+		exam.tidy(apply=False)
+		self.assertEqual(before["quizzes"], frappe.db.count("LMS Quiz"))
+		self.assertEqual(before["questions"], frappe.db.count("LMS Question"))
+		self.assertEqual(before["lessons"], frappe.db.count("Course Lesson"))
+
+	def test_our_own_quiz_is_never_called_loose(self):
+		"""It has a course and a lesson, so it must never be swept up."""
+		found = exam.survey()
+		for name in found["loose_quizzes"]:
+			self.assertNotEqual(
+				frappe.db.get_value("LMS Quiz", name, "title"), exam.QUIZ_TITLE
+			)
+
+	def test_a_quiz_with_submissions_is_kept(self):
+		"""A candidate's answers are the one thing here that cannot be rebuilt."""
+		from unittest.mock import patch
+
+		with patch.object(exam, "survey", return_value={
+			"loose_quizzes": ["some-quiz"],
+			"stray_questions": [],
+			"dangling_lessons": [],
+			"empty_lessons": [],
+		}), patch.object(exam, "_has_submissions", return_value=True):
+			found = exam.tidy(apply=False)
+
+		self.assertEqual(found["loose_quizzes"], [])

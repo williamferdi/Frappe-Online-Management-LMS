@@ -287,7 +287,7 @@ would block every waived candidate.
 
 ### The entrance exam — `setup/phase2m_entrance_exam.py`
 
-Three essays in the LMS course `entrance-exam`: 25 marks each, **75 total, pass at 70%**,
+Three essays in the LMS course `entrance-exam`: 25 marks each, **75 total, pass at 40%**,
 one attempt. The course was empty until this; candidates enrolled at step 6 were being sent
 somewhere with nothing in it.
 
@@ -312,7 +312,14 @@ file for the same reason. Tests assert no rubric fragment leaks into a question.
 **`Qualifying Exam Result` records both papers.** It was built for four subject scores
 averaged into a percentage; the real exam is three essays out of 75. `compute_total` uses
 the essay marks when any are present and the old four-subject mean otherwise, so results
-already recorded keep the answer they had. `pass_mark` now defaults to **70**.
+already recorded keep the answer they had. `pass_mark` now defaults to **40**.
+
+**`tidy()` and `rebuild()` put it back after a hand-edit.** Building a quiz in the LMS UI
+is easy to get wrong — the rubric bands read like separate questions, and deleting a quiz
+leaves the lesson pointing at nothing. `survey()` reports loose quizzes, orphan questions,
+dangling lesson pointers and empty lessons; `tidy(apply=True)` clears them and
+`rebuild()` follows with a fresh build. **Nothing with a submission against it is ever
+removed** — a candidate's answers are the one thing here that cannot be rebuilt.
 
 ### Step order — a position, not an identity
 
