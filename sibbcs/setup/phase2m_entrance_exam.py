@@ -31,11 +31,20 @@ PASSING_PERCENTAGE = 40
 MARKS_PER_ESSAY = 25
 MAX_ATTEMPTS = 1
 
-# (title, prompt) -- the college's own wording, from
-# "Essays to go into the Entrance Exam.pdf".
+# (short name, the question as the candidate reads it).
+#
+# **The whole prompt goes in `LMS Question.question`.** There is no
+# `question_detail` field on this LMS -- passing one to insert() is silently
+# dropped, which is how these questions ended up holding nothing but their
+# titles and a candidate would have seen "Understanding of the Gospel" with no
+# instruction, no word count and no marks. `question` is a Text Editor, so it
+# takes the markup.
+#
+# The short name is for our own reading and for the tests; nothing matches on it.
 ESSAYS = [
 	(
 		"Understanding of the Gospel",
+		"<p><b>Essay 1: Understanding of the Gospel</b></p>"
 		"<p>In 200–300 words, present your understanding of the Gospel in your own "
 		"words. Explain what the Gospel teaches about God, humanity, sin, salvation, "
 		"and the Christian life.</p>"
@@ -43,6 +52,7 @@ ESSAYS = [
 	),
 	(
 		"Sense of Calling to Ministry",
+		"<p><b>Essay 2: Sense of Calling to Ministry</b></p>"
 		"<p>In 200–300 words, explain your sense of calling to Christian ministry and "
 		"your current ministry involvement. Describe what influenced your desire to "
 		"pursue theological education, where you believe God is leading you to serve, "
@@ -52,12 +62,40 @@ ESSAYS = [
 	),
 	(
 		"Motivation for Theological Education at SIBBCS",
+		"<p><b>Essay 3: Motivation for Theological Education at SIBBCS</b></p>"
 		"<p>In 200–300 words, share why you are applying to South India Baptist Bible "
 		"College &amp; Seminary. Include the key reasons you have chosen SIBBCS for "
 		"your theological and ministerial training, and what you hope to gain from "
 		"studying here.</p>"
 		"<p><i>25 marks.</i></p>",
 	),
+]
+
+# The lesson is authored as EditorJS `content`, not just `body`.
+#
+# Lesson.vue renders `content` when it is set and falls back to `body` only
+# when it is not -- and the fallback branch is the only one that passes
+# `quizId`. So the moment anybody opens the lesson in the LMS editor, `content`
+# appears, `body` stops being read, and a quiz attached through `quiz_id`
+# disappears with it. Writing the content ourselves, with the quiz as a block
+# inside it, means editing the lesson cannot strand either half.
+#
+# (type, text) or ("header", text, level); ("quiz", None) is filled in at build.
+LESSON_BLOCKS = [
+	("header", "Entrance Exam", 2),
+	(
+		"paragraph",
+		"Three essays, <b>25 marks each</b>, 75 marks in total. "
+		"The pass mark is <b>40%</b>.",
+	),
+	(
+		"paragraph",
+		"Write each answer in <b>200–300 words</b>, in your own words. Your "
+		"answers are read by the admissions panel; they are not marked "
+		"automatically, so you will not see a score when you submit.",
+	),
+	("paragraph", "Take your time. You have <b>one attempt</b>."),
+	("quiz", None),
 ]
 
 LESSON_BODY = """## Entrance Exam
@@ -166,6 +204,29 @@ RUBRIC_BLOCKS = [
 ]
 
 
+def lesson_json(quiz):
+	"""The lesson body and the quiz as one EditorJS document."""
+	import json
+	import time
+
+	blocks = []
+	for entry in LESSON_BLOCKS:
+		kind = entry[0]
+		if kind == "quiz":
+			data = {"quiz": quiz}
+		else:
+			data = {"text": entry[1]}
+			if kind == "header":
+				data["level"] = entry[2]
+		blocks.append(
+			{"id": frappe.generate_hash(length=10), "type": kind, "data": data}
+		)
+
+	return json.dumps(
+		{"time": int(time.time() * 1000), "blocks": blocks, "version": "2.29.0"}
+	)
+
+
 def rubric_json():
 	"""The rubrics as the EditorJS document the LMS expects."""
 	import json
@@ -213,23 +274,31 @@ def ensure_chapter():
 
 
 def ensure_questions(replace=False):
-	"""One LMS Question per essay. Open Ended: nothing here is auto-marked."""
+	"""One LMS Question per essay. Open Ended: nothing here is auto-marked.
+
+	Matched on the question text itself, because that is the only field this
+	LMS stores. `replace` rewrites it, so a revised prompt reaches an existing
+	question rather than quietly creating a fourth.
+	"""
 	names = []
-	for title, prompt in ESSAYS:
-		existing = frappe.db.get_value("LMS Question", {"question": title}, "name")
+	for _short, prompt in ESSAYS:
+		existing = frappe.db.get_value("LMS Question", {"question": prompt}, "name")
 		if existing:
-			if replace:
-				frappe.db.set_value("LMS Question", existing, "question_detail", prompt)
 			names.append(existing)
 			continue
 
+		# An earlier build stored only the short name; adopt that row rather
+		# than leaving it behind as an orphan.
+		stale = frappe.db.get_value(
+			"LMS Question", {"question": _short, "type": "Open Ended"}, "name"
+		)
+		if stale:
+			frappe.db.set_value("LMS Question", stale, "question", prompt)
+			names.append(stale)
+			continue
+
 		question = frappe.get_doc(
-			{
-				"doctype": "LMS Question",
-				"question": title,
-				"question_detail": prompt,
-				"type": "Open Ended",
-			}
+			{"doctype": "LMS Question", "question": prompt, "type": "Open Ended"}
 		)
 		question.insert(ignore_permissions=True)
 		names.append(question.name)
@@ -289,6 +358,14 @@ def ensure_lesson(chapter, quiz=None, replace=False):
 
 	if created or replace:
 		lesson.body = LESSON_BODY
+
+	# content wins over body in the renderer, so it has to carry the quiz.
+	# Rewriting it when the quiz block is missing is what makes this
+	# self-healing: an editor save that dropped the quiz gets it back.
+	if quiz:
+		current = lesson.content or ""
+		if created or replace or not current.strip() or '"type": "quiz"' not in current.replace('"type":"quiz"', '"type": "quiz"'):
+			lesson.content = lesson_json(quiz)
 
 	# Shown to instructors and moderators, not to the candidate sitting the
 	# paper -- the only reason the rubrics can live inside the course at all.
@@ -365,7 +442,7 @@ def build(rubric_pdf=None, replace=False):
 	lesson, made_lesson = ensure_lesson(chapter, replace=replace)
 	quiz, made_quiz = ensure_quiz(lesson=lesson, replace=replace)
 	# The lesson needs the quiz id, which needs the lesson to exist first.
-	ensure_lesson(chapter, quiz=quiz, replace=False)
+	ensure_lesson(chapter, quiz=quiz, replace=replace)
 
 	attached = attach_rubric_pdf(rubric_pdf)
 	set_pass_mark()
@@ -398,6 +475,13 @@ def build(rubric_pdf=None, replace=False):
 # actually answered.
 
 
+# Never sweep these. The Frappe demo quiz ships with the bundled "A guide to
+# Frappe Learning" course; it looks loose only because its stray pointer at our
+# orientation course was cleared, and it is not ours to delete. Unpublishing the
+# demo course is a separate, deliberate go-live step.
+PROTECTED_QUIZZES = {"do-you-know-frappe-learning"}
+
+
 def _our_quiz_names():
 	return set(frappe.get_all("LMS Quiz", filters={"title": QUIZ_TITLE}, pluck="name"))
 
@@ -425,7 +509,10 @@ def survey():
 		for row in frappe.get_all(
 			"LMS Quiz", fields=["name", "course", "lesson", "title"]
 		)
-		if not row.course and not row.lesson and row.title != QUIZ_TITLE
+		if not row.course
+		and not row.lesson
+		and row.title != QUIZ_TITLE
+		and row.name not in PROTECTED_QUIZZES
 	]
 
 	dangling_lessons = [
@@ -446,11 +533,22 @@ def survey():
 		if not (row.body or "").strip() and row.title != LESSON
 	]
 
+	# A chapter keeps a Lesson Reference row after the lesson is deleted, which
+	# leaves a phantom entry in the sidebar.
+	dangling_refs = [
+		row.name
+		for row in frappe.get_all(
+			"Lesson Reference", fields=["name", "lesson"]
+		)
+		if not frappe.db.exists("Course Lesson", row.lesson)
+	]
+
 	return {
 		"stray_questions": stray_questions,
 		"loose_quizzes": loose_quizzes,
 		"dangling_lessons": dangling_lessons,
 		"empty_lessons": empty_lessons,
+		"dangling_refs": dangling_refs,
 	}
 
 
@@ -475,6 +573,7 @@ def tidy(apply=False):
 	print("Stray questions    :", found["stray_questions"] or "none")
 	print("Lessons pointing at a deleted quiz:", found["dangling_lessons"] or "none")
 	print("Empty extra lessons:", found["empty_lessons"] or "none")
+	print("Chapter rows for deleted lessons:", found.get("dangling_refs") or "none")
 
 	if not apply:
 		print("\nNothing removed. Call tidy(apply=True) to clear the above.")
@@ -500,6 +599,11 @@ def tidy(apply=False):
 		frappe.delete_doc("Course Lesson", lesson, force=True, ignore_permissions=True)
 	for lesson in found["dangling_lessons"]:
 		frappe.db.set_value("Course Lesson", lesson, "quiz_id", None, update_modified=False)
+
+	# Re-survey again: deleting the empty lessons above just created more of
+	# these.
+	for row in survey().get("dangling_refs", []):
+		frappe.db.delete("Lesson Reference", {"name": row})
 
 	# The Frappe demo quiz picked up a pointer at our orientation course while
 	# somebody was experimenting. It is Frappe's, so only the pointer is cleared.

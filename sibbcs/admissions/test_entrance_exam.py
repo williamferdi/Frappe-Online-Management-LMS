@@ -130,17 +130,48 @@ class TestExamCourseBuilder(FrappeTestCase):
 		self.assertEqual(exam.MARKS_PER_ESSAY * len(exam.ESSAYS), 75)
 
 	def test_every_essay_states_its_marks(self):
-		for _title, prompt in exam.ESSAYS:
+		for _short, prompt in exam.ESSAYS:
 			self.assertIn("25 marks", prompt)
 
+	def test_the_prompt_is_the_question_itself(self):
+		"""There is no question_detail field on this LMS. A prompt passed as one
+		is silently dropped, leaving the candidate a bare title."""
+		meta = frappe.get_meta("LMS Question")
+		fieldnames = {df.fieldname for df in meta.fields}
+		self.assertIn("question", fieldnames)
+		self.assertNotIn("question_detail", fieldnames)
+
+		for _short, prompt in exam.ESSAYS:
+			self.assertGreater(
+				len(prompt), 150, "the question text is too short to be the whole prompt"
+			)
+
+	def test_the_lesson_content_carries_the_quiz(self):
+		"""content wins over body in the renderer, and only the body branch
+		passes quizId -- so the quiz has to be a block inside content."""
+		import json
+
+		document = json.loads(exam.lesson_json("some-quiz"))
+		types = [block["type"] for block in document["blocks"]]
+		self.assertIn("quiz", types)
+		self.assertGreater(len(types), 1, "a lesson of nothing but a quiz has no instructions")
+
+		quiz_block = next(b for b in document["blocks"] if b["type"] == "quiz")
+		self.assertEqual(quiz_block["data"]["quiz"], "some-quiz")
+
+	def test_the_demo_quiz_is_protected_from_tidy(self):
+		"""It looks loose only because its stray pointer was cleared, and it is
+		not ours to delete."""
+		self.assertIn("do-you-know-frappe-learning", exam.PROTECTED_QUIZZES)
+
 	def test_every_essay_states_the_word_count(self):
-		for _title, prompt in exam.ESSAYS:
+		for _short, prompt in exam.ESSAYS:
 			self.assertIn("200", prompt)
 			self.assertIn("300", prompt)
 
 	def test_the_rubrics_are_not_in_the_candidates_questions(self):
 		"""A candidate reading the mark scheme is not sitting the same exam."""
-		for _title, prompt in exam.ESSAYS:
+		for _short, prompt in exam.ESSAYS:
 			self.assertNotIn("rubric", prompt.lower())
 			self.assertNotIn("0–10", prompt)
 			self.assertNotIn("Doctrinal soundness", prompt)

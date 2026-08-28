@@ -298,6 +298,17 @@ instructor marks it, so `passing_percentage` judges the *marked* script, not the
 one. Every candidate reads 0/75 until somebody grades them. That is the LMS working, not a
 fault.
 
+**The lesson is authored as EditorJS `content` with the quiz as a block inside it.**
+`Lesson.vue` renders `content` when set and falls back to `body` only when it is not —
+and the fallback branch is the only one that passes `quizId`. So the moment anyone opens
+the lesson in the LMS editor, `content` appears, `body` stops being read, and a quiz
+attached through `quiz_id` disappears with it. The builder rewrites `content` whenever the
+quiz block is missing, so an editor save cannot strand either half.
+
+**`LMS Question` has no `question_detail`.** The whole prompt goes in `question`, a Text
+Editor. A prompt passed as `question_detail` is silently dropped on insert and raises
+`Unknown column` on update — which left the essays holding nothing but their titles.
+
 **`instructor_content` is EditorJS JSON, never HTML.** `Lesson.vue` evaluates
 `JSON.parse(lesson.data.instructor_content)` **inside the template, unguarded** — anything
 that is not JSON throws during render and the whole lesson comes out blank. The same
