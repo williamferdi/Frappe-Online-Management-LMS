@@ -140,16 +140,39 @@ class TestExamCourseBuilder(FrappeTestCase):
 			self.assertNotIn("0–10", prompt)
 			self.assertNotIn("Doctrinal soundness", prompt)
 
+		# and the rubric text must never reach the lesson body either
+		self.assertNotIn("0–10", exam.LESSON_BODY)
+
 	def test_the_rubrics_cover_every_essay(self):
+		text = " ".join(entry[1] for entry in exam.RUBRIC_BLOCKS)
 		for fragment in (
 			"Understanding of the Gospel",
 			"Calling to Ministry",
 			"Motivation to Study",
 		):
-			self.assertIn(fragment, exam.RUBRICS)
+			self.assertIn(fragment, text)
 
 	def test_the_rubrics_say_they_are_not_for_the_candidate(self):
-		self.assertIn("not shown to the candidate", exam.RUBRICS)
+		text = " ".join(entry[1] for entry in exam.RUBRIC_BLOCKS)
+		self.assertIn("not shown to the candidate", text)
+
+	def test_the_rubrics_are_valid_editorjs_json(self):
+		"""Lesson.vue calls JSON.parse on this inside the template, unguarded.
+		Anything that is not JSON throws during render and the lesson comes out
+		blank -- which is what HTML in this field did."""
+		import json
+
+		document = json.loads(exam.rubric_json())
+		self.assertIn("blocks", document)
+		self.assertGreater(
+			len(document["blocks"]),
+			1,
+			"the template hides instructor content with one block or fewer",
+		)
+		for block in document["blocks"]:
+			self.assertIn(block["type"], ("header", "paragraph"))
+			self.assertTrue(block["data"].get("text"))
+			self.assertTrue(block.get("id"))
 
 	def test_the_exam_is_sat_once(self):
 		self.assertEqual(exam.MAX_ATTEMPTS, 1)

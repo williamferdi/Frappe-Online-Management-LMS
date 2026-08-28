@@ -298,6 +298,12 @@ instructor marks it, so `passing_percentage` judges the *marked* script, not the
 one. Every candidate reads 0/75 until somebody grades them. That is the LMS working, not a
 fault.
 
+**`instructor_content` is EditorJS JSON, never HTML.** `Lesson.vue` evaluates
+`JSON.parse(lesson.data.instructor_content)` **inside the template, unguarded** — anything
+that is not JSON throws during render and the whole lesson comes out blank. The same
+condition needs `blocks.length > 1`, so a single block is silently invisible. A test builds
+the document and checks both.
+
 **Rubrics are not in the questions.** A candidate reading the mark scheme is not sitting
 the same exam, so they live in the lesson's `instructor_content`, which the LMS shows only
 to instructors and moderators. The source PDF is attached to the course as a **private**

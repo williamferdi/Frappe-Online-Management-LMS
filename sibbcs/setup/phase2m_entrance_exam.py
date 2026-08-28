@@ -71,56 +71,119 @@ a score when you submit.
 Take your time. You have **one attempt**.
 """
 
-RUBRICS = """<h4>Marking rubrics — for graders</h4>
-<p><b>These are not shown to the candidate.</b> Each essay is out of 25; the
-paper is out of 75 and the pass mark is 70%.</p>
+# `instructor_content` is EditorJS JSON, not HTML.
+#
+# Lesson.vue evaluates `JSON.parse(lesson.data.instructor_content)` *in the
+# template*, unguarded. Anything that is not JSON throws during render and the
+# whole lesson comes out blank -- which is exactly what happened when this held
+# HTML. The same template also requires `blocks.length > 1`, so a single block
+# is silently invisible.
+#
+# (type, text) or ("header", text, level)
+RUBRIC_BLOCKS = [
+	("header", "Marking rubrics — for graders", 4),
+	(
+		"paragraph",
+		"<b>These are not shown to the candidate.</b> Each essay is out of 25; "
+		"the paper is out of 75 and the pass mark is 70%.",
+	),
+	("header", "Essay 1 — Understanding of the Gospel (25)", 5),
+	(
+		"paragraph",
+		"<b>Clarity and accuracy of the Gospel message (0–10):</b> explains the "
+		"Gospel clearly and biblically; reflects God's holiness, human sinfulness, "
+		"Christ's saving work, repentance, faith, and new life in Christ.",
+	),
+	(
+		"paragraph",
+		"<b>Doctrinal soundness and balance (0–7):</b> faithful to Scripture, "
+		"avoids distortions, grace-centred rather than works-based.",
+	),
+	(
+		"paragraph",
+		"<b>Personal grasp and reflection (0–5):</b> the Gospel is personally "
+		"meaningful, not merely memorised.",
+	),
+	(
+		"paragraph",
+		"<b>Writing clarity and originality (0–3):</b> own words, well structured, "
+		"within the word count.",
+	),
+	(
+		"paragraph",
+		"<i>22–25 excellent and compelling; 18–21 good with minor gaps; 14–17 "
+		"basic with significant gaps; 13 and below major misunderstanding.</i>",
+	),
+	("header", "Essay 2 — Calling to Ministry and Ministry Direction (25)", 5),
+	(
+		"paragraph",
+		"<b>Clarity of calling to ministry (0–10):</b> a clear sense of God's "
+		"calling rather than personal ambition; thoughtful, prayerful, biblically "
+		"grounded.",
+	),
+	(
+		"paragraph",
+		"<b>Connection to current ministry involvement (0–5):</b> genuine service "
+		"in church or ministry contexts, even if informal or voluntary.",
+	),
+	(
+		"paragraph",
+		"<b>Reason for pursuing theological education and fit with SIBBCS (0–7):</b> "
+		"driven by ministry need and spiritual growth rather than status, titles or "
+		"academic prestige.",
+	),
+	(
+		"paragraph",
+		"<b>Direction for future ministry and realism (0–3):</b> insight into where "
+		"they hope to serve, with reasonable expectations of training.",
+	),
+	(
+		"paragraph",
+		"<i>22–25 clear calling, active involvement, deeply motivated; 18–21 good "
+		"clarity lacking depth; 14–17 uncertain or externally motivated; 13 and "
+		"below little evidence of calling.</i>",
+	),
+	("header", "Essay 3 — Motivation to Study at SIBBCS (25)", 5),
+	(
+		"paragraph",
+		"<b>Clarity of motivation to study (0–10):</b> strong, sincere reasons tied "
+		"to ministry calling and spiritual growth rather than convenience, status "
+		"or titles.",
+	),
+	(
+		"paragraph",
+		"<b>Alignment with the mission and values of SIBBCS (0–7):</b> appreciates "
+		"biblically grounded, ministry-focused education and what makes SIBBCS "
+		"suitable.",
+	),
+	(
+		"paragraph",
+		"<b>Connection between personal growth and the training offered (0–5):</b> "
+		"how the program is expected to shape life, character, ministry skills and "
+		"biblical understanding.",
+	),
+	("paragraph", "<b>Commitment and readiness for the training (0–3).</b>"),
+]
 
-<h5>Essay 1 — Understanding of the Gospel (25)</h5>
-<ul>
-	<li><b>Clarity and accuracy of the Gospel message (0–10)</b> — explains the
-	Gospel clearly and biblically; reflects God's holiness, human sinfulness,
-	Christ's saving work, repentance, faith, and new life in Christ.</li>
-	<li><b>Doctrinal soundness and balance (0–7)</b> — faithful to Scripture,
-	avoids distortions, grace-centred rather than works-based.</li>
-	<li><b>Personal grasp and reflection (0–5)</b> — the Gospel is personally
-	meaningful, not merely memorised.</li>
-	<li><b>Writing clarity and originality (0–3)</b> — own words, well
-	structured, within the word count.</li>
-</ul>
-<p><i>22–25 excellent and compelling; 18–21 good with minor gaps; 14–17 basic
-with significant gaps; 13 and below major misunderstanding or confusion.</i></p>
 
-<h5>Essay 2 — Calling to Ministry and Ministry Direction (25)</h5>
-<ul>
-	<li><b>Clarity of calling to ministry (0–10)</b> — a clear sense of God's
-	calling rather than personal ambition; thoughtful, prayerful, biblically
-	grounded.</li>
-	<li><b>Connection to current ministry involvement (0–5)</b> — genuine
-	service in church or ministry contexts, even if informal or voluntary.</li>
-	<li><b>Reason for pursuing theological education and fit with SIBBCS
-	(0–7)</b> — driven by ministry need and spiritual growth rather than status,
-	titles or academic prestige.</li>
-	<li><b>Direction for future ministry and realism (0–3)</b> — insight into
-	where they hope to serve, with reasonable expectations of training.</li>
-</ul>
-<p><i>22–25 clear calling, active involvement, deeply motivated; 18–21 good
-clarity lacking depth; 14–17 uncertain or externally motivated; 13 and below
-little evidence of calling.</i></p>
+def rubric_json():
+	"""The rubrics as the EditorJS document the LMS expects."""
+	import json
+	import time
 
-<h5>Essay 3 — Motivation to Study at SIBBCS (25)</h5>
-<ul>
-	<li><b>Clarity of motivation to study (0–10)</b> — strong, sincere reasons
-	tied to ministry calling and spiritual growth rather than convenience,
-	status or titles.</li>
-	<li><b>Alignment with the mission and values of SIBBCS (0–7)</b> —
-	appreciates biblically grounded, ministry-focused education and what makes
-	SIBBCS suitable.</li>
-	<li><b>Connection between personal growth and the training offered
-	(0–5)</b> — how the program is expected to shape life, character, ministry
-	skills and biblical understanding.</li>
-	<li><b>Commitment and readiness for the training (0–3)</b>.</li>
-</ul>
-"""
+	blocks = []
+	for entry in RUBRIC_BLOCKS:
+		kind, text = entry[0], entry[1]
+		data = {"text": text}
+		if kind == "header":
+			data["level"] = entry[2]
+		blocks.append(
+			{"id": frappe.generate_hash(length=10), "type": kind, "data": data}
+		)
+
+	return json.dumps(
+		{"time": int(time.time() * 1000), "blocks": blocks, "version": "2.29.0"}
+	)
 
 
 def _default_instructor():
@@ -225,10 +288,9 @@ def ensure_lesson(chapter, quiz=None, replace=False):
 	if created or replace:
 		lesson.body = LESSON_BODY
 
-	# instructor_content is shown to instructors and moderators, not to the
-	# candidate sitting the paper. That is the only reason the rubrics can live
-	# inside the course at all.
-	lesson.instructor_content = RUBRICS
+	# Shown to instructors and moderators, not to the candidate sitting the
+	# paper -- the only reason the rubrics can live inside the course at all.
+	lesson.instructor_content = rubric_json()
 	if quiz:
 		lesson.quiz_id = quiz
 
