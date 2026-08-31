@@ -529,6 +529,45 @@ Fixture emails use `frappe.generate_hash`, not a counter: inserting a User commi
 so those records outlive the run that made them and a counter restarts into a
 collision.
 
+### The staff console — `sibbcs/api/admissions_api.py`, `sibbcs/api/console.py`
+
+`/staff` is the overview, `/staff/admissions` the pipeline, `/staff/admissions/:name`
+one candidate. All of it arranges what `sibbcs/admissions` already does; nothing here
+decides anything.
+
+**Console panels are gated on ROLE, never on `has_permission`.** Students hold read
+on Fee Invoice and Program Enrollment — they have to, to see their own — and these
+panels are SQL aggregates over *every* row. Gating them on the DocType permission
+handed a signed-in student the whole college's billing totals. `PANEL_ROLES` decides,
+and a test asserts a student is refused the console outright. `_require_staff()` in
+admissions_api checks a role **alongside** the DocType permission for the same reason:
+the day somebody grants Student read on Admission Application so an applicant can see
+their own, a permission check alone would hand them the whole intake.
+
+**The browser names an action, never a method.** `ACTION_HANDLERS` maps the names
+`checklist.ACTIONS` hands out to dotted paths, and `run_action` refuses anything not
+in that table — so a crafted request cannot reach an arbitrary whitelisted function.
+Tests assert every action the checklist offers has a handler, that each resolves to
+something callable, and that each is separately whitelisted.
+
+**A step with no checklist row yet is still outstanding.** Eleven of the thirteen
+default to a status that is not done, and a fresh application has no rows at all —
+counting only stored rows reports it as finished. The funnel adds the absent ones.
+
+**`_progress_for` counts in one grouped query**, not one `checklist.progress()` per
+application; a test asserts the fast path agrees with the per-document one.
+
+**`or_filters` with a bare value means `=`, not `LIKE`.** The search box matched
+nothing until the operator was spelled out: `{field: ("like", pattern)}`.
+
+**`Interview Record.panel` is a child table, not a column** — selecting it fails at
+the database rather than in Python.
+
+**`LIST_FIELDS` is deliberately not `*`.** A pipeline row is a name and a state; date
+of birth, address and the candidate's photograph belong behind a click. Tests assert
+both field lists exist on the DocType, so a rename fails a test rather than rendering
+empty rows.
+
 ### Patches to the vendored LMS
 
 `bench update` pulls a fresh `apps/lms` and silently discards anything we changed there,

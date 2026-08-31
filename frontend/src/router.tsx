@@ -5,6 +5,9 @@ import { boot } from '@/lib/frappe'
 import { landingRoute } from '@/lib/session'
 import { Login } from '@/routes/Login'
 import { RequireAuth } from '@/routes/RequireAuth'
+import { Admissions } from '@/routes/staff/Admissions'
+import { ApplicationDetail } from '@/routes/staff/ApplicationDetail'
+import { StaffDashboard } from '@/routes/staff/StaffDashboard'
 import { StaffLayout } from '@/routes/staff/StaffLayout'
 import { Dashboard } from '@/routes/portal/Dashboard'
 import { Grades } from '@/routes/portal/Grades'
@@ -58,21 +61,10 @@ export const router = createBrowserRouter([
 				path: '/staff',
 				element: <StaffLayout />,
 				children: [
-					{
-						index: true,
-						...soon(
-							'Overview',
-							'Phase 3',
-							'The admissions funnel, enrolment by level, fee collection and LMS activity at a glance.',
-						),
-					},
+					{ index: true, element: <StaffDashboard /> },
+					{ path: 'admissions', element: <Admissions /> },
+					{ path: 'admissions/:name', element: <ApplicationDetail /> },
 					...[
-						[
-							'admissions',
-							'Admissions',
-							'Phase 3',
-							'The application pipeline as a board and a table, with the thirteen-step checklist and every action on one screen.',
-						],
 						[
 							'academic',
 							'Academic',

@@ -345,3 +345,208 @@ export interface UnreadCounts {
 	announcements: number
 	inbox: number
 }
+// --- staff console ---------------------------------------------------------
+
+export interface FunnelState {
+	state: string
+	count: number
+}
+
+export interface StuckStep {
+	step_no: number
+	step: string
+	owner_role: string
+	waiting: number
+}
+
+export interface Funnel {
+	by_state: FunnelState[]
+	total: number
+	live: number
+	stuck: StuckStep[]
+}
+
+export interface AcademicPanel {
+	students: number
+	enrollments: number
+	by_level: { level: string; count: number }[]
+	by_program: { program: string; count: number }[]
+	registrations: Record<string, number>
+	open_terms: { name: string; term_name: string; registration_closes: string | null }[]
+}
+
+export interface FinancePanel {
+	billed: number
+	collected: number
+	outstanding: number
+	overdue: number
+	overdue_count: number
+	by_category: { category: string; outstanding: number }[]
+	recent_payments: {
+		name: string
+		student_name: string | null
+		amount: number
+		mode: string
+		received_on: string
+	}[]
+	days: number
+}
+
+export interface ConsoleDashboard {
+	user: string
+	panels: {
+		admissions?: Funnel
+		academic?: AcademicPanel
+		finance?: FinancePanel
+	}
+}
+
+// --- admissions pipeline ---------------------------------------------------
+
+export interface PipelineRow {
+	name: string
+	full_name: string
+	email: string | null
+	mobile: string | null
+	program: string | null
+	intake_term: string | null
+	entry_level: string | null
+	workflow_state: string
+	application_fee_paid: 0 | 1
+	qualifying_exam_score: number | null
+	student: string | null
+	creation: string
+	modified: string
+	progress: { done: number; total: number; percent: number }
+}
+
+export interface PipelineResponse {
+	rows: PipelineRow[]
+	states: string[]
+	programs: string[]
+	can_write: boolean
+}
+
+// --- one application -------------------------------------------------------
+
+export interface ChecklistRow {
+	step_no: number
+	step: string
+	status: string
+	statuses: string[]
+	owner_role: string
+	done: boolean
+	done_statuses: string[]
+	blocked: string | null
+	remarks: string | null
+	updated_by: string | null
+	updated_on: string | null
+	action: string | null
+}
+
+export interface ChecklistBoard {
+	application: string
+	state: string
+	progress: { done: number; total: number; percent: number } | number
+	rows: ChecklistRow[]
+	can_write: boolean
+}
+
+export interface ApplicationRecord {
+	name: string
+	full_name: string
+	email: string | null
+	mobile: string | null
+	whatsapp: string | null
+	dob: string | null
+	age: number | null
+	gender: string | null
+	address: string | null
+	photo: string | null
+	church_name: string | null
+	current_role: string | null
+	years_of_ministry: number | null
+	has_bachelors: 0 | 1
+	previous_theological_education: string | null
+	program: string | null
+	intake_term: string | null
+	entry_level: string | null
+	workflow_state: string
+	application_fee_paid: 0 | 1
+	admission_fee_paid: 0 | 1
+	qualifying_exam_score: number | null
+	interview_outcome: string | null
+	offer_sent_on: string | null
+	student: string | null
+	enrolled_on: string | null
+	notes: string | null
+	scholarship_request: string | null
+	applicant_user: string | null
+	exam_link_sent_on: string | null
+	interview_link_sent_on: string | null
+	scholarship_form_sent_on: string | null
+	onboard_term: string | null
+	onboard_level: string | null
+}
+
+export interface ApplicationDetail {
+	application: ApplicationRecord
+	checklist: ChecklistBoard
+	documents: {
+		name: string
+		document_type: string
+		file: string | null
+		verified: 0 | 1
+		verified_by: string | null
+		idx: number
+	}[]
+	references: {
+		name: string
+		referee_name: string | null
+		referee_email: string | null
+		referee_type: string | null
+		sent_on: string | null
+		submitted_on: string | null
+		recommendation: string | null
+		idx: number
+	}[]
+	mentors: {
+		name: string
+		mentor_name: string | null
+		mentor_email: string | null
+		sent_on: string | null
+		consented_on: string | null
+		idx: number
+	}[]
+	exam: {
+		name: string
+		total: number
+		result: string
+		pass_mark: number
+		conducted_on: string
+	} | null
+	interview: {
+		name: string
+		scheduled_on: string | null
+		outcome: string | null
+		notes: string | null
+		panel: string | null
+	} | null
+	scholarship: {
+		name: string
+		status: string
+		approved_amount: number
+		monthly_discount: number
+		requested_amount: number
+	} | null
+	invoices: {
+		name: string
+		fee_type: string | null
+		category: string | null
+		status: string
+		net_amount: number
+		outstanding_amount: number
+		due_date: string | null
+		payment_link: string | null
+	}[]
+}

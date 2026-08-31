@@ -489,6 +489,121 @@ def _message(student_user):
 	return 1
 
 
+# Candidates spread across the pipeline, so the admissions console has a funnel
+# worth looking at rather than one bar. The steps advanced for each are named by
+# their stable key, never by number -- the college has reordered these once
+# already and will again.
+APPLICANTS = [
+	# name, program, workflow state, {step key: status}
+	(
+		"DEMO Anand Selvaraj",
+		"MDIV",
+		"Draft",
+		{},
+	),
+	(
+		"DEMO Grace Thangam",
+		"MDIV",
+		"In Review",
+		{
+			"application_review": "Approved",
+			"documents": "Verified",
+			"reference_1": "Request Sent",
+			"reference_2": "Request Sent",
+		},
+	),
+	(
+		"DEMO Immanuel Raj",
+		"MACS",
+		"In Review",
+		{
+			"application_review": "Approved",
+			"documents": "Verified",
+			"reference_1": "Reviewed",
+			"reference_2": "Reviewed",
+			"mentor_form": "Verified",
+			"lms_account": "Link Sent",
+			"entrance_exam": "Passed",
+			"interview": "Invite Sent",
+		},
+	),
+	(
+		"DEMO Deborah Vasanthi",
+		"MDIV",
+		"In Review",
+		{
+			"application_review": "Approved",
+			"documents": "Verified",
+			"reference_1": "Reviewed",
+			"reference_2": "Reviewed",
+			"mentor_form": "Verified",
+			"lms_account": "Link Sent",
+			"entrance_exam": "Passed",
+			"interview": "Cleared",
+			"admission_fee": "Paid",
+			"decision": "Admitted",
+			"manual_reading": "Sent",
+		},
+	),
+	(
+		"DEMO Joshua Prabhakaran",
+		"GDCS",
+		"Rejected",
+		{
+			"application_review": "Approved",
+			"documents": "Verified",
+			"entrance_exam": "Failed",
+		},
+	),
+]
+
+
+def _applications():
+	"""Applications at a spread of stages. Idempotent, matched on e-mail."""
+	from sibbcs.admissions import checklist
+
+	made = 0
+	for full_name, program, state, steps in APPLICANTS:
+		email = full_name.replace(f"{PREFIX} ", "").lower().replace(" ", ".")
+		email = f"{email}@example.invalid"
+
+		if frappe.db.exists("Admission Application", {"email": email}):
+			continue
+
+		application = frappe.get_doc(
+			{
+				"doctype": "Admission Application",
+				"full_name": full_name,
+				"email": email,
+				"mobile": "+91 90000 0000%d" % (made % 10),
+				"dob": "1994-07-15",
+				"gender": "Male" if made % 2 == 0 else "Female",
+				"program": program,
+				"church_name": f"{PREFIX} Grace Baptist Church",
+				"current_role": "Youth Pastor",
+				"years_of_ministry": 3,
+				"address": "Coimbatore, Tamil Nadu",
+			}
+		).insert(ignore_permissions=True)
+
+		# Advance by stable key. `update_step` enforces the gates, so a status
+		# that would need a prerequisite simply will not take -- which is the
+		# behaviour worth demonstrating, not worth working around.
+		for key, status in steps.items():
+			try:
+				checklist.update_step(application.name, checklist.NO[key], status)
+			except Exception:
+				frappe.log_error(title=f"demo checklist {application.name} {key}")
+
+		if state != frappe.db.get_value("Admission Application", application.name, "workflow_state"):
+			frappe.db.set_value(
+				"Admission Application", application.name, "workflow_state", state
+			)
+
+		made += 1
+	return made
+
+
 def seed():
 	"""Create the demo catalog. Idempotent."""
 	term = _term(TERM)
@@ -500,6 +615,7 @@ def seed():
 	scale = _grade_scale()
 	_lead()
 	student, enrollment = _student()
+	candidates = _applications()
 	notices = _announcements()
 	_message(STUDENT_EMAIL)
 
@@ -513,6 +629,7 @@ def seed():
 	print(f"  Grade Scale: {scale}  (PROVISIONAL -- decisions #2/#3 still open)")
 	print(f"  Student    : {STUDENT_NAME} <{STUDENT_EMAIL}>  ({enrollment})")
 	print(f"  Notices    : {len(ANNOUNCEMENTS)} announcements ({notices} new), 1 inbox message")
+	print(f"  Applicants : {len(APPLICANTS)} across the pipeline ({candidates} new)")
 	print("               set a password with sibbcs.setup.demo_data.set_student_password")
 	print("")
 	print("Remove it all again with:")
