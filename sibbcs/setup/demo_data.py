@@ -465,6 +465,13 @@ def _announcements():
 				**targets,
 			}
 		).insert(ignore_permissions=True)
+		_evidence(
+			application.name,
+			documents=len(DOCUMENT_TYPES) if "documents" in steps else 0,
+			references=2 if "reference_1" in steps else 0,
+			mentor="mentor_form" in steps,
+		)
+
 		made += 1
 	return made
 
@@ -556,6 +563,109 @@ APPLICANTS = [
 		},
 	),
 ]
+
+
+# Documents, references and a mentor form, so the admissions console has
+# something to open. Only the candidates far enough along get them -- a Draft
+# application with two completed references would misrepresent the workflow as
+# much as an empty one misrepresents the screen.
+DOCUMENT_TYPES = [
+	"SSC/10th Mark Sheet",
+	"HSLC/12th Mark Sheet",
+	"Undergraduate Degree Certificate",
+	"Personal Testimony",
+	"National ID",
+]
+
+# Answers keyed by the reference form's own field names, so `format_answers`
+# renders them under the real questions rather than as leftovers.
+REFERENCE_ANSWERS = {
+	"relationship": "Pastor",
+	"known_duration": "4-6 years",
+	"commitment_to_christ": "Strongly devoted, actively growing in faith",
+	"ministry_involvement": "Very active (regular attendance, leadership, or service)",
+	"leadership_potential": "Strong leadership, leads others effectively in ministry",
+	"moral_character": "Excellent, a strong example of Christian integrity",
+	"teamwork": "Excellent teamwork and relational skills",
+	"discipline": "Very responsible and disciplined",
+	"calling": "Yes, strongly convinced of their calling",
+	"recommendation_choice": "I strongly recommend",
+	"additional_comments": (
+		"A dependable and teachable member of our congregation who has led the "
+		"youth ministry for three years. I recommend them without reservation."
+	),
+}
+
+MENTOR_ANSWERS = {
+	"mentoring_experience": "Eight years mentoring ministry candidates",
+	"prior_theological_education": "B.Th., Chennai",
+	"denomination": "Baptist",
+	"current_position": "Senior Pastor",
+	"years_of_ministry": 18,
+	"church": f"{PREFIX} Grace Baptist Church",
+	"city": "Coimbatore",
+	"state": "Tamil Nadu",
+	"country": "India",
+	"handbook_acknowledged": 1,
+}
+
+
+def _evidence(application, *, documents, references, mentor):
+	"""Attach evidence to one application. Idempotent per child table."""
+	import json
+
+	doc = frappe.get_doc("Admission Application", application)
+	changed = False
+
+	if documents and not doc.get("application_documents"):
+		for index, document_type in enumerate(DOCUMENT_TYPES[:documents]):
+			doc.append(
+				"application_documents",
+				{
+					"document_type": document_type,
+					# No file: these are demo rows, and inventing a PDF that
+					# claims to be somebody's mark sheet is worse than a blank.
+					"verified": 1 if index < documents - 1 else 0,
+					"verified_by": "Administrator" if index < documents - 1 else None,
+				},
+			)
+		changed = True
+
+	if references and not doc.get("reference_requests"):
+		for index in range(references):
+			replied = index < references - 1 if references > 1 else True
+			doc.append(
+				"reference_requests",
+				{
+					"referee_name": f"{PREFIX} Rev. Referee {index + 1}",
+					"referee_email": f"referee{index + 1}@example.invalid",
+					"referee_type": "Pastor-Mentor" if index == 0 else "Professor-Employer",
+					"token": frappe.generate_hash(length=32),
+					"sent_on": add_days(today(), -20),
+					"submitted_on": add_days(today(), -12) if replied else None,
+					"recommendation": "Strong" if replied else None,
+					"response_json": json.dumps(REFERENCE_ANSWERS) if replied else None,
+				},
+			)
+		changed = True
+
+	if mentor and not doc.get("mentor_consents"):
+		doc.append(
+			"mentor_consents",
+			{
+				"mentor_name": f"{PREFIX} Rev. Daniel Raj",
+				"mentor_email": "demo.daniel@example.invalid",
+				"mentor_mobile": "+91 90000 12345",
+				"token": frappe.generate_hash(length=32),
+				"sent_on": add_days(today(), -20),
+				"consented_on": add_days(today(), -11),
+				**MENTOR_ANSWERS,
+			},
+		)
+		changed = True
+
+	if changed:
+		doc.save(ignore_permissions=True)
 
 
 def _applications():
