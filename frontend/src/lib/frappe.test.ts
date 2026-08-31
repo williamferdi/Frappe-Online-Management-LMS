@@ -170,3 +170,56 @@ describe('frappeCall', () => {
 		await expect(frappeGet('m')).rejects.toMatchObject({ status: 502 })
 	})
 })
+
+describe('where signing in lands you', () => {
+	it('sends staff to the console, not the student portal', async () => {
+		// The bug: login() assigned '/portal' unconditionally, so signing in
+		// as Administrator opened the student portal and nothing on the page
+		// suggested a staff console existed.
+		const { login } = await loadWith({ user: 'Guest' })
+		const assign = vi.fn()
+		vi.stubGlobal('location', { assign })
+		vi.mocked(fetch)
+			.mockImplementationOnce(responds({ message: 'Logged In' }))
+			.mockImplementationOnce(responds({ message: { is_staff: true } }))
+
+		await login('Administrator', 'secret')
+		expect(assign).toHaveBeenCalledWith('/staff')
+	})
+
+	it('sends a student to the portal', async () => {
+		const { login } = await loadWith({ user: 'Guest' })
+		const assign = vi.fn()
+		vi.stubGlobal('location', { assign })
+		vi.mocked(fetch)
+			.mockImplementationOnce(responds({ message: 'Logged In' }))
+			.mockImplementationOnce(responds({ message: { is_staff: false } }))
+
+		await login('s@example.com', 'secret')
+		expect(assign).toHaveBeenCalledWith('/portal')
+	})
+
+	it('still lands somewhere if the follow-up call fails', async () => {
+		// The sign-in itself succeeded; stranding the user on the form
+		// because a second request failed would be worse than a poor guess.
+		const { login } = await loadWith({ user: 'Guest' })
+		const assign = vi.fn()
+		vi.stubGlobal('location', { assign })
+		vi.mocked(fetch)
+			.mockImplementationOnce(responds({ message: 'Logged In' }))
+			.mockImplementationOnce(responds({}, { status: 500 }))
+
+		await login('a@example.com', 'secret')
+		expect(assign).toHaveBeenCalledWith('/portal')
+	})
+
+	it('does not send a bad password anywhere', async () => {
+		const { login } = await loadWith({ user: 'Guest' })
+		const assign = vi.fn()
+		vi.stubGlobal('location', { assign })
+		vi.mocked(fetch).mockImplementation(responds({}, { status: 401 }))
+
+		await expect(login('a@example.com', 'wrong')).rejects.toBeTruthy()
+		expect(assign).not.toHaveBeenCalled()
+	})
+})

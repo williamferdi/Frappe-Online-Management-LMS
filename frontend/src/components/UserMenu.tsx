@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
-import { LayoutGrid, LogOut, User as UserIcon } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { GraduationCap, LayoutGrid, LogOut, ShieldCheck, User as UserIcon } from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -10,11 +10,20 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { boot, logout } from '@/lib/frappe'
-import { isStaff } from '@/lib/session'
+import { boot, logout, STAFF_HOME, STUDENT_HOME } from '@/lib/frappe'
+import { isStaff, isStudent } from '@/lib/session'
 import { initials } from '@/lib/utils'
 
 export function UserMenu() {
+	const { pathname } = useLocation()
+	const inStaffConsole = pathname.startsWith(STAFF_HOME)
+
+	// Administrator holds every role, and a Registrar may well be enrolled on a
+	// course. Whoever belongs in both places needs a way across that is not
+	// typing the address into the bar.
+	const showConsoleLink = isStaff() && !inStaffConsole
+	const showPortalLink = isStudent() && inStaffConsole
+
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
@@ -35,6 +44,26 @@ export function UserMenu() {
 					</div>
 				</DropdownMenuLabel>
 				<DropdownMenuSeparator />
+
+				{(showConsoleLink || showPortalLink) && (
+					<>
+						{showConsoleLink && (
+							<DropdownMenuItem asChild>
+								<Link to={STAFF_HOME}>
+									<ShieldCheck /> Staff console
+								</Link>
+							</DropdownMenuItem>
+						)}
+						{showPortalLink && (
+							<DropdownMenuItem asChild>
+								<Link to={STUDENT_HOME}>
+									<GraduationCap /> Student portal
+								</Link>
+							</DropdownMenuItem>
+						)}
+						<DropdownMenuSeparator />
+					</>
+				)}
 
 				<DropdownMenuItem asChild>
 					<Link to="/portal/profile">

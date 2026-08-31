@@ -197,14 +197,33 @@ export const frappeGet = <T>(path: string, args?: Record<string, unknown>) =>
 export const frappePost = <T>(path: string, args?: Record<string, unknown>) =>
 	frappeCall<T>(path, { method: 'POST', args })
 
+/** Where a session belongs. `/` is Frappe's own website home, not this app. */
+export const STUDENT_HOME = '/portal'
+export const STAFF_HOME = '/staff'
+
 export async function login(usr: string, pwd: string): Promise<void> {
 	await frappeCall('login', { method: 'POST', args: { usr, pwd } })
-	// The session, CSRF token and roles all changed. Boot data is injected by
-	// the server into the page, so a reload is the honest way to pick it up.
-	window.location.assign('/portal')
+
+	// The roles just changed, and the `boot` in memory is still the
+	// signed-out copy -- the server injects boot data into the page, so only
+	// a full load refreshes it. Ask who we are now rather than assuming: this
+	// used to send everyone to /portal, which dropped staff into the student
+	// portal with no sign that a console existed.
+	let destination = STUDENT_HOME
+	try {
+		const session = await frappeCall<{ is_staff?: boolean }>(
+			'sibbcs.api.session.boot',
+		)
+		if (session?.is_staff) destination = STAFF_HOME
+	} catch {
+		// Signing in did work. Landing on the portal is a poor guess for
+		// staff, but the account switcher in the header gets them across.
+	}
+
+	window.location.assign(destination)
 }
 
 export async function logout(): Promise<void> {
 	await frappeCall('logout', { method: 'POST' })
-	window.location.assign('/portal')
+	window.location.assign('/portal/login')
 }
