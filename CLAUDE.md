@@ -343,6 +343,37 @@ dangling lesson pointers and empty lessons; `tidy(apply=True)` clears them and
 `rebuild()` follows with a fresh build. **Nothing with a submission against it is ever
 removed** — a candidate's answers are the one thing here that cannot be rebuilt.
 
+### Production was cleared of test data on 31 Aug 2026
+
+Everything the college had been testing with is gone: 8 admission applications,
+2 students and their enrollments, the qualifying exam result, interview, scholarship
+request, 5 fee invoices, the lead, all 7 catalog courses (6 `DEMO` plus `BISTO608`),
+12 course offerings, both `DEMO-TERM` terms, 2 instructors, 4 LMS courses
+(Frappe's own `a-guide-to-frappe-learning`, plus `pastoral-ministry`, `history` and
+`church-history`), every LMS enrolment and progress row, the placeholder reading
+manual, and the accounts `ash@ipp.com`, `william.ferdi@gmail.com` and
+`vignesh.g@elmeasure.in` with their contacts and queued mail.
+
+**Kept on instruction:** the `entrance-exam` and `m-div-preliminary-orientation` LMS
+courses with their chapters, lessons, quiz, questions and attached PDFs; the four
+Programs; the five real 2026 terms; the six Fee Types; `ramsemz@sibbc.org`; and the
+**`DEMO Grade Scale`**, which is the only grade scale on the site — grading needs one,
+so it stays until the college supplies the real bands. Rename it then; do not seed a
+guess.
+
+`setup/demo_data.py` still exists and is **never** wired into install or migrate — it
+only runs when somebody types `bench execute sibbcs.setup.demo_data.seed`. Its `purge`
+counterpart removes only what it seeded, which is why the clear-out above was done with
+a separate survey-then-apply script rather than by calling it.
+
+Two ordering traps if this is ever repeated. Chapters hold `Lesson Reference` rows
+pointing at their lessons while each lesson links back to its chapter, and the same
+shape occurs between a Course Registration and its fee invoice, a Student and its
+application, and a Scholarship Request and its application. Cut one side of each cycle
+and delete normally; reaching for `force=True` across the whole set would skip the link
+checks that catch a reference from something you meant to keep — which is exactly how
+`entrance-exam` was found still listing a deleted user as an instructor.
+
 ### Patches to the vendored LMS
 
 `bench update` pulls a fresh `apps/lms` and silently discards anything we changed there,
