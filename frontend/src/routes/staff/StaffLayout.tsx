@@ -1,5 +1,6 @@
 import {
 	BadgeIndianRupee,
+	Database,
 	GraduationCap,
 	LayoutDashboard,
 	UserRoundCheck,
@@ -19,6 +20,7 @@ const SECTIONS: NavSection[] = [
 			{ to: '/staff/academic', label: 'Academic', icon: GraduationCap },
 			{ to: '/staff/finance', label: 'Finance', icon: BadgeIndianRupee },
 			{ to: '/staff/users', label: 'Users', icon: Users },
+			{ to: '/staff/data', label: 'Records', icon: Database },
 		],
 	},
 ]

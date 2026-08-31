@@ -7,6 +7,7 @@ import {
 	Eye,
 	Lock,
 	LoaderCircle,
+	Pencil,
 	Send,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -68,11 +69,22 @@ function Loaded({ data }: { data: Detail }) {
 				title={record.full_name}
 				description={`${record.name} · ${record.program ?? 'No programme'} · ${record.workflow_state}`}
 				actions={
-					<Button variant="outline" size="sm" asChild>
-						<Link to="/staff/admissions">
-							<ArrowLeft /> Pipeline
-						</Link>
-					</Button>
+					<div className="flex gap-2">
+						<Button variant="outline" size="sm" asChild>
+							<Link to="/staff/admissions">
+								<ArrowLeft /> Pipeline
+							</Link>
+						</Button>
+						{/* The checklist below drives the workflow; this opens the
+						    record itself, every field of it. */}
+						<Button size="sm" asChild>
+							<Link
+								to={`/staff/data/Admission%20Application/${encodeURIComponent(record.name)}`}
+							>
+								<Pencil /> Edit application
+							</Link>
+						</Button>
+					</div>
 				}
 			/>
 

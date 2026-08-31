@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Pencil, TrendingUp } from 'lucide-react'
 
 import { PageHeader } from '@/components/PageHeader'
 import { QueryState } from '@/components/QueryState'
@@ -43,11 +43,20 @@ function Loaded({ data }: { data: Detail }) {
 						: student.name
 				}
 				actions={
-					<Button variant="outline" size="sm" asChild>
-						<Link to="/staff/academic">
-							<ArrowLeft /> Students
-						</Link>
-					</Button>
+					<div className="flex gap-2">
+						<Button variant="outline" size="sm" asChild>
+							<Link to="/staff/academic">
+								<ArrowLeft /> Students
+							</Link>
+						</Button>
+						<Button size="sm" asChild>
+							<Link
+								to={`/staff/data/Student/${encodeURIComponent(student.name)}`}
+							>
+								<Pencil /> Edit
+							</Link>
+						</Button>
+					</div>
 				}
 			/>
 

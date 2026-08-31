@@ -9,6 +9,9 @@ import { ApplicationDetail } from '@/routes/staff/ApplicationDetail'
 import { Academic } from '@/routes/staff/Academic'
 import { Finance } from '@/routes/staff/Finance'
 import { GradeSheet } from '@/routes/staff/GradeSheet'
+import { RecordDetail } from '@/routes/staff/RecordDetail'
+import { RecordIndex } from '@/routes/staff/RecordIndex'
+import { RecordList } from '@/routes/staff/RecordList'
 import { StaffDashboard } from '@/routes/staff/StaffDashboard'
 import { StudentDetail } from '@/routes/staff/StudentDetail'
 import { Users } from '@/routes/staff/Users'
@@ -69,6 +72,9 @@ export const router = createBrowserRouter([
 					{ path: 'academic/offerings/:name', element: <GradeSheet /> },
 					{ path: 'finance', element: <Finance /> },
 					{ path: 'users', element: <Users /> },
+					{ path: 'data', element: <RecordIndex /> },
+					{ path: 'data/:doctype', element: <RecordList /> },
+					{ path: 'data/:doctype/:name', element: <RecordDetail /> },
 				],
 			},
 		],
