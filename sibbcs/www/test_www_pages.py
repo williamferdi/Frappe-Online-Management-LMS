@@ -139,3 +139,77 @@ class TestCsrfHeader(FrappeTestCase):
 		with open(path, encoding="utf-8") as handle:
 			body = handle.read()
 		self.assertIn("frappe.csrf_token", body)
+
+
+class TestPublicShell(FrappeTestCase):
+	"""The shell the six guest pages sit in.
+
+	It replaces Frappe's `templates/web.html`, which means it also replaces
+	everything that template quietly provided. The CSRF token is the one that
+	matters, and it is the one this project has already got wrong once.
+	"""
+
+	SHELL = os.path.join(
+		os.path.dirname(WWW), "templates", "sibbcs_public.html"
+	)
+
+	GUEST_PAGES = [
+		"apply",
+		"reference",
+		"mentor-consent",
+		"manual-reading",
+		"scholarship",
+		"fee-paid",
+	]
+
+	def shell(self):
+		return open(self.SHELL, encoding="utf-8").read()
+
+	def test_the_shell_exists(self):
+		self.assertTrue(os.path.exists(self.SHELL))
+
+	def test_every_guest_page_uses_it(self):
+		for page in self.GUEST_PAGES:
+			with self.subTest(page=page):
+				markup = open(os.path.join(WWW, page + ".html"), encoding="utf-8").read()
+				self.assertIn(
+					'{% extends "templates/sibbcs_public.html" %}',
+					markup,
+					f"{page}.html is not on the guest shell",
+				)
+
+	def test_the_shell_carries_the_csrf_marker(self):
+		"""`base_template_page.add_csrf_token` injects the token by replacing
+		this comment. The marker lives in Frappe's base.html, which this shell
+		deliberately does not extend -- so without repeating it the token is
+		never injected, every form still works for guests (whose session has no
+		token to check), and a signed-in user gets "Invalid Request"."""
+		self.assertIn("<!-- csrf_token -->", self.shell())
+
+	def test_the_shell_defines_frappe_before_the_marker(self):
+		"""The injected line assigns to `frappe`, which exists on a Desk page
+		and does not exist here."""
+		markup = self.shell()
+		shim = markup.index("window.frappe = window.frappe || {}")
+		marker = markup.index("<!-- csrf_token -->")
+		self.assertLess(shim, marker, "the shim must come before the injection point")
+
+	def test_the_shell_loads_the_guest_stylesheet(self):
+		self.assertIn("/assets/sibbcs/css/public.css", self.shell())
+		self.assertTrue(
+			os.path.exists(
+				os.path.join(os.path.dirname(WWW), "public", "css", "public.css")
+			)
+		)
+
+	def test_a_token_link_is_kept_out_of_search_engines(self):
+		"""These addresses are personal to one referee or applicant."""
+		self.assertIn("noindex", self.shell())
+
+	def test_the_pages_still_find_the_csrf_helper(self):
+		"""Each form reads the token through the one shared include."""
+		for page in self.GUEST_PAGES:
+			with self.subTest(page=page):
+				markup = open(os.path.join(WWW, page + ".html"), encoding="utf-8").read()
+				if "sibbcsCsrfToken" in markup:
+					self.assertIn("templates/includes/csrf.html", markup)

@@ -636,6 +636,36 @@ beyond the limit and reports `truncated`. Two hundred results with no sign there
 four hundred is a Registrar reading a truncated list and believing it. A test
 surfaced this: searching a fragment shared by every fixture student hit the cap.
 
+### The guest pages — `templates/sibbcs_public.html`, `public/css/public.css`
+
+The six no-login pages (apply, reference, mentor consent, scholarship, manual
+acknowledgement, fee receipt) now sit on our own shell instead of Frappe's
+`templates/web.html`. Each page changed by exactly one line: its `{% extends %}`.
+**No form logic, token handling or submission code moved** — the risk in these pages
+is in the submitting, not the styling.
+
+**Hand-written CSS, not Tailwind.** Coupling six server-rendered pages to the portal's
+build would put a hashed filename in a Jinja template and force a rebuild every time a
+form gained a field. The tokens are the same values as `frontend/src/index.css`, so an
+applicant who later signs in sees the same college. The class names stay Bootstrap's
+because that is what the existing markup uses.
+
+**The shell must carry `<!-- csrf_token -->` and a `window.frappe` shim.**
+`base_template_page.py::add_csrf_token` injects the token by replacing that comment,
+and the comment lives in **Frappe's** `base.html` — which this shell deliberately does
+not extend. Without repeating it the token is never injected, every form still works
+for guests (whose session has no token to check), and a **signed-in** user gets
+*Invalid Request*. That is the manual-acknowledgement bug this project already shipped
+once; swapping the base template would have shipped it again. The shim comes first
+because the injected line assigns to `frappe`, which exists on a Desk page and not
+here. `TestPublicShell` pins the marker, the shim, and their order.
+
+**`noindex` on the shell.** A token address is personal to one referee.
+
+`www/my-courses.html` is **not** on the new shell: it is the old server-rendered
+student page, superseded by `/portal/courses`, and left alone rather than quietly
+retired — old emails may still link to it.
+
 ### Patches to the vendored LMS
 
 `bench update` pulls a fresh `apps/lms` and silently discards anything we changed there,

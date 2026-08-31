@@ -1,0 +1,74 @@
+{#
+	The shell for the six guest pages.
+
+	Standalone rather than extending Frappe's `templates/web.html`: that theme
+	brings a navbar, a footer and a stylesheet built for a Frappe website, none
+	of which an applicant filling in a reference form needs to see.
+
+	Pages extend this and fill `page_content`, exactly as they did before, so
+	changing over is a one-line edit per page and no form logic moves.
+#}
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="color-scheme" content="light dark" />
+		{#- A token link is personal to one referee; it has no business in a
+		    search index. -#}
+		<meta name="robots" content="noindex, nofollow" />
+		<title>{% block title %}South India Baptist Bible College &amp; Seminary{% endblock %}</title>
+		<link rel="icon" href="/assets/sibbcs/portal/favicon.svg" type="image/svg+xml" />
+		<link rel="stylesheet" href="/assets/sibbcs/css/public.css" />
+
+		{#-
+			The CSRF token, and the object Frappe assigns it to.
+
+			`base_template_page.py::add_csrf_token` injects the token by replacing
+			the comment below with `<script>frappe.csrf_token = "..."</script>`.
+			That marker lives in Frappe's own base.html, which this template
+			deliberately does not extend -- so without repeating it here the token
+			is never injected at all.
+
+			That matters for exactly one case, and it is a case the college hits:
+			a Guest carries no CSRF token and `validate_csrf_token()` returns early,
+			so every form still works for the outsiders it was built for -- and
+			fails with "Invalid Request" the moment a signed-in user submits one.
+			The admitted candidate acknowledging their manual is signed in by
+			definition. This project has already shipped that bug once.
+
+			The shim comes first because the injected line assigns to `frappe`,
+			which only exists here because the Desk bundle is not loaded.
+		-#}
+		<script>window.frappe = window.frappe || {};</script>
+		<!-- csrf_token -->
+
+		{% block head %}{% endblock %}
+	</head>
+
+	<body>
+		<header class="sib-header">
+			<div class="sib-header-inner">
+				<div class="sib-mark" aria-hidden="true">S</div>
+				<div class="sib-wordmark">
+					South India Baptist Bible College
+					<span>&amp; Seminary — Online</span>
+				</div>
+			</div>
+		</header>
+
+		<main class="sib-main">
+			{% block page_content %}{% endblock %}
+		</main>
+
+		<footer class="sib-footer">
+			<div class="sib-footer-inner">
+				South India Baptist Bible College &amp; Seminary, Coimbatore.
+				Need help? Write to
+				<a href="mailto:admissions@sibbc.org">admissions@sibbc.org</a>.
+			</div>
+		</footer>
+
+		{% block script %}{% endblock %}
+	</body>
+</html>
