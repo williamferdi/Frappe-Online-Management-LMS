@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 
 import { AppShell, type NavSection } from '@/components/AppShell'
+import { useUnreadCounts } from '@/hooks/useComms'
 
 /** The shape the college asked for, in the order they asked for it. */
 const SECTIONS: NavSection[] = [
@@ -30,5 +31,24 @@ const SECTIONS: NavSection[] = [
 ]
 
 export function PortalLayout() {
-	return <AppShell product="Student Portal" sections={SECTIONS} />
+	const { data } = useUnreadCounts()
+
+	// The counts are polled, so the badge can be a minute behind. Rebuilding
+	// the section here rather than mutating SECTIONS keeps that constant a
+	// constant -- a module-level array edited on render is shared by every
+	// mount and outlives the component that changed it.
+	const sections: NavSection[] = SECTIONS.map((section) => ({
+		...section,
+		items: section.items.map((item) => {
+			const unread =
+				item.to === '/portal/inbox'
+					? data?.inbox
+					: item.to === '/portal/announcements'
+						? data?.announcements
+						: 0
+			return unread ? { ...item, badge: String(unread) } : item
+		}),
+	}))
+
+	return <AppShell product="Student Portal" sections={sections} />
 }

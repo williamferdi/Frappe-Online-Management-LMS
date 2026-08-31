@@ -472,6 +472,63 @@ she matches on the `@example.invalid` domain it already looked for.
 Payment Allocation rows pointing at the invoice, so `status = "Paid"` is undone by its
 own `validate()`. The demo seeder settles fees through a real Payment Entry.
 
+### Portal communications — `sibbcs/api/comms.py`, `sibbcs/api/agenda.py`
+
+Phase 2 completed the nine sections. **Two new DocTypes only**, built by
+`setup/phase6_portal_comms.py`: `Announcement` (+ `Announcement Read`) and
+`Portal Message` (+ `Portal Message Recipient`).
+
+**To Do and Calendar are derived, never stored.** An unpaid invoice is already a
+thing to do and a live class is already a calendar entry; writing them down again
+means keeping two copies of one fact in step, and the copy is the one that goes
+stale. `agenda.todo()` assembles from Fee Invoice, blocked registrations, LMS
+Assignment minus submissions, and open registration windows. `agenda.calendar()`
+adds LMS Live Class, LMS Batch Timetable, the weekly recurrence expanded from
+`Course Offering.zoom_days` + `zoom_time`, fee due dates and term milestones.
+
+**Read state is its own DocType, not a child row.** A thousand students marking one
+notice as read would otherwise rewrite that notice a thousand times, every write
+colliding with the next.
+
+**An unknown announcement audience reaches nobody.** `_addressed_to_me` returns
+False for an audience it does not recognise. Defaulting the other way is how a
+notice for one cohort lands on every student's screen the day somebody adds a new
+audience type.
+
+**A student cannot name a message recipient.** `send_message(subject, body,
+reply_to)` — no recipient parameter at all. A reply reaches whoever is already on
+the thread; a new message goes to whoever holds Registrar, Admissions Officer or
+Academic Coordinator. Without that the portal is a way to message every account on
+the site. **Nobody currently holds any of those roles**, so `office_contacts()`
+returns empty and the compose form says so instead of failing on send.
+
+**Discussions reuse Frappe's `Discussion Topic` / `Discussion Reply`**, scoped to a
+Course Offering the student is registered on. That DocType is shared — Frappe uses
+it for blog comments too — so every entry point re-checks `reference_doctype` is
+`Course Offering` before opening a thread.
+
+**Badges are polled, not pushed.** `unread_counts()` on a 60-second interval. Frappe
+has socketio, but a count a minute stale costs a student nothing, and a websocket
+per signed-in student costs the box something at a thousand of them.
+
+**Rich text is sanitised on every render.** `RichText` runs DOMPurify over the
+Text Editor HTML. Staff write these, but a compromised staff account should not
+become script running in every student's browser.
+
+### `before_tests` raises the user-creation throttle
+
+`sibbcs/install.py::before_tests`, wired in hooks.py. Frappe refuses more than **60
+new Users a minute** (`throttle_user_creation`); this suite makes several hundred in
+about a minute. When it trips, the tests that fail are whichever module was running
+when the budget ran out — so it reads as an unrelated regression in `test_lms_sync`
+or `test_conversion` rather than as a rate limit. Written to the test site's config,
+because the runner re-initialises `frappe.local` between modules and an in-memory
+value survives only the first one.
+
+Fixture emails use `frappe.generate_hash`, not a counter: inserting a User commits,
+so those records outlive the run that made them and a counter restarts into a
+collision.
+
 ### Patches to the vendored LMS
 
 `bench update` pulls a fresh `apps/lms` and silently discards anything we changed there,

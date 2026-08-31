@@ -11,7 +11,12 @@ import { Grades } from '@/routes/portal/Grades'
 import { MyCourses } from '@/routes/portal/MyCourses'
 import { PortalLayout } from '@/routes/portal/PortalLayout'
 import { Profile } from '@/routes/portal/Profile'
+import { Announcements } from '@/routes/portal/Announcements'
+import { Calendar } from '@/routes/portal/Calendar'
+import { Discussions } from '@/routes/portal/Discussions'
+import { Inbox } from '@/routes/portal/Inbox'
 import { Register } from '@/routes/portal/Register'
+import { ToDo } from '@/routes/portal/ToDo'
 
 const soon = (title: string, phase: string, description: string) => ({
 	element: <ComingSoon title={title} phase={phase} description={description} />,
@@ -36,41 +41,11 @@ export const router = createBrowserRouter([
 					{ path: 'courses/register', element: <Register /> },
 					{ path: 'grades', element: <Grades /> },
 					{ path: 'profile', element: <Profile /> },
-					...[
-						[
-							'todo',
-							'To Do',
-							'Phase 2',
-							'Assignments due, fees outstanding and forms awaiting your signature, gathered from across the system.',
-						],
-						[
-							'calendar',
-							'Calendar',
-							'Phase 2',
-							'Live sessions, assignment deadlines, fee due dates and term boundaries on one calendar.',
-						],
-						[
-							'inbox',
-							'Inbox',
-							'Phase 2',
-							'Messages from the Registrar, your instructors and the Student Services office.',
-						],
-						[
-							'discussions',
-							'Discussions',
-							'Phase 2',
-							'Course discussion threads with your cohort and instructors.',
-						],
-						[
-							'announcements',
-							'Announcements',
-							'Phase 2',
-							'Notices from the college, filtered to your programme, level and courses.',
-						],
-					].map(([path, title, phase, description]) => ({
-						path,
-						...soon(title, phase, description),
-					})),
+					{ path: 'todo', element: <ToDo /> },
+					{ path: 'calendar', element: <Calendar /> },
+					{ path: 'inbox', element: <Inbox /> },
+					{ path: 'discussions', element: <Discussions /> },
+					{ path: 'announcements', element: <Announcements /> },
 				],
 			},
 		],

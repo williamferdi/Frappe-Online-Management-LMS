@@ -399,6 +399,96 @@ def _registrations(enrollment):
 	refresh_enrollment_progress(enrollment)
 
 
+# Notices and a conversation, so Announcements and the Inbox have something in
+# them. Every title carries the DEMO prefix so purge() can find them, and the
+# audiences are chosen to prove the filtering rather than just to fill a page:
+# one goes to everybody, one only to MDiv, one only to Level 4 -- and Ruth is a
+# Level 2 MDiv student, so she should see the first two and never the third.
+ANNOUNCEMENTS = [
+	(
+		"DEMO Chapel returns on Wednesdays",
+		"General",
+		"All Students",
+		{},
+		"<p>Weekly chapel resumes this Wednesday at 7:00 pm IST on Zoom. The link "
+		"is on your calendar. Attendance is not marked, but the hour is worth "
+		"keeping.</p>",
+		1,
+	),
+	(
+		"DEMO Reading week for M.Div. students",
+		"Academic",
+		"Programme",
+		{"program": "MDIV"},
+		"<p>There will be no live sessions during reading week. Assignments due "
+		"that week move to the following Monday.</p><p>Use the time well.</p>",
+		0,
+	),
+	(
+		"DEMO Thesis submission deadline",
+		"Urgent",
+		"Level",
+		{"level": "4"},
+		"<p>Level 4 candidates must submit their thesis by the end of the month. "
+		"Late submissions carry a one-grade penalty.</p>",
+		0,
+	),
+]
+
+MESSAGE_SUBJECT = "DEMO Welcome to the portal"
+MESSAGE_BODY = (
+	"<p>Dear Ruth,</p><p>Your account is now active. You can see your courses, "
+	"grades and fees here, and reply to this message if anything looks wrong.</p>"
+	"<p>The Registrar's office</p>"
+)
+
+
+def _announcements():
+	"""Idempotent: matched on title, which carries the DEMO prefix."""
+	if not frappe.db.exists("DocType", "Announcement"):
+		return 0
+
+	made = 0
+	for title, category, audience, targets, body, pinned in ANNOUNCEMENTS:
+		if frappe.db.exists("Announcement", {"title": title}):
+			continue
+		frappe.get_doc(
+			{
+				"doctype": "Announcement",
+				"title": title,
+				"category": category,
+				"audience": audience,
+				"body": body,
+				"pinned": pinned,
+				"published": 1,
+				"publish_on": add_days(today(), -3),
+				**targets,
+			}
+		).insert(ignore_permissions=True)
+		made += 1
+	return made
+
+
+def _message(student_user):
+	"""One conversation from the office, so the Inbox is not an empty box."""
+	if not frappe.db.exists("DocType", "Portal Message"):
+		return 0
+	if frappe.db.exists("Portal Message", {"subject": MESSAGE_SUBJECT}):
+		return 0
+
+	frappe.get_doc(
+		{
+			"doctype": "Portal Message",
+			"subject": MESSAGE_SUBJECT,
+			"body": MESSAGE_BODY,
+			"sender": "Administrator",
+			"sent_on": add_days(today(), -2),
+			"recipients": [{"recipient": student_user}],
+		}
+	).insert(ignore_permissions=True)
+	return 1
+
+
 def seed():
 	"""Create the demo catalog. Idempotent."""
 	term = _term(TERM)
@@ -410,6 +500,8 @@ def seed():
 	scale = _grade_scale()
 	_lead()
 	student, enrollment = _student()
+	notices = _announcements()
+	_message(STUDENT_EMAIL)
 
 	frappe.db.commit()
 
@@ -420,6 +512,7 @@ def seed():
 	print(f"  Offerings  : {len(offerings)} per term, all Published, capacity 25")
 	print(f"  Grade Scale: {scale}  (PROVISIONAL -- decisions #2/#3 still open)")
 	print(f"  Student    : {STUDENT_NAME} <{STUDENT_EMAIL}>  ({enrollment})")
+	print(f"  Notices    : {len(ANNOUNCEMENTS)} announcements ({notices} new), 1 inbox message")
 	print("               set a password with sibbcs.setup.demo_data.set_student_password")
 	print("")
 	print("Remove it all again with:")
@@ -576,6 +669,33 @@ def purge():
 			frappe.get_all("Course Chapter", filters={"course": lms_course}, pluck="name"),
 		)
 	_drop("LMS Course", demo_lms_courses)
+	# Portal communications. Announcements are matched on the DEMO prefix in
+	# the title; a message on its subject.
+	if frappe.db.exists("DocType", "Announcement"):
+		demo_notices = [
+			row.name
+			for row in frappe.get_all("Announcement", fields=["name", "title"])
+			if (row.title or "").startswith(PREFIX)
+		]
+		_drop(
+			"Announcement Read",
+			frappe.get_all(
+				"Announcement Read",
+				filters={"announcement": ("in", demo_notices or [""])},
+				pluck="name",
+			),
+		)
+		_drop("Announcement", demo_notices)
+
+	if frappe.db.exists("DocType", "Portal Message"):
+		_drop(
+			"Portal Message",
+			[
+				row.name
+				for row in frappe.get_all("Portal Message", fields=["name", "subject"])
+				if (row.subject or "").startswith(PREFIX)
+			],
+		)
 	_drop("Lead", [
 		d.name
 		for d in frappe.get_all("Lead", fields=["name", "full_name"])

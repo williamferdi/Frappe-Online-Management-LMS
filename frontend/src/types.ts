@@ -201,3 +201,147 @@ export interface ProfileResponse {
 	enrollment: EnrollmentHeader | null
 	editable: string[]
 }
+// --- to do -----------------------------------------------------------------
+
+export type TodoKind = 'fee' | 'blocked' | 'assignment' | 'registration'
+
+export interface TodoItem {
+	kind: TodoKind
+	title: string
+	detail: string
+	due: string | null
+	url: string | null
+	urgent?: boolean
+	reference?: string
+}
+
+export interface TodoResponse {
+	items: TodoItem[]
+	count: number
+	urgent: number
+}
+
+// --- calendar --------------------------------------------------------------
+
+export type EventKind = 'class' | 'timetable' | 'session' | 'fee' | 'term'
+
+export interface CalendarEvent {
+	kind: EventKind
+	title: string
+	start: string
+	end: string | null
+	url: string | null
+	detail?: string
+	reference?: string
+	all_day?: boolean
+}
+
+export interface CalendarResponse {
+	events: CalendarEvent[]
+	start: string | null
+	end: string | null
+}
+
+// --- announcements ---------------------------------------------------------
+
+export interface Announcement {
+	name: string
+	title: string
+	body: string
+	category: string
+	pinned: 0 | 1
+	publish_on: string
+	expires_on: string | null
+	audience: string
+	read: boolean
+}
+
+export interface AnnouncementsResponse {
+	rows: Announcement[]
+	unread: number
+}
+
+// --- inbox -----------------------------------------------------------------
+
+export interface ThreadSummary {
+	thread: string
+	subject: string
+	count: number
+	unread: number
+	last: {
+		name: string
+		sender: string
+		sender_name: string
+		sent_on: string
+		preview: string
+	} | null
+}
+
+export interface InboxResponse {
+	threads: ThreadSummary[]
+	unread: number
+}
+
+export interface Message {
+	name: string
+	subject: string
+	sender: string
+	sender_name: string
+	sent_on: string
+	body: string
+	thread: string | null
+	mine: boolean
+}
+
+export interface ThreadResponse {
+	thread: string
+	subject: string
+	messages: Message[]
+}
+
+export interface OfficeContact {
+	name: string
+	full_name: string
+}
+
+// --- discussions -----------------------------------------------------------
+
+export interface DiscussionRoom {
+	course_offering: string
+	course: string
+	course_title: string | null
+	term: string
+	topics: number
+}
+
+export interface DiscussionTopic {
+	name: string
+	title: string
+	owner: string
+	author_name: string
+	creation: string
+	modified: string
+	replies: number
+}
+
+export interface DiscussionReply {
+	name: string
+	reply: string
+	owner: string
+	author_name: string
+	creation: string
+	mine: boolean
+}
+
+export interface DiscussionThread {
+	topic: string
+	title: string
+	replies: DiscussionReply[]
+}
+
+// --- badges ----------------------------------------------------------------
+
+export interface UnreadCounts {
+	announcements: number
+	inbox: number
+}

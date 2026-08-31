@@ -19,17 +19,13 @@ BUNDLE_DIR = os.path.join(APP, "public", "portal")
 def make_user(email, roles):
 	if frappe.db.exists("User", email):
 		frappe.delete_doc("User", email, force=True, ignore_permissions=True)
-	user = frappe.get_doc(
-		{
+	return frappe.get_doc({
 			"doctype": "User",
 			"email": email,
 			"first_name": email.split("@")[0],
 			"send_welcome_email": 0,
 			"roles": [{"role": role} for role in roles],
-		}
-	)
-	user.insert(ignore_permissions=True)
-	return user
+		}).insert(ignore_permissions=True)
 
 
 class TestSessionPayload(FrappeTestCase):

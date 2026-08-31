@@ -9,14 +9,11 @@ about what comes back.
 
 import base64
 import inspect
-import itertools
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from sibbcs.api import student as api
-
-_seq = itertools.count(1)
 
 STUDENT_ENDPOINTS = (
 	api.dashboard,
@@ -28,20 +25,23 @@ STUDENT_ENDPOINTS = (
 
 
 def make_student(**overrides):
-	"""A student with a login, and an active MDIV enrollment."""
-	tag = next(_seq)
-	email = overrides.pop("email", f"portal.student{tag}@example.invalid")
+	"""A student with a login, and an active MDIV enrollment.
+
+	The suffix is random rather than a counter. Inserting a User commits, so
+	these records outlive the run that made them -- a counter restarts at 1
+	next time and collides with the student it created last time.
+	"""
+	tag = frappe.generate_hash(length=8)
+	email = overrides.pop("email", f"portal.student.{tag}@example.invalid")
 
 	if not frappe.db.exists("User", email):
-		frappe.get_doc(
-			{
-				"doctype": "User",
-				"email": email,
-				"first_name": f"Portal{tag}",
-				"send_welcome_email": 0,
-				"roles": [{"role": "Student"}],
-			}
-		).insert(ignore_permissions=True)
+		frappe.get_doc({
+			"doctype": "User",
+			"email": email,
+			"first_name": f"Portal{tag}",
+			"send_welcome_email": 0,
+			"roles": [{"role": "Student"}],
+		}).insert(ignore_permissions=True)
 
 	values = {
 		"doctype": "Student",
@@ -104,16 +104,14 @@ class TestScoping(FrappeTestCase):
 
 	def test_a_signed_in_user_with_no_enrollment_is_not_an_error(self):
 		"""An admitted applicant waiting on the Registrar is an ordinary state."""
-		email = f"noenrol{next(_seq)}@example.invalid"
-		frappe.get_doc(
-			{
-				"doctype": "User",
-				"email": email,
-				"first_name": "NoEnrol",
-				"send_welcome_email": 0,
-				"roles": [{"role": "Student"}],
-			}
-		).insert(ignore_permissions=True)
+		email = f"noenrol.{frappe.generate_hash(length=8)}@example.invalid"
+		frappe.get_doc({
+			"doctype": "User",
+			"email": email,
+			"first_name": "NoEnrol",
+			"send_welcome_email": 0,
+			"roles": [{"role": "Student"}],
+		}).insert(ignore_permissions=True)
 
 		frappe.set_user(email)
 		self.assertIsNone(api.dashboard()["enrollment"])
@@ -228,16 +226,14 @@ class TestUpdateProfile(FrappeTestCase):
 				self.assertEqual(frappe.db.get_value("Student", student.name, "mobile"), number)
 
 	def test_a_user_with_no_student_record_is_refused(self):
-		email = f"nostudent{next(_seq)}@example.invalid"
-		frappe.get_doc(
-			{
-				"doctype": "User",
-				"email": email,
-				"first_name": "NoStudent",
-				"send_welcome_email": 0,
-				"roles": [{"role": "Student"}],
-			}
-		).insert(ignore_permissions=True)
+		email = f"nostudent.{frappe.generate_hash(length=8)}@example.invalid"
+		frappe.get_doc({
+			"doctype": "User",
+			"email": email,
+			"first_name": "NoStudent",
+			"send_welcome_email": 0,
+			"roles": [{"role": "Student"}],
+		}).insert(ignore_permissions=True)
 
 		frappe.set_user(email)
 		with self.assertRaises(frappe.PermissionError):
