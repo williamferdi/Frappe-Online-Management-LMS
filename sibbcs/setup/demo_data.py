@@ -501,7 +501,7 @@ def _message(student_user):
 # their stable key, never by number -- the college has reordered these once
 # already and will again.
 APPLICANTS = [
-	# name, program, workflow state, {step key: status}
+	# name, programme, the state these steps should derive to, {step key: status}
 	(
 		"DEMO Anand Selvaraj",
 		"MDIV",
@@ -560,6 +560,11 @@ APPLICANTS = [
 			"application_review": "Approved",
 			"documents": "Verified",
 			"entrance_exam": "Failed",
+			# The decision step is what makes this read as Rejected. Setting
+			# workflow_state directly does not last: it is derived from the
+			# checklist, and the next save of the application recomputes it.
+			"admission_fee": "Waived",
+			"decision": "Rejected",
 		},
 	),
 ]
@@ -673,7 +678,7 @@ def _applications():
 	from sibbcs.admissions import checklist
 
 	made = 0
-	for full_name, program, state, steps in APPLICANTS:
+	for full_name, program, _derived_state, steps in APPLICANTS:
 		email = full_name.replace(f"{PREFIX} ", "").lower().replace(" ", ".")
 		email = f"{email}@example.invalid"
 
@@ -705,10 +710,6 @@ def _applications():
 			except Exception:
 				frappe.log_error(title=f"demo checklist {application.name} {key}")
 
-		if state != frappe.db.get_value("Admission Application", application.name, "workflow_state"):
-			frappe.db.set_value(
-				"Admission Application", application.name, "workflow_state", state
-			)
 
 		made += 1
 	return made

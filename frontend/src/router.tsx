@@ -12,6 +12,7 @@ import { GradeSheet } from '@/routes/staff/GradeSheet'
 import { RecordDetail } from '@/routes/staff/RecordDetail'
 import { RecordIndex } from '@/routes/staff/RecordIndex'
 import { RecordList } from '@/routes/staff/RecordList'
+import { Reports } from '@/routes/staff/Reports'
 import { StaffDashboard } from '@/routes/staff/StaffDashboard'
 import { StudentDetail } from '@/routes/staff/StudentDetail'
 import { Users } from '@/routes/staff/Users'
@@ -73,6 +74,7 @@ export const router = createBrowserRouter([
 					{ path: 'finance', element: <Finance /> },
 					{ path: 'users', element: <Users /> },
 					{ path: 'data', element: <RecordIndex /> },
+					{ path: 'reports', element: <Reports /> },
 					{ path: 'data/:doctype', element: <RecordList /> },
 					{ path: 'data/:doctype/:name', element: <RecordDetail /> },
 				],

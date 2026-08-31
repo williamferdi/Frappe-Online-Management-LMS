@@ -1,5 +1,6 @@
 import {
 	BadgeIndianRupee,
+	BarChart3,
 	Database,
 	GraduationCap,
 	LayoutDashboard,
@@ -21,6 +22,7 @@ const SECTIONS: NavSection[] = [
 			{ to: '/staff/finance', label: 'Finance', icon: BadgeIndianRupee },
 			{ to: '/staff/users', label: 'Users', icon: Users },
 			{ to: '/staff/data', label: 'Records', icon: Database },
+			{ to: '/staff/reports', label: 'Reports', icon: BarChart3 },
 		],
 	},
 ]

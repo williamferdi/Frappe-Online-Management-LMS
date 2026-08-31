@@ -134,3 +134,16 @@ export function useSetEnabled() {
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: financeKeys.all }),
 	})
 }
+
+export function useCreateUser() {
+	const queryClient = useQueryClient()
+	return useMutation({
+		mutationFn: (values: {
+			email: string
+			first_name: string
+			last_name?: string
+			roles: string[]
+		}) => frappePost('sibbcs.api.users_api.create_user', values),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: financeKeys.all }),
+	})
+}

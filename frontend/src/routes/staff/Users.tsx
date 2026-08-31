@@ -1,5 +1,12 @@
 import { useState } from 'react'
-import { Info, LoaderCircle, Search, ShieldAlert, Users as UsersIcon } from 'lucide-react'
+import {
+	Info,
+	LoaderCircle,
+	Plus,
+	Search,
+	ShieldAlert,
+	Users as UsersIcon,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/PageHeader'
@@ -17,6 +24,7 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
 	Table,
 	TableBody,
@@ -26,7 +34,13 @@ import {
 	TableRow,
 } from '@/components/ui/table'
 import { useDebounced } from '@/hooks/useDebounced'
-import { useRoleSummary, useSetEnabled, useSetRoles, useUsers } from '@/hooks/useFinance'
+import {
+	useCreateUser,
+	useRoleSummary,
+	useSetEnabled,
+	useSetRoles,
+	useUsers,
+} from '@/hooks/useFinance'
 import { boot, FrappeError } from '@/lib/frappe'
 import { cn, formatDate } from '@/lib/utils'
 import type { UserRow } from '@/types'
@@ -34,13 +48,22 @@ import type { UserRow } from '@/types'
 export function Users() {
 	const [search, setSearch] = useState('')
 	const [editing, setEditing] = useState<UserRow | null>(null)
+	const [creating, setCreating] = useState(false)
 	const debounced = useDebounced(search, 300)
 	const query = useUsers({ search: debounced })
 	const summary = useRoleSummary()
 
 	return (
 		<>
-			<PageHeader title="Users" description="Accounts and what they may do" />
+			<PageHeader
+			title="Users"
+			description="Accounts and what they may do"
+			actions={
+				<Button size="sm" onClick={() => setCreating(true)}>
+					<Plus /> New account
+				</Button>
+			}
+		/>
 
 			{/* An empty role is not a curiosity: with nobody holding Registrar a
 			    student's message has nowhere to go and no promotion can be
@@ -113,6 +136,12 @@ export function Users() {
 							row={editing}
 							managed={data.managed_roles}
 							onClose={() => setEditing(null)}
+						/>
+
+						<NewUserDialog
+							open={creating}
+							managed={data.managed_roles}
+							onClose={() => setCreating(false)}
 						/>
 					</>
 				)}
@@ -302,6 +331,117 @@ function RolesDialog({
 					<Button onClick={save} disabled={setRoles.isPending}>
 						{setRoles.isPending && <LoaderCircle className="animate-spin" />}
 						Save roles
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	)
+}
+
+
+function NewUserDialog({
+	open,
+	managed,
+	onClose,
+}: {
+	open: boolean
+	managed: string[]
+	onClose: () => void
+}) {
+	const create = useCreateUser()
+	const [email, setEmail] = useState('')
+	const [firstName, setFirstName] = useState('')
+	const [lastName, setLastName] = useState('')
+	const [roles, setRoles] = useState<string[]>([])
+
+	function submit() {
+		create.mutate(
+			{ email: email.trim(), first_name: firstName.trim(), last_name: lastName.trim() || undefined, roles },
+			{
+				onSuccess: () => {
+					setEmail('')
+					setFirstName('')
+					setLastName('')
+					setRoles([])
+					onClose()
+					toast.success('Account created', {
+						description: 'They will get a welcome email with a link to set their own password.',
+					})
+				},
+				onError: (error) =>
+					toast.error(
+						error instanceof FrappeError ? error.message : 'That account was not created.',
+					),
+			},
+		)
+	}
+
+	return (
+		<Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>New account</DialogTitle>
+					<DialogDescription>
+						Frappe emails them a link to set their own password, so nobody here
+						ever chooses or sees it.
+					</DialogDescription>
+				</DialogHeader>
+
+				<div className="space-y-2">
+					<Label htmlFor="new-email">Email</Label>
+					<Input
+						id="new-email"
+						type="email"
+						value={email}
+						autoFocus
+						onChange={(event) => setEmail(event.target.value)}
+					/>
+				</div>
+
+				<div className="grid gap-4 sm:grid-cols-2">
+					<div className="space-y-2">
+						<Label htmlFor="new-first">First name</Label>
+						<Input id="new-first" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+					</div>
+					<div className="space-y-2">
+						<Label htmlFor="new-last">Last name</Label>
+						<Input id="new-last" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+					</div>
+				</div>
+
+				<div className="grid gap-1.5 sm:grid-cols-2">
+					{managed.map((role) => (
+						<label
+							key={role}
+							className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm"
+						>
+							<input
+								type="checkbox"
+								checked={roles.includes(role)}
+								onChange={() =>
+									setRoles((current) =>
+										current.includes(role)
+											? current.filter((r) => r !== role)
+											: [...current, role],
+									)
+								}
+								className="size-3.5"
+							/>
+							{role}
+						</label>
+					))}
+				</div>
+
+				<DialogFooter>
+					<Button variant="outline" onClick={onClose} disabled={create.isPending}>
+						Cancel
+					</Button>
+					<Button
+						onClick={submit}
+						disabled={!email.trim() || !firstName.trim() || create.isPending}
+					>
+						{create.isPending && <LoaderCircle className="animate-spin" />}
+						Create
 					</Button>
 				</DialogFooter>
 			</DialogContent>

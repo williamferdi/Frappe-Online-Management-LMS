@@ -666,6 +666,47 @@ here. `TestPublicShell` pins the marker, the shim, and their order.
 student page, superseded by `/portal/courses`, and left alone rather than quietly
 retired — old emails may still link to it.
 
+### Generic records and reports — `api/records.py`, `api/reports.py`
+
+The console now owns create, edit and reports as well as the workflows, which
+reverses the original alongside-Desk decision. Built **once from metadata**, not
+forty times: `describe()` returns the field definitions Frappe already holds and one
+React form renders any DocType. `/staff/data`, `/staff/data/:doctype`,
+`/staff/data/:doctype/:name`, `/staff/reports`.
+
+**`ALLOWED` is checked before permissions.** A generic write endpoint is a wide door;
+the allow-list makes it a narrow one. `User` is deliberately absent — it carries
+`new_password`, `api_key` and the role table, and generic CRUD over it is how a form
+ends up setting a password. `users_api` handles accounts, narrowly, and
+`create_user` takes **no password parameter at all**: Frappe emails a set-password
+link so nobody here ever chooses or sees one.
+
+**Writable fields come from the metadata, never the payload.** `_assignable()` builds
+the set from the DocType, so naming `docstatus`, `owner` or a read-only field in the
+request changes nothing. Reads use `frappe.get_list` (applies permissions and user
+permissions), not `get_all` (does not). Deletes carry no `force`.
+
+**Permlevels must be read from the permission rows, not `get_valid_perms`.** That
+function answers the main permission question and returns **only level 0**, so using
+it reported every permlevel-gated field as read-only for everybody — the Registrar
+the level was granted to included. Custom DocPerm replaces DocPerm entirely when any
+row exists, which is how Frappe resolves them, and Administrator is not uniquely
+restricted here when it is exempt everywhere else.
+
+**The report engine puts a field name into `GROUP BY` and `SUM()`**, so
+`_checked_field` resolves it through `meta.get_field` and checks its type before it
+reaches a query. That is a metadata lookup, not a pattern match on the string.
+
+**`workflow_state` is derived, so do not set it.** The demo seeder used to force it
+and the next save of the application recomputed it from the checklist; the
+Rejected candidate is now produced by setting the decision step, which is what
+actually makes it read as Rejected.
+
+Two honest limits: a **Text Editor field is a textarea holding HTML** and the form
+says so, and **CSV export writes the rows already on screen**, not a second
+unfiltered fetch — an export that quietly holds more than the table it came from is
+how data leaves by accident.
+
 ### Patches to the vendored LMS
 
 `bench update` pulls a fresh `apps/lms` and silently discards anything we changed there,

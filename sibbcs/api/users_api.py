@@ -198,3 +198,50 @@ def role_summary():
 			counts[entry.role] = counts.get(entry.role, 0) + 1
 
 	return [{"role": role, "count": counts[role]} for role in MANAGED_ROLES]
+
+
+@frappe.whitelist(methods=["POST"])
+def create_user(email, first_name, last_name=None, roles=None):
+	"""Create an account, without ever choosing a password for it.
+
+	Frappe sends its own welcome message with a set-password link, so the
+	person picks their own and nobody here ever holds it. If mail is not
+	configured the account still exists and a reset can be sent from Desk.
+	"""
+	_require_admin()
+
+	email = (email or "").strip().lower()
+	if not email:
+		frappe.throw(_("An email address is required."))
+	if frappe.db.exists("User", email):
+		frappe.throw(_("{0} already has an account.").format(email))
+
+	if isinstance(roles, str):
+		roles = frappe.parse_json(roles)
+	roles = roles or []
+
+	refused = sorted({role for role in roles if role not in MANAGED_ROLES})
+	if refused:
+		frappe.throw(
+			_("These roles are not managed here: {0}").format(", ".join(refused)),
+			title=_("Not Allowed"),
+		)
+
+	doc = frappe.get_doc(
+		{
+			"doctype": "User",
+			"email": email,
+			"first_name": (first_name or "").strip() or email.split("@")[0],
+			"last_name": (last_name or "").strip() or None,
+			"send_welcome_email": 1,
+			"roles": [{"role": role} for role in sorted(set(roles))],
+		}
+	)
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {
+		"user": doc.name,
+		"full_name": doc.full_name,
+		"roles": sorted(row.role for row in doc.roles if row.role in MANAGED_ROLES),
+	}
