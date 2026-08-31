@@ -456,6 +456,30 @@ def purge():
 		"Course Offering", filters={"course": ("in", demo_courses or [""])}, pluck="name"
 	)
 
+	# lms_sync creates an LMS Course per Course and an LMS Batch per offering
+	# the moment a demo student registers. Collect them now, while the rows
+	# holding the links still exist -- deleting the Course first strands them,
+	# and a stray published course in the LMS is indistinguishable from a real
+	# one by the time anybody notices.
+	demo_lms_courses = [
+		row.lms_course
+		for row in frappe.get_all(
+			"Course",
+			filters={"name": ("in", demo_courses or [""])},
+			fields=["name", "lms_course"],
+		)
+		if row.lms_course
+	]
+	demo_lms_batches = [
+		row.lms_batch
+		for row in frappe.get_all(
+			"Course Offering",
+			filters={"name": ("in", demo_offerings or [""])},
+			fields=["name", "lms_batch"],
+		)
+		if row.lms_batch
+	]
+
 	# students created by demo conversions
 	demo_students = [
 		d.name
@@ -528,6 +552,30 @@ def purge():
 		for d in frappe.get_all("Instructor", fields=["name", "full_name"])
 		if (d.full_name or "").startswith(PREFIX)
 	])
+	# The LMS side, deepest first: an enrolment holds the batch, the batch
+	# holds the course.
+	for child, field, parents in (
+		("LMS Batch Enrollment", "batch", demo_lms_batches),
+		("LMS Enrollment", "course", demo_lms_courses),
+		("LMS Course Progress", "course", demo_lms_courses),
+	):
+		_drop(
+			child,
+			frappe.get_all(
+				child, filters={field: ("in", parents or [""])}, pluck="name"
+			),
+		)
+	_drop("LMS Batch", demo_lms_batches)
+	for lms_course in demo_lms_courses:
+		_drop(
+			"Course Lesson",
+			frappe.get_all("Course Lesson", filters={"course": lms_course}, pluck="name"),
+		)
+		_drop(
+			"Course Chapter",
+			frappe.get_all("Course Chapter", filters={"course": lms_course}, pluck="name"),
+		)
+	_drop("LMS Course", demo_lms_courses)
 	_drop("Lead", [
 		d.name
 		for d in frappe.get_all("Lead", fields=["name", "full_name"])
