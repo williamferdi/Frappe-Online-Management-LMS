@@ -29,6 +29,28 @@ export default defineConfig({
 		// Off because the built bundle is committed, and a 2 MB map per build
 		// bloats the repository. Turn it on temporarily to chase a live error.
 		sourcemap: false,
+
+		// React, Radix and TanStack barely change between our deploys, so
+		// giving them their own chunks means a returning student
+		// re-downloads only our code.
+		rollupOptions: {
+			output: {
+				manualChunks(id: string) {
+					if (!id.includes('node_modules')) return
+					if (
+						id.includes('react-dom') ||
+						id.includes('/react/') ||
+						id.includes('scheduler')
+					) {
+						return 'react'
+					}
+					if (id.includes('@radix-ui') || id.includes('@tanstack')) {
+						return 'ui'
+					}
+					return 'vendor'
+				},
+			},
+		},
 	},
 
 	server: {

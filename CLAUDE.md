@@ -430,6 +430,48 @@ with `demo_data.seed`, not production.
 **jsdom has no `matchMedia`**, so anything reading the colour scheme throws on
 render. `src/test/setup.ts` stubs it.
 
+### The student portal — `sibbcs/api/student.py` + `frontend/src/routes/portal`
+
+Nine sections, the order the college specified. Dashboard, My Courses, Grades and
+Profile are built; registration hangs off My Courses at `/portal/courses/register`
+rather than taking a tenth slot in a navigation specified as nine.
+
+**One call per screen.** `dashboard()`, `grades()`, `my_courses()` and
+`registration_options()` each compose what one page draws. The rules stay in
+`academic/portal.py` and `academic/eligibility.py`; this layer only assembles.
+Components, LMS progress and fee state are fetched with one grouped query each, not
+one per row — a student finishing the programme has forty registrations.
+
+**No endpoint takes a student or enrollment argument.** Every one answers for
+`frappe.session.user`. A test asserts the signatures stay empty, because a `student=`
+parameter is how one student reads another's marks by guessing a name.
+
+**`update_profile` takes three named arguments, never `**values`.** Mobile, WhatsApp
+and address are how the college reaches you. Name, date of birth, gender and email are
+the Registrar's record of who you are and are shown read-only. A `**values` signature
+would let a student write any field on their own Student row — `status` included,
+which is how somebody marks themselves Active again after being withdrawn.
+
+**Blocked offerings are returned with their reason.** `eligibility.explain` already
+says why; hiding the row instead is what turns *"why can't I take this?"* into an
+email to the Registrar. Offerings are grouped by term because a course runs in
+several, and a flat list of near-identical rows is how students registered for the
+wrong one during acceptance testing.
+
+**`QueryState` renders the page heading while loading**, so a test that waits on the
+heading is still looking at skeletons. Wait for `[data-slot="skeleton"]` to clear.
+
+**`demo_data.seed()` now creates a student**, `DEMO Ruth Anandhi`, with two graded
+courses behind her, one registered and unpaid, one course whose prerequisite she has
+just met, and two above her level the rule engine refuses with a reason. Without her
+the seeder produced a catalog and nothing that exercises the portal at all. Give her a
+password with `demo_data.set_student_password`; `purge()` still removes her, because
+she matches on the `@example.invalid` domain it already looked for.
+
+**Fee Invoice cannot be marked paid by assignment.** `paid_amount` is derived from the
+Payment Allocation rows pointing at the invoice, so `status = "Paid"` is undone by its
+own `validate()`. The demo seeder settles fees through a real Payment Entry.
+
 ### Patches to the vendored LMS
 
 `bench update` pulls a fresh `apps/lms` and silently discards anything we changed there,

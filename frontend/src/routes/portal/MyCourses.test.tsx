@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 
 import type { MyCoursesResponse, Registration } from '@/types'
 
@@ -77,9 +78,11 @@ async function renderScreen(response: Screen) {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
 	render(
-		<QueryClientProvider client={client}>
-			<MyCourses />
-		</QueryClientProvider>,
+		<MemoryRouter>
+			<QueryClientProvider client={client}>
+				<MyCourses />
+			</QueryClientProvider>
+		</MemoryRouter>,
 	)
 	return screen.findByRole('heading', { name: 'My Courses' })
 }

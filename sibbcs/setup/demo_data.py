@@ -196,6 +196,209 @@ def _lead():
 	).insert(ignore_permissions=True)
 
 
+# A student to actually look at the portal with. Without one, seed() produces a
+# catalog and nothing that exercises My Courses, Grades or the dashboard -- the
+# portal renders its "no active enrollment" state and that is all you can see.
+#
+# The shape is chosen to exercise the interesting paths at once: two graded
+# courses behind them, one registered and unpaid, one course whose prerequisite
+# they have now met, and two above their level that the rule engine refuses
+# with a reason.
+STUDENT_EMAIL = "demo.ruth@example.invalid"
+STUDENT_NAME = f"{PREFIX} Ruth Anandhi"
+
+# course code -> component marks, as (component, weight %, max, obtained)
+GRADED = {
+	"DEMO GEST501": [
+		("Assignment", 40, 100, 88),
+		("Final Paper", 60, 100, 84),
+	],
+	"DEMO CHMI504": [
+		("Assignment", 30, 100, 95),
+		("Discussion Forum", 20, 100, 90),
+		("Final Paper", 50, 100, 92),
+	],
+}
+
+
+def _student_user():
+	if frappe.db.exists("User", STUDENT_EMAIL):
+		return STUDENT_EMAIL
+
+	frappe.get_doc(
+		{
+			"doctype": "User",
+			"email": STUDENT_EMAIL,
+			"first_name": "Ruth",
+			"last_name": "Anandhi",
+			"send_welcome_email": 0,
+			"roles": [{"role": "Student"}, {"role": "LMS Student"}],
+		}
+	).insert(ignore_permissions=True)
+	return STUDENT_EMAIL
+
+
+def _student():
+	"""One enrolled student with history. Idempotent."""
+	user = _student_user()
+
+	student = frappe.db.get_value("Student", {"email": STUDENT_EMAIL}, "name")
+	if not student:
+		student = frappe.get_doc(
+			{
+				"doctype": "Student",
+				"full_name": STUDENT_NAME,
+				"email": STUDENT_EMAIL,
+				"mobile": "+91 98400 11223",
+				"whatsapp": "+91 98400 11223",
+				"address": "12 Trichy Road, Coimbatore 641018",
+				"dob": "1996-04-11",
+				"gender": "Female",
+				"status": "Active",
+				"user": user,
+			}
+		).insert(ignore_permissions=True).name
+
+	enrollment = frappe.db.get_value("Program Enrollment", {"student": student}, "name")
+	if not enrollment:
+		enrollment = frappe.get_doc(
+			{
+				"doctype": "Program Enrollment",
+				"student": student,
+				"program": "MDIV",
+				"status": "Active",
+				"enrollment_date": add_days(today(), -240),
+				"start_term": TERM,
+				"current_level": "2",
+			}
+		).insert(ignore_permissions=True).name
+
+	_registrations(enrollment)
+	return student, enrollment
+
+
+def _register(enrollment, offering, status="Registered"):
+	existing = frappe.db.get_value(
+		"Course Registration",
+		{"program_enrollment": enrollment, "course_offering": offering},
+		"name",
+	)
+	if existing:
+		return frappe.get_doc("Course Registration", existing)
+
+	doc = frappe.get_doc(
+		{
+			"doctype": "Course Registration",
+			"program_enrollment": enrollment,
+			"course_offering": offering,
+			"registration_date": add_days(today(), -60),
+			"status": status,
+		}
+	)
+	doc.insert(ignore_permissions=True)
+	return doc
+
+
+def _settle_completed_fees(enrollment):
+	"""Pay for the finished courses, through a real Payment Entry.
+
+	Fee Invoice derives paid_amount from the Payment Allocation rows
+	pointing at it, so writing `status = Paid` onto the invoice is undone by
+	its own validate(). The money has to arrive the way it does in life.
+
+	Leaving every demo invoice unpaid would show three payment prompts and
+	no course anyone can open, which is not what the screens are for."""
+	completed = frappe.get_all(
+		"Course Registration",
+		filters={"program_enrollment": enrollment, "status": "Completed"},
+		fields=["registration_fee_invoice", "student"],
+	)
+	owing = [
+		row
+		for row in completed
+		if row.registration_fee_invoice
+		and frappe.db.get_value("Fee Invoice", row.registration_fee_invoice, "status")
+			!= "Paid"
+	]
+	if not owing:
+		return
+
+	allocations = []
+	total = 0.0
+	for row in owing:
+		invoice = frappe.db.get_value(
+			"Fee Invoice",
+			row.registration_fee_invoice,
+			["name", "net_amount", "outstanding_amount"],
+			as_dict=True,
+		)
+		allocations.append(
+			{
+				"fee_invoice": invoice.name,
+				"invoice_net": invoice.net_amount,
+				"invoice_outstanding": invoice.outstanding_amount,
+				"allocated_amount": invoice.outstanding_amount,
+			}
+		)
+		total += float(invoice.outstanding_amount or 0)
+
+	frappe.get_doc(
+		{
+			"doctype": "Payment Entry",
+			"student": owing[0].student,
+			"amount": total,
+			"received_on": add_days(today(), -70),
+			"mode": "UPI",
+			"reference_no": "DEMO-UPI-0001",
+			"remarks": "DEMO seed payment",
+			"allocations": allocations,
+		}
+	).insert(ignore_permissions=True)
+
+def _registrations(enrollment):
+	"""Two terms of history: graded work behind, live registrations ahead."""
+	for code, components in GRADED.items():
+		offering = frappe.db.get_value(
+			"Course Offering", {"course": code, "term": TERM}, "name"
+		)
+		if not offering:
+			continue
+
+		doc = _register(enrollment, offering)
+		if doc.grade:
+			continue
+
+		doc.set("grade_components", [])
+		for component, weight, maximum, obtained in components:
+			doc.append(
+				"grade_components",
+				{
+					"component": component,
+					"weight_pct": weight,
+					"max_marks": maximum,
+					"obtained_marks": obtained,
+				},
+			)
+		doc.status = "Completed"
+		# compute_grade() derives weighted_score, final_marks and the letter
+		# from the scale, so only the raw marks are set here.
+		doc.save(ignore_permissions=True)
+
+	current = frappe.db.get_value(
+		"Course Offering", {"course": "DEMO BIST503", "term": SECOND_TERM}, "name"
+	)
+	if current:
+		_register(enrollment, current)
+
+	_settle_completed_fees(enrollment)
+
+	from sibbcs.academic.doctype.course_registration.course_registration import (
+		refresh_enrollment_progress,
+	)
+
+	refresh_enrollment_progress(enrollment)
+
+
 def seed():
 	"""Create the demo catalog. Idempotent."""
 	term = _term(TERM)
@@ -206,6 +409,7 @@ def seed():
 	_offerings(second, instructors)
 	scale = _grade_scale()
 	_lead()
+	student, enrollment = _student()
 
 	frappe.db.commit()
 
@@ -215,6 +419,8 @@ def seed():
 	print(f"  Instructors: {len(instructors)}")
 	print(f"  Offerings  : {len(offerings)} per term, all Published, capacity 25")
 	print(f"  Grade Scale: {scale}  (PROVISIONAL -- decisions #2/#3 still open)")
+	print(f"  Student    : {STUDENT_NAME} <{STUDENT_EMAIL}>  ({enrollment})")
+	print("               set a password with sibbcs.setup.demo_data.set_student_password")
 	print("")
 	print("Remove it all again with:")
 	print("  bench --site <site> execute sibbcs.setup.demo_data.purge")

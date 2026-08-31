@@ -1,31 +1,54 @@
-import { AlertCircle, ArrowUpRight, BookOpen, CreditCard, GraduationCap } from 'lucide-react'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { ArrowUpRight, BookOpen, CreditCard, LoaderCircle, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/PageHeader'
+import { QueryState } from '@/components/QueryState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { useMyCourses } from '@/hooks/useMyCourses'
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog'
+import { Progress } from '@/components/ui/progress'
+import { useMyCourses, useWithdraw } from '@/hooks/useStudent'
 import { FrappeError } from '@/lib/frappe'
 import { cn, money } from '@/lib/utils'
-import type { EnrollmentHeader, Registration } from '@/types'
+import type { EnrollmentHeader, MyCoursesResponse, Registration } from '@/types'
 
 export function MyCourses() {
-	const { data, isPending, error } = useMyCourses()
+	const query = useMyCourses()
 
-	if (isPending) return <LoadingState />
-	if (error) return <ErrorState error={error} />
+	return (
+		<QueryState query={query} title="My Courses" emptyWhen={(d) => !d.enrollment}>
+			{(data) => <Loaded data={data} />}
+		</QueryState>
+	)
+}
 
-	const enrollment = data?.enrollment ?? null
-	const registrations = data?.registrations ?? []
-
-	if (!enrollment) return <NoEnrollment />
+function Loaded({ data }: { data: MyCoursesResponse }) {
+	const [withdrawing, setWithdrawing] = useState<Registration | null>(null)
+	const enrollment = data.enrollment!
+	const registrations = data.registrations
 
 	return (
 		<>
 			<PageHeader
 				title="My Courses"
 				description={`${enrollment.program_name || enrollment.program} · Level ${enrollment.current_level}`}
+				actions={
+					<Button size="sm" asChild>
+						<Link to="/portal/courses/register">
+							<Plus /> Register
+						</Link>
+					</Button>
+				}
 			/>
 
 			<Summary enrollment={enrollment} registrations={registrations} />
@@ -39,15 +62,27 @@ export function MyCourses() {
 							When registration opens for a term, the courses you are eligible for
 							will appear here.
 						</p>
+						<Button size="sm" className="mt-2" asChild>
+							<Link to="/portal/courses/register">Browse courses</Link>
+						</Button>
 					</CardContent>
 				</Card>
 			) : (
 				<ul className="mt-6 space-y-3">
 					{registrations.map((registration) => (
-						<CourseRow key={registration.name} registration={registration} />
+						<CourseRow
+							key={registration.name}
+							registration={registration}
+							onWithdraw={() => setWithdrawing(registration)}
+						/>
 					))}
 				</ul>
 			)}
+
+			<WithdrawDialog
+				registration={withdrawing}
+				onClose={() => setWithdrawing(null)}
+			/>
 		</>
 	)
 }
@@ -68,10 +103,7 @@ function Summary({
 		<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
 			<Stat label="Level" value={enrollment.current_level} />
 			<Stat label="Credits earned" value={String(enrollment.credits_earned ?? 0)} />
-			<Stat
-				label="CGPA"
-				value={enrollment.cgpa ? enrollment.cgpa.toFixed(2) : '—'}
-			/>
+			<Stat label="CGPA" value={enrollment.cgpa ? enrollment.cgpa.toFixed(2) : '—'} />
 			<Stat
 				label={owed > 0 ? 'Outstanding' : 'In progress'}
 				value={owed > 0 ? money(owed) : String(active)}
@@ -109,7 +141,15 @@ function Stat({
 	)
 }
 
-function CourseRow({ registration }: { registration: Registration }) {
+const WITHDRAWABLE = ['Registered', 'Active']
+
+function CourseRow({
+	registration,
+	onWithdraw,
+}: {
+	registration: Registration
+	onWithdraw: () => void
+}) {
 	const fee = registration.fee
 	const locked = !fee?.settled && !registration.lms_enrollment_created
 
@@ -136,19 +176,12 @@ function CourseRow({ registration }: { registration: Registration }) {
 						<div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 							<span>{registration.credits} credits</span>
 							{registration.lms_course && (
-								<span className="flex items-center gap-1">
-									<span
-										className="bg-muted h-1.5 w-20 overflow-hidden rounded-full"
-										role="progressbar"
-										aria-valuenow={Math.round(registration.progress)}
-										aria-valuemin={0}
-										aria-valuemax={100}
-									>
-										<span
-											className="bg-primary block h-full rounded-full"
-											style={{ width: `${Math.min(registration.progress, 100)}%` }}
-										/>
-									</span>
+								<span className="flex items-center gap-1.5">
+									<Progress
+										value={registration.progress}
+										className="w-20"
+										aria-label={`${registration.course} progress`}
+									/>
 									{Math.round(registration.progress)}%
 								</span>
 							)}
@@ -156,6 +189,11 @@ function CourseRow({ registration }: { registration: Registration }) {
 					</div>
 
 					<div className="flex items-center gap-2">
+						{WITHDRAWABLE.includes(registration.status) && (
+							<Button size="sm" variant="ghost" onClick={onWithdraw}>
+								Withdraw
+							</Button>
+						)}
 						{locked ? (
 							<>
 								<span className="text-warning-foreground flex items-center gap-1.5 text-xs font-medium">
@@ -184,6 +222,62 @@ function CourseRow({ registration }: { registration: Registration }) {
 	)
 }
 
+function WithdrawDialog({
+	registration,
+	onClose,
+}: {
+	registration: Registration | null
+	onClose: () => void
+}) {
+	const withdraw = useWithdraw()
+
+	function confirm() {
+		if (!registration) return
+		withdraw.mutate(registration.name, {
+			onSuccess: () => {
+				toast.success(`Withdrawn from ${registration.course}`)
+				onClose()
+			},
+			onError: (error) =>
+				toast.error(
+					error instanceof FrappeError ? error.message : 'That withdrawal was refused.',
+				),
+		})
+	}
+
+	return (
+		<Dialog open={Boolean(registration)} onOpenChange={(open) => !open && onClose()}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Withdraw from {registration?.course}?</DialogTitle>
+					<DialogDescription>
+						{registration?.course_title} · {registration?.term}
+					</DialogDescription>
+				</DialogHeader>
+
+				<p className="text-muted-foreground text-sm">
+					Your access to the course closes. A fee already paid is not refunded
+					automatically — speak to the Accounts Office about that separately.
+				</p>
+
+				<DialogFooter>
+					<Button variant="outline" onClick={onClose} disabled={withdraw.isPending}>
+						Keep my place
+					</Button>
+					<Button
+						variant="destructive"
+						onClick={confirm}
+						disabled={withdraw.isPending}
+					>
+						{withdraw.isPending && <LoaderCircle className="animate-spin" />}
+						Withdraw
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	)
+}
+
 const STATUS_TONE: Record<string, 'default' | 'success' | 'muted' | 'destructive'> = {
 	Registered: 'default',
 	Active: 'default',
@@ -194,65 +288,4 @@ const STATUS_TONE: Record<string, 'default' | 'success' | 'muted' | 'destructive
 
 function StatusBadge({ status }: { status: string }) {
 	return <Badge variant={STATUS_TONE[status] ?? 'muted'}>{status}</Badge>
-}
-
-function NoEnrollment() {
-	return (
-		<>
-			<PageHeader title="My Courses" />
-			<Card>
-				<CardContent className="flex flex-col items-center gap-2 py-14 text-center">
-					<GraduationCap className="text-muted-foreground size-6" />
-					<div className="font-medium">No active enrollment</div>
-					<p className="text-muted-foreground max-w-sm text-sm">
-						Your account is not linked to an active programme enrolment yet. The
-						Registrar's office will complete this once your admission is confirmed.
-					</p>
-				</CardContent>
-			</Card>
-		</>
-	)
-}
-
-function LoadingState() {
-	return (
-		<>
-			<PageHeader title="My Courses" />
-			<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-				{Array.from({ length: 4 }, (_, i) => (
-					<Skeleton key={i} className="h-[5.25rem]" />
-				))}
-			</div>
-			<div className="mt-6 space-y-3">
-				{Array.from({ length: 3 }, (_, i) => (
-					<Skeleton key={i} className="h-[6.5rem]" />
-				))}
-			</div>
-		</>
-	)
-}
-
-function ErrorState({ error }: { error: unknown }) {
-	const message =
-		error instanceof FrappeError ? error.message : 'Something went wrong loading your courses.'
-	return (
-		<>
-			<PageHeader title="My Courses" />
-			<Card>
-				<CardContent className="flex flex-col items-center gap-2 py-14 text-center">
-					<AlertCircle className="text-destructive size-6" />
-					<div className="font-medium">Could not load your courses</div>
-					<p className="text-muted-foreground max-w-sm text-sm">{message}</p>
-					<Button
-						variant="outline"
-						size="sm"
-						className="mt-1"
-						onClick={() => window.location.reload()}
-					>
-						Try again
-					</Button>
-				</CardContent>
-			</Card>
-		</>
-	)
 }

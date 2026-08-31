@@ -6,8 +6,12 @@ import { landingRoute } from '@/lib/session'
 import { Login } from '@/routes/Login'
 import { RequireAuth } from '@/routes/RequireAuth'
 import { StaffLayout } from '@/routes/staff/StaffLayout'
+import { Dashboard } from '@/routes/portal/Dashboard'
+import { Grades } from '@/routes/portal/Grades'
 import { MyCourses } from '@/routes/portal/MyCourses'
 import { PortalLayout } from '@/routes/portal/PortalLayout'
+import { Profile } from '@/routes/portal/Profile'
+import { Register } from '@/routes/portal/Register'
 
 const soon = (title: string, phase: string, description: string) => ({
 	element: <ComingSoon title={title} phase={phase} description={description} />,
@@ -25,15 +29,13 @@ export const router = createBrowserRouter([
 				path: '/portal',
 				element: <PortalLayout />,
 				children: [
-					{
-						index: true,
-						...soon(
-							'Dashboard',
-							'Phase 1',
-							'A single view of what needs your attention: courses in progress, what is due, and anything outstanding.',
-						),
-					},
+					{ index: true, element: <Dashboard /> },
 					{ path: 'courses', element: <MyCourses /> },
+					// Registration hangs off My Courses rather than taking a tenth
+					// slot in a navigation the college specified as nine.
+					{ path: 'courses/register', element: <Register /> },
+					{ path: 'grades', element: <Grades /> },
+					{ path: 'profile', element: <Profile /> },
 					...[
 						[
 							'todo',
@@ -54,12 +56,6 @@ export const router = createBrowserRouter([
 							'Messages from the Registrar, your instructors and the Student Services office.',
 						],
 						[
-							'grades',
-							'Grades',
-							'Phase 1',
-							'Your marks for each course, the components behind them, and your CGPA over time.',
-						],
-						[
 							'discussions',
 							'Discussions',
 							'Phase 2',
@@ -70,12 +66,6 @@ export const router = createBrowserRouter([
 							'Announcements',
 							'Phase 2',
 							'Notices from the college, filtered to your programme, level and courses.',
-						],
-						[
-							'profile',
-							'Profile',
-							'Phase 1',
-							'Your contact details, photograph and password.',
 						],
 					].map(([path, title, phase, description]) => ({
 						path,

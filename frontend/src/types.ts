@@ -38,9 +38,166 @@ export interface EnrollmentHeader {
 	credits_earned: number
 	cgpa: number | null
 	status: string
+	expected_completion?: string | null
 }
 
 export interface MyCoursesResponse {
 	enrollment: EnrollmentHeader | null
 	registrations: Registration[]
+}
+
+// --- dashboard -------------------------------------------------------------
+
+export interface OpenFee {
+	name: string
+	status: string
+	category: string | null
+	fee_type: string | null
+	term: string | null
+	net_amount: number
+	outstanding_amount: number
+	due_date: string | null
+	payment_link: string | null
+	overdue: boolean
+}
+
+export interface TermWindow {
+	name: string
+	term_name: string
+	start_date: string | null
+	end_date: string | null
+	registration_closes: string | null
+	closes_in_days: number | null
+}
+
+export interface DashboardResponse {
+	enrollment: EnrollmentHeader | null
+	in_progress?: Registration[]
+	in_progress_count?: number
+	recent_grades?: Registration[]
+	fees?: {
+		open: OpenFee[]
+		count: number
+		outstanding: number
+		overdue_count: number
+	}
+	registration?: {
+		terms: TermWindow[]
+		eligible_count: number
+		open: boolean
+	}
+}
+
+// --- grades ----------------------------------------------------------------
+
+export interface GradeComponent {
+	parent: string
+	component: string
+	weight_pct: number
+	max_marks: number
+	obtained_marks: number
+	weighted_score: number
+	idx: number
+}
+
+export interface GradedRegistration {
+	name: string
+	course: string
+	course_title: string | null
+	term: string
+	status: string
+	credits: number
+	final_marks: number | null
+	grade: string | null
+	grade_points: number | null
+	passed: 0 | 1
+	level_at_registration: string | null
+	components: GradeComponent[]
+}
+
+export interface GradeBand {
+	grade: string
+	min_pct: number
+	max_pct: number
+	grade_points: number
+	is_pass: 0 | 1
+}
+
+export interface GradesResponse {
+	enrollment: EnrollmentHeader | null
+	terms: {
+		term: string
+		term_name: string
+		start_date: string | null
+		rows: GradedRegistration[]
+		credits: number
+	}[]
+	scale: {
+		name: string
+		scale_name: string
+		pass_percentage: number
+		rows: GradeBand[]
+	} | null
+}
+
+// --- registration ----------------------------------------------------------
+
+export interface Eligibility {
+	allowed: boolean
+	reason: string | null
+	code: string | null
+	needs_override: boolean
+	hard: boolean
+	warnings: string[]
+}
+
+export interface Offering {
+	name: string
+	course: string
+	course_title: string | null
+	term: string
+	format: string | null
+	capacity: number | null
+	enrolled_count: number | null
+	zoom_time: string | null
+	credits: number
+	course_level: string | null
+	already_registered: boolean
+	eligibility: Eligibility
+	seats_left?: number | null
+}
+
+export interface RegistrationOptions {
+	enrollment: EnrollmentHeader | null
+	terms: {
+		term: string
+		term_name: string
+		start_date: string | null
+		end_date: string | null
+		registration_closes: string | null
+		rows: Offering[]
+		eligible_count: number
+	}[]
+}
+
+// --- profile ---------------------------------------------------------------
+
+export interface StudentRecord {
+	name: string
+	full_name: string
+	dob: string | null
+	gender: string | null
+	photo: string | null
+	status: string
+	mobile: string | null
+	whatsapp: string | null
+	email: string | null
+	address: string | null
+}
+
+export interface ProfileResponse {
+	user: { name: string; full_name?: string; user_image?: string | null; username?: string }
+	student: StudentRecord | null
+	enrollment: EnrollmentHeader | null
+	editable: string[]
 }
