@@ -55,11 +55,14 @@ export function Login() {
 					<CardContent className="p-6">
 						<form onSubmit={onSubmit} className="space-y-4" noValidate>
 							<div className="space-y-2">
-								<Label htmlFor="usr">Email</Label>
+								<Label htmlFor="usr">Email or username</Label>
 								<Input
 									id="usr"
 									name="usr"
-									type="email"
+									type="text"
+									inputMode="email"
+									autoCapitalize="none"
+									autoCorrect="off"
 									autoComplete="username"
 									required
 									autoFocus
