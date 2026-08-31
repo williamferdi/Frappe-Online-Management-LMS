@@ -3,6 +3,7 @@
 """The entrance exam: three essays out of 75, pass at 40%."""
 
 import itertools
+from pathlib import Path
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -266,3 +267,58 @@ class TestExamTidy(FrappeTestCase):
 			found = exam.tidy(apply=False)
 
 		self.assertEqual(found["loose_quizzes"], [])
+
+
+class TestVendoredLMSPatches(FrappeTestCase):
+	"""Our patches to apps/lms, which `bench update` throws away.
+
+	They are kept as diffs in deploy/lms-patches and re-applied by
+	deploy/apply-lms-patches.sh. These tests are the alarm: if an LMS update
+	quietly reverts one, the failure lands in a test run rather than in front
+	of a candidate sitting the exam.
+	"""
+
+	def lms_source(self, relative):
+		import lms
+
+		path = Path(lms.__file__).resolve().parent.parent / relative
+		if not path.exists():
+			self.skipTest(f"{relative} is not in this bench")
+		return path.read_text(encoding="utf-8")
+
+	def test_the_quiz_resource_is_not_shared_between_mounts(self):
+		"""frappe-ui's createResource hands a second component the *first*
+		component's resource object, callbacks included -- so transform and
+		onSuccess keep writing to the first instance's questionsByName and
+		questions refs while the second renders an empty quiz. Viewing the exam
+		twice in one page session showed 'no questions available yet'."""
+		source = self.lms_source("frontend/src/components/Quiz.vue")
+
+		self.assertIn("get_quiz_with_questions", source, "Quiz.vue no longer looks like ours")
+		self.assertNotIn(
+			"cache: ['quiz_with_questions'",
+			source,
+			"the LMS quiz resource is cached again -- re-run deploy/apply-lms-patches.sh",
+		)
+
+	def test_the_built_bundle_matches_the_source(self):
+		"""Patching the .vue file changes nothing until `yarn build` runs."""
+		import lms
+
+		assets = Path(lms.__file__).resolve().parent / "public/frontend/assets"
+		if not assets.exists():
+			self.skipTest("the LMS frontend has not been built in this bench")
+
+		bundles = [p for p in assets.glob("*.js") if "quiz_with_questions" in p.read_text(
+			encoding="utf-8", errors="ignore"
+		)]
+		if not bundles:
+			self.skipTest("no built bundle references the quiz endpoint")
+
+		for bundle in bundles:
+			text = bundle.read_text(encoding="utf-8", errors="ignore")
+			self.assertNotIn(
+				'cache:["quiz_with_questions"',
+				text,
+				f"{bundle.name} was built before the patch -- rebuild the LMS frontend",
+			)

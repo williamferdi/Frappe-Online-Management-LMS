@@ -305,6 +305,17 @@ the lesson in the LMS editor, `content` appears, `body` stops being read, and a 
 attached through `quiz_id` disappears with it. The builder rewrites `content` whenever the
 quiz block is missing, so an editor save cannot strand either half.
 
+**The quiz resource was cached across component mounts — we patched the LMS.**
+`Quiz.vue` built its resource with `cache: ['quiz_with_questions', quizName]`, and
+frappe-ui's `createResource` returns the **first** component's resource object for a given
+cache key, callbacks and all. A second mount got `quiz.data` straight from the cache while
+its own `questionsByName` and `questions` refs stayed empty, because `transform` and
+`onSuccess` were still writing to the first instance's closures. The template read
+`questions.length` as 0 and rendered *"This quiz has no questions available yet."* for the
+rest of the page session — so the exam worked once per page load and was empty every time
+after. A hard refresh cleared it, because `cached` is a module-level object. Our patch
+drops the cache key. See **Patches to the vendored LMS** below.
+
 **`LMS Question` has no `question_detail`.** The whole prompt goes in `question`, a Text
 Editor. A prompt passed as `question_detail` is silently dropped on insert and raises
 `Unknown column` on update — which left the essays holding nothing but their titles.
@@ -331,6 +342,29 @@ leaves the lesson pointing at nothing. `survey()` reports loose quizzes, orphan 
 dangling lesson pointers and empty lessons; `tidy(apply=True)` clears them and
 `rebuild()` follows with a fresh build. **Nothing with a submission against it is ever
 removed** — a candidate's answers are the one thing here that cannot be rebuilt.
+
+### Patches to the vendored LMS
+
+`bench update` pulls a fresh `apps/lms` and silently discards anything we changed there,
+so every LMS patch is kept as a diff in `deploy/lms-patches/` and re-applied by:
+
+```
+bash deploy/apply-lms-patches.sh
+cd apps/lms/frontend && NODE_OPTIONS=--max-old-space-size=5120 yarn build
+```
+
+`NODE_OPTIONS` is not optional — the default 2 GB node heap dies with *"Reached heap
+limit"* part way through `rendering chunks`, and the half-written bundle is worse than no
+build at all. The build takes about 4½ minutes.
+
+Editing the `.vue` file changes nothing until the bundle is rebuilt, which is its own
+trap: the source looks right and the site still serves the old behaviour.
+`TestVendoredLMSPatches` in `sibbcs/admissions/test_entrance_exam.py` checks **both** the
+source and the built bundle, so a lost patch or a forgotten rebuild fails a test run
+rather than an applicant's exam.
+
+The LMS frontend registers a **service worker**, so a browser can hold the previous bundle
+for a load or two after a rebuild.
 
 ### Step order — a position, not an identity
 

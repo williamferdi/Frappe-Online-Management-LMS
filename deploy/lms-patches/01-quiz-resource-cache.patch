@@ -1,0 +1,23 @@
+diff --git a/frontend/src/components/Quiz.vue b/frontend/src/components/Quiz.vue
+index 0a879ac..e020384 100644
+--- a/frontend/src/components/Quiz.vue
++++ b/frontend/src/components/Quiz.vue
+@@ -564,10 +564,14 @@ const quiz = createResource({
+ 	makeParams() {
+ 		return { quiz: props.quizName }
+ 	},
+-	// Cache key intentionally distinct from the old frappe.client.get cache
+-	// — the response shape changed (now { quiz, questions_by_name }), and a
+-	// stale entry would break the transform.
+-	cache: ['quiz_with_questions', props.quizName],
++	// No cache key, deliberately. createResource returns the *first*
++	// component's resource object for a given cache key — callbacks and all.
++	// A second mount therefore gets quiz.data straight out of the cache while
++	// its own questionsByName and questions refs stay empty, because transform
++	// and onSuccess still write to the first instance's closures. The template
++	// then reads questions.length as 0 and renders 'This quiz has no questions
++	// available yet.' for the rest of the page session. Fetching per mount is
++	// one request; showing an empty exam is not a trade worth making.
+ 	auto: true,
+ 	transform(data) {
+ 		const quizDoc = data?.quiz || {}
