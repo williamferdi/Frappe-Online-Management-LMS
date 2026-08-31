@@ -574,6 +574,8 @@ export interface StudentRow {
 
 export interface StudentsResponse {
 	rows: StudentRow[]
+	/** True when the row cap cut the list short. */
+	truncated?: boolean
 	programs: string[]
 	levels: string[]
 	filters: { program: string | null; level: string | null }
@@ -725,4 +727,116 @@ export interface PromotionRow {
 export interface PromotionsResponse {
 	rows: PromotionRow[]
 	may_approve: boolean
+}
+// --- finance ---------------------------------------------------------------
+
+export interface InvoiceRow {
+	name: string
+	student: string | null
+	student_name: string | null
+	status: string
+	category: string | null
+	fee_type: string | null
+	term: string | null
+	gross_amount: number
+	discount_amount: number
+	net_amount: number
+	paid_amount: number
+	outstanding_amount: number
+	due_date: string | null
+	payment_link: string | null
+	course_registration: string | null
+	admission_application: string | null
+	creation: string
+	overdue: boolean
+}
+
+export interface FinanceSummary {
+	billed: number
+	collected: number
+	outstanding: number
+	overdue: number
+	overdue_count: number
+}
+
+export interface InvoicesResponse {
+	rows: InvoiceRow[]
+	statuses: string[]
+	categories: string[]
+	summary: FinanceSummary
+}
+
+export interface PaymentRow {
+	name: string
+	student: string
+	student_name: string | null
+	amount: number
+	mode: string
+	reference_no: string | null
+	received_on: string
+	allocated_amount: number
+	unallocated_amount: number
+	reconciled_by: string | null
+}
+
+export interface PaymentsResponse {
+	rows: PaymentRow[]
+	modes: string[]
+}
+
+export interface OutstandingInvoice {
+	name: string
+	fee_type: string | null
+	category: string | null
+	term: string | null
+	net_amount: number
+	outstanding_amount: number
+	due_date: string | null
+}
+
+export interface ScholarshipRow {
+	name: string
+	application: string | null
+	student: string | null
+	program: string | null
+	status: string
+	requested_amount: number
+	approved_amount: number
+	monthly_discount: number
+	approved_by: string | null
+	approved_on: string | null
+	submitted_on: string | null
+	justification: string | null
+}
+
+export interface ScholarshipsResponse {
+	rows: ScholarshipRow[]
+	statuses: string[]
+	caps: Record<string, number>
+	may_decide: boolean
+}
+
+// --- users -----------------------------------------------------------------
+
+export interface UserRow {
+	name: string
+	full_name: string
+	enabled: 0 | 1
+	user_type: string
+	last_active: string | null
+	creation: string
+	roles: string[]
+	protected_roles: string[]
+	student: string | null
+}
+
+export interface UsersResponse {
+	rows: UserRow[]
+	managed_roles: string[]
+	protected_roles: string[]
+}
+
+export interface RoleCount {
+	role: string
+	count: number
 }

@@ -16,6 +16,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt
 
+from sibbcs.api.paging import fetch_capped
 from sibbcs.academic.doctype.course_registration.course_registration import (
 	refresh_enrollment_progress,
 )
@@ -74,16 +75,16 @@ def students(search=None, program=None, level=None, status=None, limit=200):
 			field: ("like", like) for field in ("name", "full_name", "email", "mobile")
 		}
 
-	rows = frappe.get_all(
+	rows, truncated = fetch_capped(
 		"Student",
+		limit,
 		filters=filters,
 		or_filters=or_filters,
 		fields=list(STUDENT_LIST_FIELDS),
 		order_by="full_name asc",
-		limit_page_length=cint(limit),
 	)
 	if not rows:
-		return _student_page([], program, level)
+		return _student_page([], program, level, truncated)
 
 	enrollments = {}
 	for row in frappe.get_all(
@@ -108,12 +109,13 @@ def students(search=None, program=None, level=None, status=None, limit=200):
 			r for r in rows if str((r["enrollment"] or {}).get("current_level")) == str(level)
 		]
 
-	return _student_page(rows, program, level)
+	return _student_page(rows, program, level, truncated)
 
 
-def _student_page(rows, program, level):
+def _student_page(rows, program, level, truncated=False):
 	return {
 		"rows": rows,
+		"truncated": truncated,
 		"programs": frappe.get_all("Program", pluck="name"),
 		"levels": ["1", "2", "3", "4"],
 		"filters": {"program": program, "level": level},

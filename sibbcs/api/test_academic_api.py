@@ -92,14 +92,28 @@ class TestStudents(FrappeTestCase):
 			self.assertIn("enrollment", row)
 
 	def test_search_matches_a_fragment(self):
-		"""A bare value in or_filters means `=`; the operator has to be spelled
-		out or the box silently matches nothing."""
+		"""A bare value in or_filters means `=`; the operator has to be
+		spelled out or the box silently matches nothing.
+
+		Searched on the unique part of the name, not the shared prefix: every
+		student this suite makes is a Portal Student, and matching all of them
+		runs into the row cap rather than testing the LIKE.
+		"""
 		student, _, _ = make_student()
 		frappe.db.commit()
 
-		fragment = student.full_name.split()[0]
+		fragment = student.full_name.split()[-1]
 		names = [row.name for row in api.students(search=fragment)["rows"]]
 		self.assertIn(student.name, names)
+
+	def test_a_capped_list_says_it_was_capped(self):
+		"""Two hundred results with no sign there are four hundred is a
+		Registrar reading a truncated list and believing it."""
+		page = api.students(limit=1)
+		self.assertIn("truncated", page)
+		if frappe.db.count("Student") > 1:
+			self.assertTrue(page["truncated"])
+			self.assertEqual(len(page["rows"]), 1)
 
 	def test_a_missing_student_is_reported_not_returned_empty(self):
 		with self.assertRaises(frappe.ValidationError):

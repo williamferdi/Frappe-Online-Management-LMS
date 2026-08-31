@@ -1,6 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 
-import { ComingSoon } from '@/components/ComingSoon'
 import { boot } from '@/lib/frappe'
 import { landingRoute } from '@/lib/session'
 import { Login } from '@/routes/Login'
@@ -8,9 +7,11 @@ import { RequireAuth } from '@/routes/RequireAuth'
 import { Admissions } from '@/routes/staff/Admissions'
 import { ApplicationDetail } from '@/routes/staff/ApplicationDetail'
 import { Academic } from '@/routes/staff/Academic'
+import { Finance } from '@/routes/staff/Finance'
 import { GradeSheet } from '@/routes/staff/GradeSheet'
 import { StaffDashboard } from '@/routes/staff/StaffDashboard'
 import { StudentDetail } from '@/routes/staff/StudentDetail'
+import { Users } from '@/routes/staff/Users'
 import { StaffLayout } from '@/routes/staff/StaffLayout'
 import { Dashboard } from '@/routes/portal/Dashboard'
 import { Grades } from '@/routes/portal/Grades'
@@ -23,10 +24,6 @@ import { Discussions } from '@/routes/portal/Discussions'
 import { Inbox } from '@/routes/portal/Inbox'
 import { Register } from '@/routes/portal/Register'
 import { ToDo } from '@/routes/portal/ToDo'
-
-const soon = (title: string, phase: string, description: string) => ({
-	element: <ComingSoon title={title} phase={phase} description={description} />,
-})
 
 export const router = createBrowserRouter([
 	{ path: '/', element: <Navigate to={landingRoute(boot)} replace /> },
@@ -70,18 +67,8 @@ export const router = createBrowserRouter([
 					{ path: 'academic', element: <Academic /> },
 					{ path: 'academic/students/:name', element: <StudentDetail /> },
 					{ path: 'academic/offerings/:name', element: <GradeSheet /> },
-					...[
-						[
-							'finance',
-							'Finance',
-							'Phase 5',
-							'Invoices, payments, collection and scholarship decisions.',
-						],
-						['users', 'Users', 'Phase 5', 'Accounts, roles and access.'],
-					].map(([path, title, phase, description]) => ({
-						path,
-						...soon(title, phase, description),
-					})),
+					{ path: 'finance', element: <Finance /> },
+					{ path: 'users', element: <Users /> },
 				],
 			},
 		],

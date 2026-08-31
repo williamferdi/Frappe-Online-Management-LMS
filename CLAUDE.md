@@ -603,6 +603,39 @@ nothing to borrow and silently skips. Note `make_offering` leaves an offering in
 **Draft**, which the rule engine correctly refuses to register anyone onto — pass
 `status="Published"`.
 
+### Finance and accounts — `sibbcs/api/finance_api.py`, `sibbcs/api/users_api.py`
+
+`/staff/finance` (invoices, payments, scholarships) and `/staff/users`. This
+completed the console: **no screen is a placeholder any more**, and `ComingSoon` was
+deleted with the last of them.
+
+**A payment is created through the document.** `Payment Entry.validate_allocations`
+refuses over-allocating an invoice or spending more than the payment is worth —
+exactly the mistake worth catching now rather than at reconciliation. With no
+allocation given, the document's own `auto_allocate` settles the oldest invoices
+first. Money left over comes back as `unallocated` rather than being hidden.
+
+**`users_api` will not do three things, on purpose.** It never touches a **password**
+— Frappe owns those, and a test greps the module for `update_password` and friends.
+It cannot grant **System Manager**, because handing that out from a web form is how
+one compromised account becomes every account. And it **disables rather than
+deletes**, because a User is linked to a Student, to payments and to an audit trail.
+
+**`set_roles` touches only the managed list.** Roles outside it are left exactly as
+found, so a crafted request cannot use it to promote anybody and an honest one cannot
+drop a role the screen never displayed. An unmanaged role in the request is *refused*
+rather than silently dropped — dropping it would tell the caller it worked.
+
+**The role summary counts enabled accounts only**, and the screen warns when a role
+has nobody: an empty Registrar is why a student's portal message has nowhere to
+arrive and why no promotion can be approved. On this site that is currently
+**Registrar, Admissions Officer, Academic Coordinator, Dean and Accounts**.
+
+**A capped list says it was capped.** `api/paging.py::fetch_capped` asks for one row
+beyond the limit and reports `truncated`. Two hundred results with no sign there are
+four hundred is a Registrar reading a truncated list and believing it. A test
+surfaced this: searching a fragment shared by every fixture student hit the cap.
+
 ### Patches to the vendored LMS
 
 `bench update` pulls a fresh `apps/lms` and silently discards anything we changed there,

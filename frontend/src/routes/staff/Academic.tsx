@@ -98,57 +98,65 @@ function Students() {
 							detail="Students appear here once an admitted candidate is onboarded."
 						/>
 					) : (
-						<Card>
-							<CardContent className="p-0">
-								<Table>
-									<TableHeader>
-										<TableRow>
-											<TableHead className="pl-5">Student</TableHead>
-											<TableHead>Programme</TableHead>
-											<TableHead>Level</TableHead>
-											<TableHead className="text-right">Credits</TableHead>
-											<TableHead className="text-right">CGPA</TableHead>
-											<TableHead className="pr-5">Status</TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{data.rows.map((row) => (
-											<TableRow key={row.name}>
-												<TableCell className="pl-5">
-													<Link
-														to={`/staff/academic/students/${row.name}`}
-														className="hover:text-primary block transition-colors"
-													>
-														<div className="font-medium">{row.full_name}</div>
-														<div className="text-muted-foreground text-xs">
-															{row.name}
-															{row.email && <> · {row.email}</>}
-														</div>
-													</Link>
-												</TableCell>
-												<TableCell className="text-sm">
-													{row.enrollment?.program || '—'}
-												</TableCell>
-												<TableCell className="text-sm">
-													{row.enrollment ? `Level ${row.enrollment.current_level}` : '—'}
-												</TableCell>
-												<TableCell className="text-right tabular-nums">
-													{row.enrollment?.credits_earned ?? '—'}
-												</TableCell>
-												<TableCell className="text-right tabular-nums">
-													{row.enrollment?.cgpa ? row.enrollment.cgpa.toFixed(2) : '—'}
-												</TableCell>
-												<TableCell className="pr-5">
-													<Badge variant={row.status === 'Active' ? 'success' : 'muted'}>
-														{row.status}
-													</Badge>
-												</TableCell>
+						<>
+							{data.truncated && (
+								<p className="text-muted-foreground mb-2 text-xs">
+									Showing the first {data.rows.length}. Narrow the search to see the
+									rest.
+								</p>
+							)}
+							<Card>
+								<CardContent className="p-0">
+									<Table>
+										<TableHeader>
+											<TableRow>
+												<TableHead className="pl-5">Student</TableHead>
+												<TableHead>Programme</TableHead>
+												<TableHead>Level</TableHead>
+												<TableHead className="text-right">Credits</TableHead>
+												<TableHead className="text-right">CGPA</TableHead>
+												<TableHead className="pr-5">Status</TableHead>
 											</TableRow>
-										))}
-									</TableBody>
-								</Table>
-							</CardContent>
-						</Card>
+										</TableHeader>
+										<TableBody>
+											{data.rows.map((row) => (
+												<TableRow key={row.name}>
+													<TableCell className="pl-5">
+														<Link
+															to={`/staff/academic/students/${row.name}`}
+															className="hover:text-primary block transition-colors"
+														>
+															<div className="font-medium">{row.full_name}</div>
+															<div className="text-muted-foreground text-xs">
+																{row.name}
+																{row.email && <> · {row.email}</>}
+															</div>
+														</Link>
+													</TableCell>
+													<TableCell className="text-sm">
+														{row.enrollment?.program || '—'}
+													</TableCell>
+													<TableCell className="text-sm">
+														{row.enrollment ? `Level ${row.enrollment.current_level}` : '—'}
+													</TableCell>
+													<TableCell className="text-right tabular-nums">
+														{row.enrollment?.credits_earned ?? '—'}
+													</TableCell>
+													<TableCell className="text-right tabular-nums">
+														{row.enrollment?.cgpa ? row.enrollment.cgpa.toFixed(2) : '—'}
+													</TableCell>
+													<TableCell className="pr-5">
+														<Badge variant={row.status === 'Active' ? 'success' : 'muted'}>
+															{row.status}
+														</Badge>
+													</TableCell>
+												</TableRow>
+											))}
+										</TableBody>
+									</Table>
+								</CardContent>
+							</Card>
+						</>
 					)}
 				</>
 			)}
