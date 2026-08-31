@@ -274,3 +274,20 @@ scheduler_events["daily"] = [
 	"sibbcs.finance.fees.run_term_tuition_scheduled",
 	"sibbcs.finance.hooks_handlers.sweep_missing_registration_fees",
 ]
+
+# --- the React front end ------------------------------------------------
+# Every /portal and /console address is one page; React Router decides what
+# to render. Without the <path:app_path> rules a refresh on a deep link asks
+# Frappe for a page it has never heard of and gets a 404.
+# Not /console: Werkzeug's debug middleware reserves that exact path for its
+# interactive console (`console_path="/console"`), and `bench start` wraps the
+# app in it -- so /console answered 400 before Frappe ever saw the request,
+# while /console/anything worked. The name would come back once the site runs
+# under gunicorn, which is precisely the kind of difference between
+# development and production not worth carrying.
+website_route_rules = [
+	{"from_route": "/portal/<path:app_path>", "to_route": "_portal"},
+	{"from_route": "/portal", "to_route": "_portal"},
+	{"from_route": "/staff/<path:app_path>", "to_route": "_portal"},
+	{"from_route": "/staff", "to_route": "_portal"},
+]

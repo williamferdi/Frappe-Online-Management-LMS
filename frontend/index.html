@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="color-scheme" content="light dark" />
+		<link rel="icon" href="/assets/sibbcs/portal/favicon.svg" type="image/svg+xml" />
+		<title>SIBBCS Online</title>
+		<script>
+			// Paint the right background before React mounts, so a reload in dark
+			// mode does not flash white.
+			try {
+				var stored = localStorage.getItem('sibbcs-theme')
+				var dark =
+					stored === 'dark' ||
+					(stored !== 'light' &&
+						window.matchMedia('(prefers-color-scheme: dark)').matches)
+				if (dark) document.documentElement.classList.add('dark')
+			} catch (e) {
+				/* private mode; the default theme is fine */
+			}
+		</script>
+	</head>
+	<body>
+		<div id="root"></div>
+		<script type="module" src="/src/main.tsx"></script>
+	</body>
+</html>

@@ -374,6 +374,62 @@ and delete normally; reaching for `force=True` across the whole set would skip t
 checks that catch a reference from something you meant to keep — which is exactly how
 `entrance-exam` was found still listing a deleted user as an instructor.
 
+### The React front end — `frontend/`
+
+One Vite app serves two products: the **student portal** at `/portal` and the
+**staff console** at `/staff`. React 19 + TypeScript + Tailwind v4 + shadcn-style
+components copied into `src/components/ui/` and restyled — deliberately not
+frappe-ui, whose look the college did not want.
+
+```
+frontend/                    source; `yarn build` (needs no NODE_OPTIONS, ~1s)
+  ↓
+sibbcs/public/portal/        built bundle, committed, served at /assets/sibbcs/portal/
+  ↓  index.html is copied over
+sibbcs/www/_portal.html      GENERATED. Do not hand-edit; the next build overwrites it
+sibbcs/www/_portal.py        get_context() -> the boot payload
+```
+
+**Nothing you edit in `frontend/src` reaches the site until `yarn build` runs.**
+The bundle is committed so deployment needs no Node toolchain. `TestPortalPage`
+asserts the file `_portal.html` names is actually on disk, so a forgotten or
+half-finished build fails a test rather than a page.
+
+**Boot data, not a round trip.** `_portal.html` carries the loop LMS uses:
+`{% for key in boot %}window["{{ key }}"] = {{ boot[key] | tojson }};{% endfor %}`,
+appended by our own `plugins/jinja-boot.ts` at build time. It is where
+`window.csrf_token` comes from. `_portal.py` commits after minting the token —
+without that the page and the server disagree and every write from a freshly
+loaded page is rejected. Every value must be JSON-serialisable; one that is not
+breaks the whole page, not one field, so a test round-trips the payload.
+
+**`/staff`, never `/console`.** Werkzeug's debug middleware reserves `/console`
+for its own interactive console (`console_path="/console"`) and `bench start`
+wraps the app in it — so `/console` answered **400 before Frappe saw the
+request** while `/console/anything` worked, which reads exactly like a routing
+bug of ours. It would come back the day the site moves to gunicorn. A test
+asserts the route is not reintroduced.
+
+**Data layer is TanStack Query, not frappe-ui resources.** `lib/frappe.ts` is the
+only thing that talks to the server: it unwraps Frappe's `{message: ...}`
+envelope, digs the real text out of `_server_messages` (a JSON string holding an
+array of JSON strings), sends `X-Frappe-CSRF-Token` on writes only, and omits the
+header entirely when there is no token — Frappe rejects an empty one rather than
+skipping the check. Query caches **data** keyed by a query key, so it cannot
+repeat the frappe-ui failure where one component inherited another's callbacks.
+
+**Route guards are cosmetic.** `RequireAuth` only decides what to render;
+`setup/permissions.py` and each endpoint's own checks are the boundary.
+
+**Development.** `yarn dev` proxies `/api`, `/assets`, `/files`, `/app`, `/login`
+and `/lms` to `FRAPPE_URL` (default `http://127.0.0.1:8000`) with the site named
+in `FRAPPE_SITE` (default `test.local`) — the bench is DNS multi-tenant, so a
+request on localhost must say which site it means. Develop against `test.local`
+with `demo_data.seed`, not production.
+
+**jsdom has no `matchMedia`**, so anything reading the colour scheme throws on
+render. `src/test/setup.ts` stubs it.
+
 ### Patches to the vendored LMS
 
 `bench update` pulls a fresh `apps/lms` and silently discards anything we changed there,

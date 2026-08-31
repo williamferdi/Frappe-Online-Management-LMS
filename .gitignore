@@ -13,3 +13,10 @@ sibbcs/docs/current
 # Filled-in catalog exports may hold real student-adjacent data; commit the
 # template, not ad-hoc extracts.
 sibbcs/setup/data/courses.csv
+
+# The built portal bundle IS committed -- deploying should not need a Node
+# toolchain on the box. Only the build's own scratch output is ignored.
+frontend/.vite/
+frontend/dist/
+sibbcs/public/portal/**/*.map
+frontend/tsconfig.tsbuildinfo
