@@ -568,6 +568,41 @@ of birth, address and the candidate's photograph belong behind a click. Tests as
 both field lists exist on the DocType, so a rename fails a test rather than rendering
 empty rows.
 
+### The academic console — `sibbcs/api/academic_api.py`
+
+`/staff/academic` with three tabs (students, offerings, promotions) kept in the
+query string so a link to the promotions board is a link to the promotions board.
+Then `/staff/academic/students/:name` and `/staff/academic/offerings/:name`, the
+second being the grade sheet.
+
+**Grade entry saves through the document, never around it.** `Course Registration`
+keeps the grade fields at **permlevel 1**, so an ordinary `doc.save()` already *is*
+the permission check — `ignore_permissions` there would quietly remove it. A test
+walks the function's syntax tree looking for that keyword; the first version grepped
+the source and matched the docstring explaining the rule.
+
+**A blank mark is not a zero.** `compute_grade` holds the letter back until every
+component carries a mark, leaving `final_marks` at its previous value — `0.0` on a
+registration never graded. So the endpoint returns an explicit `marks_complete`
+rather than letting each screen re-derive it, the number field sends `null` for an
+empty box, and the sheet shows *Not graded* instead of a score that is a lie.
+
+**`weighted_score` is recomputed, never accepted.** A caller can send any figure it
+likes; the document derives it from the raw marks. A test sends 999 and expects 30.
+
+**Component and status choices come from the DocType**, not from a list in the
+front end — hard-coding them is how the sheet offers a value the Select refuses on
+save. Tests assert both still match.
+
+**The console is role-gated, like the rest.** Students hold read on Student and
+Course Registration because they must see their own; these endpoints list everybody.
+
+**Test fixtures build their own registration.** Grading the first `Registered` row on
+the site moves it to `Completed`, so a test that borrows one leaves the next run with
+nothing to borrow and silently skips. Note `make_offering` leaves an offering in
+**Draft**, which the rule engine correctly refuses to register anyone onto — pass
+`status="Published"`.
+
 ### Patches to the vendored LMS
 
 `bench update` pulls a fresh `apps/lms` and silently discards anything we changed there,

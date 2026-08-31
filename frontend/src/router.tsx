@@ -7,7 +7,10 @@ import { Login } from '@/routes/Login'
 import { RequireAuth } from '@/routes/RequireAuth'
 import { Admissions } from '@/routes/staff/Admissions'
 import { ApplicationDetail } from '@/routes/staff/ApplicationDetail'
+import { Academic } from '@/routes/staff/Academic'
+import { GradeSheet } from '@/routes/staff/GradeSheet'
 import { StaffDashboard } from '@/routes/staff/StaffDashboard'
+import { StudentDetail } from '@/routes/staff/StudentDetail'
 import { StaffLayout } from '@/routes/staff/StaffLayout'
 import { Dashboard } from '@/routes/portal/Dashboard'
 import { Grades } from '@/routes/portal/Grades'
@@ -64,13 +67,10 @@ export const router = createBrowserRouter([
 					{ index: true, element: <StaffDashboard /> },
 					{ path: 'admissions', element: <Admissions /> },
 					{ path: 'admissions/:name', element: <ApplicationDetail /> },
+					{ path: 'academic', element: <Academic /> },
+					{ path: 'academic/students/:name', element: <StudentDetail /> },
+					{ path: 'academic/offerings/:name', element: <GradeSheet /> },
 					...[
-						[
-							'academic',
-							'Academic',
-							'Phase 4',
-							'Students, enrolments, offerings, registrations, level promotions and grade entry.',
-						],
 						[
 							'finance',
 							'Finance',

@@ -550,3 +550,179 @@ export interface ApplicationDetail {
 		payment_link: string | null
 	}[]
 }
+// --- academic console ------------------------------------------------------
+
+export interface StudentEnrollment {
+	name: string
+	student: string
+	program: string
+	current_level: string
+	status: string
+	credits_earned: number
+	cgpa: number | null
+}
+
+export interface StudentRow {
+	name: string
+	full_name: string
+	email: string | null
+	mobile: string | null
+	status: string
+	user: string | null
+	enrollment: StudentEnrollment | null
+}
+
+export interface StudentsResponse {
+	rows: StudentRow[]
+	programs: string[]
+	levels: string[]
+	filters: { program: string | null; level: string | null }
+}
+
+export interface StudentDetail {
+	student: {
+		name: string
+		full_name: string
+		email: string | null
+		mobile: string | null
+		whatsapp: string | null
+		dob: string | null
+		gender: string | null
+		status: string
+		photo: string | null
+		address: string | null
+		user: string | null
+		admission_application: string | null
+	}
+	enrollment:
+		| (StudentEnrollment & {
+				enrollment_date: string | null
+				expected_completion: string | null
+				start_term: string | null
+		  })
+		| null
+	registrations: {
+		name: string
+		course: string
+		course_title: string | null
+		term: string
+		status: string
+		credits: number
+		level_at_registration: string | null
+		final_marks: number | null
+		grade: string | null
+		grade_points: number | null
+		passed: 0 | 1
+		registration_fee_invoice: string | null
+		course_offering: string
+	}[]
+	invoices: {
+		name: string
+		fee_type: string | null
+		category: string | null
+		status: string
+		net_amount: number
+		outstanding_amount: number
+		due_date: string | null
+	}[]
+	promotions: {
+		name: string
+		from_level: string
+		to_level: string
+		approved_by: string | null
+		approved_on: string | null
+		courses_passed: number
+		credits_at_promotion: number
+		remarks: string | null
+	}[]
+}
+
+// --- offerings and grading -------------------------------------------------
+
+export interface OfferingRow {
+	name: string
+	course: string
+	course_title: string | null
+	term: string
+	status: string
+	format: string | null
+	instructor: string | null
+	facilitator: string | null
+	capacity: number | null
+	enrolled_count: number | null
+	credits: number
+	course_level: string | null
+	zoom_time: string | null
+	registered: number
+	graded: number
+}
+
+export interface OfferingsResponse {
+	rows: OfferingRow[]
+	terms: { name: string; term_name: string; status: string }[]
+}
+
+export interface GradeComponentRow {
+	name?: string
+	parent?: string
+	component: string
+	weight_pct: number
+	max_marks: number
+	obtained_marks: number | null
+	weighted_score: number
+	idx?: number
+}
+
+export interface RosterRegistration {
+	name: string
+	student: string
+	student_name: string
+	status: string
+	credits: number
+	final_marks: number | null
+	grade: string | null
+	grade_points: number | null
+	passed: 0 | 1
+	program_enrollment: string
+	components: GradeComponentRow[]
+	marks_complete: boolean
+}
+
+export interface RosterResponse {
+	offering: OfferingRow
+	registrations: RosterRegistration[]
+	components: string[]
+	statuses: string[]
+	can_grade: boolean
+}
+
+export interface SaveGradesResult {
+	registration: string
+	final_marks: number | null
+	grade: string | null
+	grade_points: number | null
+	passed: 0 | 1
+	status: string
+	marks_complete: boolean
+	components: GradeComponentRow[]
+}
+
+// --- promotions ------------------------------------------------------------
+
+export interface PromotionRow {
+	program_enrollment: string
+	student: string
+	student_name: string
+	program: string
+	from_level: number
+	to_level: number
+	required: number
+	passed: number
+	eligible: boolean
+	blocked: string | null
+}
+
+export interface PromotionsResponse {
+	rows: PromotionRow[]
+	may_approve: boolean
+}
