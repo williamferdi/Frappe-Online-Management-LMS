@@ -1,0 +1,116 @@
+{#
+	Drag and drop for file inputs, shared by /apply and /documents.
+
+	Progressive, not a replacement: the real <input type="file"> stays in the
+	page, invisible but present, so the browser's own picker, the keyboard and a
+	screen reader all keep working. Dropping a file sets `input.files` through a
+	DataTransfer and dispatches `change`, so every page's existing upload code
+	runs unchanged and none of it has to know this include exists.
+
+	Any element with class="dropzone" wrapping a file input is upgraded.
+#}
+<script>
+(function () {
+	var MAX_BYTES = 5 * 1024 * 1024;
+
+	function extensionOf(name) {
+		var parts = String(name || '').toLowerCase().split('.');
+		return parts.length > 1 ? parts.pop() : '';
+	}
+
+	function accepted(input) {
+		return (input.getAttribute('accept') || '')
+			.split(',')
+			.map(function (item) { return item.trim().replace(/^\./, '').toLowerCase(); })
+			.filter(Boolean);
+	}
+
+	function show(zone, state, text, hint) {
+		zone.classList.remove('has-file', 'is-bad', 'is-dragging');
+		if (state) zone.classList.add(state);
+		var label = zone.querySelector('.dz-text');
+		if (!label) return;
+		label.innerHTML = '';
+		label.appendChild(document.createTextNode(text));
+		if (hint) {
+			var small = document.createElement('span');
+			small.className = 'dz-hint';
+			small.textContent = hint;
+			label.appendChild(small);
+		}
+	}
+
+	function kb(size) {
+		return size < 1024 * 1024
+			? Math.max(1, Math.round(size / 1024)) + ' KB'
+			: (size / 1024 / 1024).toFixed(1) + ' MB';
+	}
+
+	/* Refused here as well as on the server. The server is the rule; this is so
+	   somebody on a phone finds out before waiting for an upload. */
+	function complain(input, file) {
+		var allowed = accepted(input);
+		if (allowed.length && allowed.indexOf(extensionOf(file.name)) === -1) {
+			return 'That file type is not accepted';
+		}
+		if (file.size > MAX_BYTES) {
+			return 'That file is larger than 5 MB';
+		}
+		return null;
+	}
+
+	function describe(zone, input) {
+		var file = input.files && input.files[0];
+		if (!file) {
+			show(zone, null, zone.dataset.prompt || 'Choose a file or drop it here', zone.dataset.hint || '');
+			return;
+		}
+		var problem = complain(input, file);
+		if (problem) {
+			show(zone, 'is-bad', problem, 'Choose another file');
+			input.value = '';
+			return;
+		}
+		show(zone, 'has-file', file.name, kb(file.size) + ' — click to replace');
+	}
+
+	Array.prototype.forEach.call(document.querySelectorAll('.dropzone'), function (zone) {
+		var input = zone.querySelector('input[type="file"]');
+		if (!input) return;
+
+		describe(zone, input);
+		input.addEventListener('change', function () { describe(zone, input); });
+
+		['dragenter', 'dragover'].forEach(function (name) {
+			zone.addEventListener(name, function (event) {
+				event.preventDefault();
+				zone.classList.add('is-dragging');
+			});
+		});
+
+		['dragleave', 'dragend'].forEach(function (name) {
+			zone.addEventListener(name, function () {
+				zone.classList.remove('is-dragging');
+			});
+		});
+
+		zone.addEventListener('drop', function (event) {
+			event.preventDefault();
+			zone.classList.remove('is-dragging');
+
+			var dropped = event.dataTransfer && event.dataTransfer.files;
+			if (!dropped || !dropped.length) return;
+
+			// One file per document type, so anything after the first is ignored
+			// rather than silently attached to the wrong row.
+			var transfer = new DataTransfer();
+			transfer.items.add(dropped[0]);
+			input.files = transfer.files;
+
+			// The page's own upload code listens for this and never has to know
+			// the file arrived by being dropped.
+			input.dispatchEvent(new Event('change', { bubbles: true }));
+		});
+	});
+})();
+</script>

@@ -4,6 +4,7 @@
 
 {% block page_content %}
 {% include "templates/includes/csrf.html" %}
+{% include "templates/includes/dropzone.html" %}
 <div class="sibbcs-documents">
 
   {% if not valid %}
@@ -61,10 +62,15 @@
             {% if row.verified %}
               <span class="text-muted small">Nothing to do</span>
             {% else %}
-              <input type="file" class="doc-input"
-                     id="file-{{ loop.index }}"
-                     data-doctype="{{ row.document_type }}"
-                     accept=".pdf,.jpg,.jpeg,.png">
+              <div class="dropzone" data-prompt="Choose a file or drop it here"
+                   data-hint="PDF, JPG or PNG · up to 5 MB">
+                <span class="dz-icon" aria-hidden="true">&#8681;</span>
+                <span class="dz-text"></span>
+                <input type="file" class="doc-input"
+                       id="file-{{ loop.index }}"
+                       data-doctype="{{ row.document_type }}"
+                       accept=".pdf,.jpg,.jpeg,.png">
+              </div>
               <span class="doc-status" aria-live="polite"></span>
             {% endif %}
           </div>

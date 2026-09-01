@@ -295,3 +295,97 @@ class TestTheDocumentPage(FrappeTestCase):
 		self.assertFalse(
 			self.context_for(application=doc.name, token=doc.upload_token).valid
 		)
+
+
+class TestTheApplyForm(FrappeTestCase):
+	"""The public form's markup, where a silent change would cost applications."""
+
+	def page(self):
+		return open(os.path.join(WWW, "apply.html"), encoding="utf-8").read()
+
+	def test_each_section_is_a_numbered_heading(self):
+		"""Seven sections, seven bands. A form this long is unreadable when the
+		headings look like the labels."""
+		markup = self.page()
+		self.assertEqual(markup.count('class="sib-legend"'), 7)
+		self.assertEqual(markup.count('class="sib-legend-bar"'), 7)
+		for number in range(1, 8):
+			self.assertIn(f'<span class="step">{number}</span>', markup)
+
+	def test_the_two_references_are_named_not_numbered(self):
+		markup = self.page()
+		self.assertIn("Spiritual &amp; Ministerial Reference", markup)
+		self.assertIn("Academic &amp; Professional Reference", markup)
+		self.assertNotIn("Referee 1", markup)
+		self.assertNotIn("Referee 2", markup)
+
+	def test_the_named_references_still_carry_the_types_the_system_stores(self):
+		"""The heading is for the applicant; `referee_type` is what the
+		checklist, the reference form and the console all key on."""
+		markup = self.page()
+		self.assertIn('id="referee1_type" value="Pastor-Mentor"', markup)
+		self.assertIn('id="referee2_type" value="Professor-Employer"', markup)
+
+	def test_every_document_input_is_a_drop_zone(self):
+		markup = self.page()
+		self.assertEqual(markup.count('class="dropzone"'), 7)
+		self.assertIn("templates/includes/dropzone.html", markup)
+
+	def test_a_drop_zone_keeps_the_real_file_input(self):
+		"""The drop handler sets `input.files` and fires `change`, so the upload
+		code is untouched -- and a browser that cannot drag still has a picker."""
+		markup = self.page()
+		self.assertEqual(markup.count('type="file"'), 7)
+		self.assertEqual(markup.count("doc-input"), 8)  # seven inputs, one selector
+
+	def test_a_phone_number_is_a_country_code_and_digits(self):
+		markup = self.page()
+		for prefix in ("mobile", "whatsapp", "mentor_mobile"):
+			with self.subTest(field=prefix):
+				self.assertIn(f'id="{prefix}_code"', markup)
+				self.assertIn(f'id="{prefix}_number"', markup)
+		self.assertIn('list="country-codes"', markup)
+		self.assertIn('<datalist id="country-codes">', markup)
+
+	def test_the_old_single_phone_boxes_are_gone(self):
+		"""They would still post, and post something the new code never built."""
+		markup = self.page()
+		self.assertNotIn('id="mobile"', markup)
+		self.assertNotIn('id="whatsapp"', markup)
+		self.assertNotIn('id="mentor_mobile"', markup)
+
+	def test_the_submitted_payload_still_uses_the_field_names(self):
+		"""Two boxes on the page, one field on the DocType."""
+		markup = self.page()
+		self.assertIn("payload.mobile = phone('mobile')", markup)
+		self.assertIn("payload.whatsapp = phone('whatsapp')", markup)
+		self.assertIn("payload.mentor_mobile = phone('mentor_mobile')", markup)
+
+
+class TestTheGuestStylesheetIsVersioned(FrappeTestCase):
+	"""A stylesheet nobody can see the change to might as well not have changed.
+
+	`/assets/...` is served with a long cache life and a name that never
+	changes, so a returning applicant kept the CSS they downloaded last time.
+	Found the honest way: a restyled form came back looking exactly as before.
+	"""
+
+	def test_the_shell_asks_for_a_version(self):
+		shell = open(
+			os.path.join(os.path.dirname(WWW), "templates", "sibbcs_public.html"),
+			encoding="utf-8",
+		).read()
+		self.assertIn("public.css?v={{ asset_version }}", shell)
+
+	def test_the_hook_supplies_one_that_changes_with_the_build(self):
+		from sibbcs.setup.website import add_asset_version
+
+		context = frappe._dict()
+		add_asset_version(context)
+		self.assertTrue(context.asset_version)
+
+	def test_the_hook_is_registered(self):
+		self.assertIn(
+			"sibbcs.setup.website.add_asset_version",
+			frappe.get_hooks("update_website_context"),
+		)

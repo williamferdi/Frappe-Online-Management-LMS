@@ -835,3 +835,54 @@ class TestWhatTheCandidateDeclares(FrappeTestCase):
 			with self.subTest(field=field):
 				self.assertIn(f'id="{field}"', page)
 				self.assertIn(f"'{field}'", page)
+
+
+class TestPhoneNumbers(FrappeTestCase):
+	"""A phone number is a plus and some digits.
+
+	The form now sends exactly that -- two boxes, both digits-only -- so these
+	are about what arrives from a crafted payload, or from an applicant pasting
+	a number out of their contacts app.
+	"""
+
+	def test_a_pasted_number_keeps_only_the_phone_number(self):
+		result = submit_application(
+			**payload(
+				email="phone1@example.invalid",
+				mobile="+91 (98765) 43-210",
+				whatsapp="+44 7700-900123",
+			)
+		)
+		doc = frappe.get_doc("Admission Application", result["application"])
+
+		self.assertEqual(doc.mobile, "+91 98765 43210")
+		self.assertEqual(doc.whatsapp, "+44 7700900123")
+
+	def test_letters_never_reach_the_record(self):
+		result = submit_application(
+			**payload(email="phone2@example.invalid", mobile="call me on 98765 43210 ext 4")
+		)
+		doc = frappe.get_doc("Admission Application", result["application"])
+
+		self.assertEqual(doc.mobile, "98765 43210 4")
+
+	def test_a_country_code_with_no_number_is_not_a_phone_number(self):
+		"""'+91' on its own looks like a contact to every screen that shows it
+		and is one to nobody."""
+		result = submit_application(**payload(email="phone3@example.invalid", whatsapp="+91"))
+		doc = frappe.get_doc("Admission Application", result["application"])
+
+		self.assertFalse(doc.whatsapp)
+
+	def test_the_mentors_number_is_cleaned_the_same_way(self):
+		result = submit_application(
+			**payload(
+				email="phone4@example.invalid",
+				mentor_name="Mentor M",
+				mentor_email="mentor.phone@example.invalid",
+				mentor_mobile="+91-80986-19631",
+			)
+		)
+		doc = frappe.get_doc("Admission Application", result["application"])
+
+		self.assertEqual(doc.mentor_consents[0].mentor_mobile, "+918098619631")

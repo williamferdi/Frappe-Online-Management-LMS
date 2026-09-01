@@ -31,7 +31,7 @@
   <form id="apply-form" novalidate>
 
     <fieldset>
-      <legend>About you</legend>
+      <legend class="sib-legend"><span class="sib-legend-bar"><span class="step">1</span> About you</span></legend>
 
       <div class="form-group">
         <label for="full_name">Full name <span class="req">*</span></label>
@@ -55,12 +55,29 @@
 
       <div class="grid-2">
         <div class="form-group">
-          <label for="mobile">Mobile <span class="req">*</span></label>
-          <input type="tel" class="form-control" id="mobile" maxlength="20" required>
+          <label for="mobile_number">Mobile <span class="req">*</span></label>
+          <div class="phone-field">
+            <span class="phone-code-wrap">
+              <input type="text" class="form-control phone-code" id="mobile_code"
+                     value="91" maxlength="4" inputmode="numeric" list="country-codes"
+                     aria-label="Mobile country code">
+            </span>
+            <input type="tel" class="form-control phone-number" id="mobile_number"
+                   maxlength="15" inputmode="numeric" autocomplete="tel"
+                   placeholder="98765 43210" required>
+          </div>
         </div>
         <div class="form-group">
-          <label for="whatsapp">WhatsApp <span class="hint">if different</span></label>
-          <input type="tel" class="form-control" id="whatsapp" maxlength="20">
+          <label for="whatsapp_number">WhatsApp <span class="hint">if different</span></label>
+          <div class="phone-field">
+            <span class="phone-code-wrap">
+              <input type="text" class="form-control phone-code" id="whatsapp_code"
+                     value="91" maxlength="4" inputmode="numeric" list="country-codes"
+                     aria-label="WhatsApp country code">
+            </span>
+            <input type="tel" class="form-control phone-number" id="whatsapp_number"
+                   maxlength="15" inputmode="numeric" placeholder="98765 43210">
+          </div>
         </div>
       </div>
 
@@ -92,7 +109,7 @@
     </fieldset>
 
     <fieldset>
-      <legend>Your ministry</legend>
+      <legend class="sib-legend"><span class="sib-legend-bar"><span class="step">2</span> Your ministry</span></legend>
 
       <div class="grid-2">
         <div class="form-group">
@@ -127,7 +144,7 @@
     </fieldset>
 
     <fieldset>
-      <legend>Educational history &amp; required documents</legend>
+      <legend class="sib-legend"><span class="sib-legend-bar"><span class="step">3</span> Educational history &amp; required documents</span></legend>
       <p class="text-muted small">
         PDF, JPG or PNG, up to 5&nbsp;MB each. If you do not have a document to
         hand, leave it and the Admissions Office will ask you for it later.
@@ -151,8 +168,13 @@
           </div>
           <div class="form-group">
             <label for="doc_ssc">Upload SSC / 10th mark sheet</label>
-            <input type="file" class="form-control-file doc-input" id="doc_ssc"
-                   data-doctype="SSC/10th Mark Sheet" accept=".pdf,.jpg,.jpeg,.png">
+            <div class="dropzone" data-prompt="Choose a file or drop it here"
+                 data-hint="PDF, JPG or PNG · up to 5 MB">
+              <span class="dz-icon" aria-hidden="true">&#8681;</span>
+              <span class="dz-text"></span>
+              <input type="file" class="form-control-file doc-input" id="doc_ssc"
+              data-doctype="SSC/10th Mark Sheet" accept=".pdf,.jpg,.jpeg,.png">
+            </div>
           </div>
 
           <div class="form-group">
@@ -171,8 +193,13 @@
           </div>
           <div class="form-group">
             <label for="doc_hslc">Upload HSLC / 12th mark sheet</label>
-            <input type="file" class="form-control-file doc-input" id="doc_hslc"
-                   data-doctype="HSLC/12th Mark Sheet" accept=".pdf,.jpg,.jpeg,.png">
+            <div class="dropzone" data-prompt="Choose a file or drop it here"
+                 data-hint="PDF, JPG or PNG · up to 5 MB">
+              <span class="dz-icon" aria-hidden="true">&#8681;</span>
+              <span class="dz-text"></span>
+              <input type="file" class="form-control-file doc-input" id="doc_hslc"
+              data-doctype="HSLC/12th Mark Sheet" accept=".pdf,.jpg,.jpeg,.png">
+            </div>
           </div>
         </div>
 
@@ -193,28 +220,53 @@
           </div>
           <div class="form-group">
             <label for="doc_ug_cert">Upload undergraduate degree certificate</label>
-            <input type="file" class="form-control-file doc-input" id="doc_ug_cert"
-                   data-doctype="Undergraduate Degree Certificate" accept=".pdf,.jpg,.jpeg,.png">
+            <div class="dropzone" data-prompt="Choose a file or drop it here"
+                 data-hint="PDF, JPG or PNG · up to 5 MB">
+              <span class="dz-icon" aria-hidden="true">&#8681;</span>
+              <span class="dz-text"></span>
+              <input type="file" class="form-control-file doc-input" id="doc_ug_cert"
+              data-doctype="Undergraduate Degree Certificate" accept=".pdf,.jpg,.jpeg,.png">
+            </div>
           </div>
           <div class="form-group">
             <label for="doc_ug_marks">Upload undergraduate degree mark sheet</label>
-            <input type="file" class="form-control-file doc-input" id="doc_ug_marks"
-                   data-doctype="Undergraduate Degree Mark Sheet" accept=".pdf,.jpg,.jpeg,.png">
+            <div class="dropzone" data-prompt="Choose a file or drop it here"
+                 data-hint="PDF, JPG or PNG · up to 5 MB">
+              <span class="dz-icon" aria-hidden="true">&#8681;</span>
+              <span class="dz-text"></span>
+              <input type="file" class="form-control-file doc-input" id="doc_ug_marks"
+              data-doctype="Undergraduate Degree Mark Sheet" accept=".pdf,.jpg,.jpeg,.png">
+            </div>
           </div>
           <div class="form-group">
             <label for="doc_testimony">Upload personal testimony</label>
-            <input type="file" class="form-control-file doc-input" id="doc_testimony"
-                   data-doctype="Personal Testimony" accept=".pdf,.jpg,.jpeg,.png">
+            <div class="dropzone" data-prompt="Choose a file or drop it here"
+                 data-hint="PDF, JPG or PNG · up to 5 MB">
+              <span class="dz-icon" aria-hidden="true">&#8681;</span>
+              <span class="dz-text"></span>
+              <input type="file" class="form-control-file doc-input" id="doc_testimony"
+              data-doctype="Personal Testimony" accept=".pdf,.jpg,.jpeg,.png">
+            </div>
           </div>
           <div class="form-group">
             <label for="doc_id">Upload national ID</label>
-            <input type="file" class="form-control-file doc-input" id="doc_id"
-                   data-doctype="National ID" accept=".pdf,.jpg,.jpeg,.png">
+            <div class="dropzone" data-prompt="Choose a file or drop it here"
+                 data-hint="PDF, JPG or PNG · up to 5 MB">
+              <span class="dz-icon" aria-hidden="true">&#8681;</span>
+              <span class="dz-text"></span>
+              <input type="file" class="form-control-file doc-input" id="doc_id"
+              data-doctype="National ID" accept=".pdf,.jpg,.jpeg,.png">
+            </div>
           </div>
           <div class="form-group">
             <label for="doc_photo">Upload passport photograph</label>
-            <input type="file" class="form-control-file doc-input" id="doc_photo"
-                   data-doctype="Photo" accept=".jpg,.jpeg,.png">
+            <div class="dropzone" data-prompt="Choose a file or drop it here"
+                 data-hint="PDF, JPG or PNG · up to 5 MB">
+              <span class="dz-icon" aria-hidden="true">&#8681;</span>
+              <span class="dz-text"></span>
+              <input type="file" class="form-control-file doc-input" id="doc_photo"
+              data-doctype="Photo" accept=".jpg,.jpeg,.png">
+            </div>
           </div>
         </div>
       </div>
@@ -230,7 +282,7 @@
     </fieldset>
 
     <fieldset>
-      <legend>Your faith and calling</legend>
+      <legend class="sib-legend"><span class="sib-legend-bar"><span class="step">4</span> Your faith and calling</span></legend>
       <p class="text-muted small">
         We ask these because this is a seminary, not because there is a right
         answer. Say where you actually are.
@@ -268,7 +320,7 @@
     </fieldset>
 
     <fieldset>
-      <legend>What you want to study</legend>
+      <legend class="sib-legend"><span class="sib-legend-bar"><span class="step">5</span> What you want to study</span></legend>
 
       <div class="form-group">
         <label for="program">Programme <span class="req">*</span></label>
@@ -297,32 +349,42 @@
     </fieldset>
 
     <fieldset>
-      <legend>Your referees</legend>
+      <legend class="sib-legend"><span class="sib-legend-bar"><span class="step">6</span> Your two references</span></legend>
       <p class="text-muted small">
-        We ask two people who know you — normally your pastor or mentor, and a
-        professor or employer. We email each of them a private link. They never
-        need an account, and you will not see their answers.
+        We ask two people who know you, in two different ways. We email each of
+        them their own private link. They never need an account, and you will
+        not see their answers.
       </p>
 
+      <h4 class="sub-head">Spiritual &amp; Ministerial Reference</h4>
+      <p class="text-muted small sub-note">
+        Your pastor, mentor or ministry leader — someone who can speak to your
+        walk with Christ and your service in the church.
+      </p>
       <div class="grid-2">
         <div class="form-group">
-          <label for="referee1_name">Referee 1 — name</label>
+          <label for="referee1_name">Their name</label>
           <input type="text" class="form-control" id="referee1_name" maxlength="140">
         </div>
         <div class="form-group">
-          <label for="referee1_email">Referee 1 — email</label>
+          <label for="referee1_email">Their email</label>
           <input type="email" class="form-control" id="referee1_email" maxlength="140">
         </div>
       </div>
       <input type="hidden" id="referee1_type" value="Pastor-Mentor">
 
+      <h4 class="sub-head">Academic &amp; Professional Reference</h4>
+      <p class="text-muted small sub-note">
+        A professor, principal or employer — someone who can speak to your study
+        and your work.
+      </p>
       <div class="grid-2">
         <div class="form-group">
-          <label for="referee2_name">Referee 2 — name</label>
+          <label for="referee2_name">Their name</label>
           <input type="text" class="form-control" id="referee2_name" maxlength="140">
         </div>
         <div class="form-group">
-          <label for="referee2_email">Referee 2 — email</label>
+          <label for="referee2_email">Their email</label>
           <input type="email" class="form-control" id="referee2_email" maxlength="140">
         </div>
       </div>
@@ -330,7 +392,7 @@
     </fieldset>
 
     <fieldset>
-      <legend>Your mentor</legend>
+      <legend class="sib-legend"><span class="sib-legend-bar"><span class="step">7</span> Your mentor</span></legend>
       <p class="text-muted small">
         Every student is supported by a mentor who meets them monthly. We will ask
         them to confirm by email.
@@ -348,8 +410,16 @@
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label for="mentor_mobile">Mentor's mobile</label>
-          <input type="tel" class="form-control" id="mentor_mobile" maxlength="20">
+          <label for="mentor_mobile_number">Mentor's mobile</label>
+          <div class="phone-field">
+            <span class="phone-code-wrap">
+              <input type="text" class="form-control phone-code" id="mentor_mobile_code"
+                     value="91" maxlength="4" inputmode="numeric" list="country-codes"
+                     aria-label="Mentor mobile country code">
+            </span>
+            <input type="tel" class="form-control phone-number" id="mentor_mobile_number"
+                   maxlength="15" inputmode="numeric" placeholder="98765 43210">
+          </div>
         </div>
         <div class="form-group">
           <label for="mentor_church">Mentor's church</label>
@@ -357,6 +427,30 @@
         </div>
       </div>
     </fieldset>
+
+    <datalist id="country-codes">
+      <option value="91">India</option>
+      <option value="94">Sri Lanka</option>
+      <option value="977">Nepal</option>
+      <option value="880">Bangladesh</option>
+      <option value="975">Bhutan</option>
+      <option value="95">Myanmar</option>
+      <option value="60">Malaysia</option>
+      <option value="65">Singapore</option>
+      <option value="971">United Arab Emirates</option>
+      <option value="974">Qatar</option>
+      <option value="968">Oman</option>
+      <option value="966">Saudi Arabia</option>
+      <option value="44">United Kingdom</option>
+      <option value="1">United States / Canada</option>
+      <option value="61">Australia</option>
+      <option value="64">New Zealand</option>
+      <option value="27">South Africa</option>
+      <option value="254">Kenya</option>
+      <option value="234">Nigeria</option>
+      <option value="63">Philippines</option>
+      <option value="62">Indonesia</option>
+    </datalist>
 
     <!-- honeypot: hidden from people, tempting to bots -->
     <div class="hp" aria-hidden="true">
@@ -431,14 +525,11 @@
   .sibbcs-apply { max-width: 700px; margin: 0 auto; }
   .sibbcs-apply h1 { margin-bottom: 4px; }
   .sibbcs-apply .lead { margin-bottom: 16px; }
-  .sibbcs-apply fieldset {
-    border: none; padding: 0; margin: 0 0 34px;
-    border-top: 1px solid var(--border-color, #e5e5e5); padding-top: 18px;
+  .sibbcs-apply fieldset { border: none; padding: 0; margin: 0 0 30px; }
+  .sibbcs-apply .sub-head {
+    margin: 20px 0 2px; font-size: 15px; font-weight: 700;
   }
-  .sibbcs-apply legend {
-    font-size: 1.1rem; font-weight: 700; width: auto;
-    margin-bottom: 12px; border: none; padding: 0;
-  }
+  .sibbcs-apply .sub-note { margin-top: 0; }
   .sibbcs-apply .form-group { margin-bottom: 14px; }
   .sibbcs-apply label { font-weight: 600; display: block; margin-bottom: 4px; }
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
@@ -455,6 +546,7 @@
 </style>
 
 {% if accepting %}
+{% include "templates/includes/dropzone.html" %}
 <script>
 (function () {
   const form = document.getElementById('apply-form');
@@ -462,6 +554,26 @@
     const el = document.getElementById(id);
     if (!el) return '';
     return el.type === 'checkbox' ? (el.checked ? 1 : 0) : el.value;
+  };
+
+  // Nothing but digits goes into a phone box, in either half. Typing is where
+  // this belongs: telling somebody their number was wrong after they pressed
+  // Submit is the version of this that annoys people.
+  document.querySelectorAll('.phone-code, .phone-number').forEach((input) => {
+    input.addEventListener('input', () => {
+      const digits = input.value.replace(/\D+/g, '');
+      if (digits !== input.value) {
+        const at = input.selectionStart - (input.value.length - digits.length);
+        input.value = digits;
+        try { input.setSelectionRange(at, at); } catch (e) { /* not a text input */ }
+      }
+    });
+  });
+
+  const phone = (prefix) => {
+    const code = (val(prefix + '_code') || '').trim();
+    const number = (val(prefix + '_number') || '').trim();
+    return number ? '+' + (code || '91') + ' ' + number : '';
   };
 
   form.addEventListener('submit', async function (event) {
@@ -472,7 +584,7 @@
     message.innerHTML = '';
 
     const required = [
-      'full_name', 'mobile', 'email', 'program',
+      'full_name', 'mobile_number', 'email', 'program',
       'ssc_status', 'hslc_status', 'ug_status', 'previous_theological_education'
     ];
     const missing = required.filter((id) => !String(val(id)).trim());
@@ -487,7 +599,7 @@
     button.textContent = 'Submitting…';
 
     const fields = [
-      'full_name','dob','gender','mobile','whatsapp','email','address',
+      'full_name','dob','gender','email','address',
       'mother_tongue','nationality',
       'church_name','church_denomination','current_role','years_of_ministry',
       'has_bachelors','salvation_status','baptism_status','sense_of_call',
@@ -496,11 +608,18 @@
       'program','intake_term',
       'referee1_name','referee1_email','referee1_type',
       'referee2_name','referee2_email','referee2_type',
-      'mentor_name','mentor_email','mentor_mobile','mentor_church',
+      'mentor_name','mentor_email','mentor_church',
       'website'
     ];
     const payload = {};
     fields.forEach((id) => { payload[id] = val(id); });
+
+    // Two boxes, one field. An empty number sends nothing at all rather than a
+    // bare country code, which would look like a phone number to everyone
+    // downstream and be one to nobody.
+    payload.mobile = phone('mobile');
+    payload.whatsapp = phone('whatsapp');
+    payload.mentor_mobile = phone('mentor_mobile');
 
     try {
       const response = await fetch(

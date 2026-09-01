@@ -285,6 +285,10 @@ scheduler_events["daily"] = [
 # while /console/anything worked. The name would come back once the site runs
 # under gunicorn, which is precisely the kind of difference between
 # development and production not worth carrying.
+# Every website page gets the built assets version, so a change to the guest
+# stylesheet reaches somebody who has been here before.
+update_website_context = "sibbcs.setup.website.add_asset_version"
+
 website_route_rules = [
 	{"from_route": "/portal/<path:app_path>", "to_route": "_portal"},
 	{"from_route": "/portal", "to_route": "_portal"},

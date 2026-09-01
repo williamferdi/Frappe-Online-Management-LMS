@@ -20,6 +20,8 @@ write to:
   Review, where the officer can already see who is asking.
 """
 
+import re
+
 import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate, validate_email_address
@@ -107,6 +109,33 @@ def _offered(field, value):
 	options = frappe.get_meta("Admission Application").get_field(field).options or ""
 	return value in [choice.strip() for choice in options.split("\n")]
 
+PHONE_FIELDS = ("mobile", "whatsapp")
+MIN_PHONE_DIGITS = 6
+
+
+def _phone(value):
+	"""A phone number is a plus and some digits.
+
+	The form now sends exactly that -- two boxes, both digits-only -- so this is
+	for the crafted payload and for the applicant who pastes a number out of
+	their contacts with brackets and dashes still in it. Spaces are kept because
+	a grouped number is easier for an officer to read back over the telephone;
+	a `+` is kept only where it belongs, at the front.
+	"""
+	if not value:
+		return value
+
+	text = str(value).strip()
+	leading_plus = text.startswith("+")
+	digits = re.sub(r"[^\d ]", "", text)
+	digits = re.sub(r"\s+", " ", digits).strip()
+	# A country code by itself is not a phone number: it looks like a
+	# contact on every screen that shows it and is one to nobody. No real
+	# number is shorter than six digits.
+	if len(digits.replace(" ", "")) < MIN_PHONE_DIGITS:
+		return ""
+	return ("+" if leading_plus else "") + digits
+
 
 def _clean(values):
 	"""Copy only whitelisted fields, trimmed and length-capped."""
@@ -118,10 +147,16 @@ def _clean(values):
 			continue
 		if isinstance(value, str):
 			value = value.strip()
+			if field in PHONE_FIELDS:
+				# Cleaned before the length cap, never after: capping the raw
+				# text first truncates the number itself.
+				value = _phone(value)
 			cap = MAX_LEN.get(field)
 			if cap:
 				value = value[:cap]
 		if meta.get_field(field).fieldtype == "Select" and not _offered(field, value):
+			continue
+		if not value:
 			continue
 		cleaned[field] = value
 
@@ -196,7 +231,7 @@ def _mentor_from(values):
 		{
 			"mentor_name": name[:140],
 			"mentor_email": email[:140],
-			"mentor_mobile": (values.get("mentor_mobile") or "").strip()[:20],
+			"mentor_mobile": _phone((values.get("mentor_mobile") or "").strip())[:20],
 			"church": (values.get("mentor_church") or "").strip()[:140],
 		}
 	]

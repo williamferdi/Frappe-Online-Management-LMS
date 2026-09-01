@@ -389,3 +389,225 @@ input[type='radio'] {
 	border-bottom: 1px solid var(--border);
 	font-size: 15px;
 }
+
+/* --- section headings -------------------------------------------------- */
+
+/*
+ * A form this long needs its sections to be findable at a glance. The heading
+ * carries the accent colour and a bar of it down the left, so scrolling past
+ * one is obvious; the rule that used to sit above the section did the opposite,
+ * separating things quietly.
+ */
+.sib-legend {
+	/* A legend is laid out by the browser, not by us; the band is the span.
+	   Deliberately not floated: a floated legend becomes a float inside the
+	   fieldset, and the grid below it then lays out beside the float instead
+	   of collapsing to one column, which pushed the page 27px wider than a
+	   phone. */
+	width: 100%;
+	padding: 0;
+	border: 0;
+}
+
+.sib-legend-bar {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	margin: 0 0 16px;
+	padding: 10px 14px;
+	border: 0;
+	border-left: 4px solid var(--primary);
+	border-radius: calc(var(--radius) - 2px);
+	background: color-mix(in oklch, var(--primary) 10%, transparent);
+	color: var(--foreground);
+	font-size: 17px;
+	font-weight: 700;
+	letter-spacing: -0.01em;
+	line-height: 1.3;
+}
+
+.sib-legend-bar .step {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	flex: 0 0 26px;
+	border-radius: 50%;
+	background: var(--primary);
+	color: var(--primary-foreground);
+	font-size: 13px;
+	font-weight: 700;
+}
+
+/* --- phone fields ------------------------------------------------------ */
+
+/*
+ * A country code and a number, which is what a phone number is. The two are
+ * one control to the eye and two inputs to the browser, so the code cannot be
+ * typed into the number by accident and neither accepts a letter.
+ */
+.phone-field {
+	display: flex;
+	align-items: stretch;
+	gap: 0;
+}
+
+.phone-field .phone-code-wrap {
+	position: relative;
+	flex: 0 0 5.5rem;
+}
+
+.phone-field .phone-code-wrap::before {
+	content: '+';
+	position: absolute;
+	left: 11px;
+	top: 50%;
+	transform: translateY(-50%);
+	color: var(--muted-foreground);
+	pointer-events: none;
+	font-size: 14.5px;
+}
+
+.phone-field .phone-code {
+	width: 100%;
+	padding-left: 22px;
+	border-radius: calc(var(--radius) - 2px) 0 0 calc(var(--radius) - 2px);
+	border-right-width: 0;
+}
+
+.phone-field .phone-number {
+	flex: 1 1 auto;
+	border-radius: 0 calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0;
+	min-width: 0;
+}
+
+.phone-field input:focus {
+	position: relative;
+	z-index: 1;
+}
+
+/* --- file drop zones --------------------------------------------------- */
+
+.dropzone {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 12px 14px;
+	border: 1.5px dashed var(--border);
+	border-radius: calc(var(--radius) - 2px);
+	background: var(--muted);
+	color: var(--muted-foreground);
+	font-size: 13.5px;
+	cursor: pointer;
+	transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.dropzone:hover,
+.dropzone:focus-within {
+	border-color: var(--ring);
+	color: var(--foreground);
+}
+
+/* The input still exists and still carries the file; it is simply invisible,
+   so a browser without drag and drop, and a screen reader, both still work. */
+.dropzone input[type='file'] {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	opacity: 0;
+	cursor: pointer;
+}
+
+.dropzone.is-dragging {
+	border-color: var(--primary);
+	border-style: solid;
+	background: color-mix(in oklch, var(--primary) 12%, transparent);
+	color: var(--foreground);
+}
+
+.dropzone.has-file {
+	border-style: solid;
+	border-color: var(--success);
+	background: color-mix(in oklch, var(--success) 10%, transparent);
+	color: var(--foreground);
+}
+
+.dropzone.is-bad {
+	border-style: solid;
+	border-color: var(--destructive);
+	background: color-mix(in oklch, var(--destructive) 10%, transparent);
+	color: var(--foreground);
+}
+
+.dropzone .dz-icon {
+	flex: 0 0 auto;
+	font-size: 16px;
+	line-height: 1;
+}
+
+.dropzone .dz-text {
+	min-width: 0;
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dropzone .dz-hint {
+	display: block;
+	font-size: 11.5px;
+	opacity: 0.8;
+}
+
+/* --- small screens ----------------------------------------------------- */
+
+/*
+ * Two things, both about phones rather than looks. Anything under 16px makes
+ * iOS Safari zoom the page the moment a field is focused, which throws the
+ * layout sideways mid-form; and a control under about 44px is hard to hit with
+ * a thumb.
+ */
+@media (max-width: 640px) {
+	.form-control,
+	input[type='text'],
+	input[type='email'],
+	input[type='tel'],
+	input[type='number'],
+	input[type='date'],
+	input[type='password'],
+	select,
+	textarea {
+		font-size: 16px;
+		padding: 11px 12px;
+	}
+
+	.sib-main {
+		padding-left: 16px;
+		padding-right: 16px;
+	}
+
+	.btn,
+	.btn-lg {
+		width: 100%;
+		padding: 12px 16px;
+		font-size: 16px;
+	}
+
+	.sib-legend-bar {
+		font-size: 16px;
+		padding: 9px 12px;
+	}
+
+	.dropzone {
+		padding: 14px;
+		font-size: 14px;
+	}
+
+	.phone-field .phone-code-wrap {
+		flex-basis: 5rem;
+	}
+}

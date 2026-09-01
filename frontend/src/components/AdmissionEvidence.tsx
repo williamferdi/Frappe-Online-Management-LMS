@@ -37,6 +37,12 @@ import type {
  * Passing `onVerify` turns it into the officer's working screen. Without it --
  * on the student profile -- it stays what it was, a record.
  */
+/** What the two references are called, everywhere a person reads them. */
+const REFERENCE_LABEL: Record<string, string> = {
+	'Pastor-Mentor': 'Spiritual & Ministerial Reference',
+	'Professor-Employer': 'Academic & Professional Reference',
+}
+
 export function DocumentsCard({
 	documents,
 	title = 'Applicant documents',
@@ -230,7 +236,10 @@ export function ResponsesCard({
 		...references.map((ref, index) => ({
 			kind: 'reference' as ResponseKind,
 			row: ref.name,
-			label: `Reference ${index + 1}`,
+			// Named for what each one is, the way the apply form asks for them
+			// and the way the referee sees their own form titled. The index is
+			// the fallback for a row typed in before the type was set.
+			label: REFERENCE_LABEL[ref.referee_type ?? ''] ?? `Reference ${index + 1}`,
 			who: ref.referee_name || ref.referee_email || 'Not named',
 			detail: ref.referee_type,
 			sent: ref.sent_on,
