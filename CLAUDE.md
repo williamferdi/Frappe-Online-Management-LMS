@@ -731,6 +731,55 @@ here. `TestPublicShell` pins the marker, the shim, and their order.
 student page, superseded by `/portal/courses`, and left alone rather than quietly
 retired — old emails may still link to it.
 
+
+### The apply form's UI — 1 Sep 2026
+
+**The guest stylesheet is cached under a name that never changes.**
+`/assets/sibbcs/css/public.css` is served with a long cache life, so a
+returning applicant keeps the CSS they downloaded last time and a restyle
+simply does not apply -- which is exactly how it was found, a rebuilt form
+coming back looking identical. The shell now asks for
+`public.css?v={{ asset_version }}`, supplied by
+`sibbcs.setup.website.add_asset_version` through the `update_website_context`
+hook. It has to arrive that way: `frappe.utils` is **not** reachable from the
+Jinja sandbox, so `{{ frappe.utils.get_build_version() }}` renders nothing.
+The version is the mtime of `assets.json`, so **`bench build` must be run
+after a CSS change** or the query does not move.
+
+**A floated `<legend>` breaks the layout below it.** The section heading band
+was first put on the legend with `float: left`, which made it a float *inside*
+the fieldset: the two-column grid then laid out beside it instead of collapsing
+at 560px, and the page ran 27px wider than a phone. The band is now a
+`<span class="sib-legend-bar">` inside an unstyled legend -- which also avoids
+`display: flex` on a legend, honoured inconsistently across engines.
+
+**Controls are 16px below 640px.** Anything smaller makes iOS Safari zoom the
+page the moment a field is focused, which throws the layout sideways in the
+middle of a form.
+
+**Drag and drop is `templates/includes/dropzone.html`**, shared by `/apply` and
+`/documents`. The real `<input type="file">` stays in the page, invisible but
+present, and a drop sets `input.files` through a `DataTransfer` and dispatches
+`change` -- so both pages' upload code is untouched and neither knows the
+include exists. Type and size are checked as the file lands; the server still
+checks both, this only saves somebody on a phone waiting for an upload that was
+never going to be accepted.
+
+**A phone number is two boxes and one field.** `mobile_code` + `mobile_number`
+(and the same for WhatsApp and the mentor) are digits-only as you type and are
+joined into `+<code> <number>` on submit. Server-side, `_phone()` runs **before**
+the `MAX_LEN` cap -- capping the raw text first truncated the number itself --
+and anything under `MIN_PHONE_DIGITS` is dropped, so a bare country code is not
+stored as a contact.
+
+**The two references are named, not numbered**: Spiritual & Ministerial
+(`Pastor-Mentor`) and Academic & Professional (`Professor-Employer`), on the
+form and in the console's `ResponsesCard`. The stored `referee_type` values are
+unchanged -- the checklist, `reference_form.py` and the pipeline all key on
+them. The checklist step labels are still "Reference 1/2 Review" because those
+strings are stored on every application's child rows; renaming them is a data
+migration, not a label change.
+
 ### Generic records and reports — `api/records.py`, `api/reports.py`
 
 The console now owns create, edit and reports as well as the workflows, which
