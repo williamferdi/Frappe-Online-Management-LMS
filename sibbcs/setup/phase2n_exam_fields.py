@@ -1,4 +1,4 @@
-"""Essay score fields on Qualifying Exam Result, and a pass mark of 70.
+"""Essay score fields on Qualifying Exam Result, and the pass mark.
 
     bench --site online.sibbc.org execute sibbcs.setup.phase2n_exam_fields.build
 
@@ -18,6 +18,8 @@ from sibbcs.admissions.doctype.qualifying_exam_result.qualifying_exam_result imp
 )
 from sibbcs.setup.schema import add_fields, f, section
 
+# The college's rule, not the LMS quiz's own passing percentage -- the two are
+# set for different purposes and only this one decides an admission.
 PASS_MARK = 40
 
 

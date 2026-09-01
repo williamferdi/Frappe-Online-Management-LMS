@@ -281,8 +281,9 @@ def application(name):
 			fields=["name", "mentor_name", "mentor_email", "sent_on", "consented_on", "idx"],
 			order_by="idx",
 		),
-		"exam": _exam_result(name),
+		"exam": _exam(name),
 		"interview": _interview(name),
+		"interview_outcomes": _interview_outcomes(),
 		"scholarship": _scholarship(doc.scholarship_request),
 		"invoices": frappe.get_all(
 			"Fee Invoice",
@@ -292,6 +293,19 @@ def application(name):
 			order_by="creation",
 		),
 	}
+
+
+def _exam(name):
+	"""The exam from both sides: what was sat, and what was recorded.
+
+	The candidate sits it in the LMS and somebody marks it there; the college's
+	record is a Qualifying Exam Result. The screen needs both, because "sat but
+	not marked" and "marked but never brought across" are the two states that
+	used to look identical -- an application saying the score was zero.
+	"""
+	from sibbcs.admissions import entrance_exam
+
+	return entrance_exam.state(name)
 
 
 def _exam_result(name):
@@ -318,15 +332,81 @@ def _interview(name):
 	return record or None
 
 
+def _interview_outcomes():
+	"""Straight from the DocType: a screen offering a value the Select refuses
+	is a screen that saves nothing."""
+	options = frappe.get_meta("Interview Record").get_field("outcome").options or ""
+	return [line.strip() for line in options.split("\n") if line.strip()]
+
+
+@frappe.whitelist(methods=["POST"])
+def record_interview(application, outcome=None, scheduled_on=None, notes=None):
+	"""Record what happened at the interview, from the console.
+
+	One record per application, updated rather than added to: the college holds
+	one interview and the second row would only be a question about which one
+	counts. `InterviewRecord.on_update` moves the checklist step and pushes the
+	outcome onto the application -- that is its job, not this one's.
+	"""
+	_require_staff()
+
+	doc = frappe.get_doc("Admission Application", application)
+	doc.check_permission("write")
+
+	name = frappe.db.get_value(
+		"Interview Record", {"application": application}, "name", order_by="creation desc"
+	)
+	record = (
+		frappe.get_doc("Interview Record", name)
+		if name
+		else frappe.get_doc(
+			{
+				"doctype": "Interview Record",
+				"application": application,
+				"applicant_name": doc.full_name,
+			}
+		)
+	)
+
+	if outcome is not None:
+		if outcome and outcome not in _interview_outcomes():
+			frappe.throw(_("{0} is not an interview outcome.").format(outcome))
+		record.outcome = outcome or None
+	if scheduled_on is not None:
+		record.scheduled_on = scheduled_on or None
+	if notes is not None:
+		record.notes = notes or None
+
+	record.flags.ignore_permissions = True
+	record.save(ignore_permissions=True)
+
+	return {
+		"interview": _interview(application),
+		"checklist": checklist.board(application),
+	}
+
+
 def _scholarship(request):
 	if not request:
 		return None
-	return frappe.db.get_value(
+	record = frappe.db.get_value(
 		"Scholarship Request",
 		request,
-		["name", "status", "approved_amount", "monthly_discount", "requested_amount"],
+		[
+			"name", "status", "approved_amount", "monthly_discount",
+			"requested_amount", "justification", "signature", "submitted_on",
+			"approved_by", "approved_on", "program",
+		],
 		as_dict=True,
 	)
+	if record:
+		# The cap is the rule `scholarship.decide` enforces, and a Registrar
+		# finding it out after typing an amount is a poor way to learn it.
+		from sibbcs.admissions.scholarship import program_cap
+
+		record["cap"] = program_cap(record.program)
+		record["may_decide"] = bool(frappe.has_permission("Scholarship Request", "write"))
+	return record
 
 
 @frappe.whitelist(methods=["POST"])

@@ -6,3 +6,4 @@
 # Patches added in this section will be executed after doctypes are migrated
 sibbcs.patches.renumber_checklist_steps
 sibbcs.patches.rename_reference_steps
+sibbcs.patches.record_exams_and_interviews

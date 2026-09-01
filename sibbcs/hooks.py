@@ -261,6 +261,13 @@ scheduler_events = {
 }
 
 doc_events = {
+	"LMS Quiz Submission": {
+		# A mark entered in the entrance exam course reaches the admissions
+		# record on the same save. Before this it stayed in the LMS and the
+		# application went on saying the score was zero.
+		"after_insert": "sibbcs.admissions.entrance_exam.on_quiz_submission",
+		"on_update": "sibbcs.admissions.entrance_exam.on_quiz_submission",
+	},
 	"Course Registration": {
 		"on_update": "sibbcs.finance.hooks_handlers.course_registration_on_update",
 	},

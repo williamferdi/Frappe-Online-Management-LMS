@@ -926,6 +926,53 @@ the running code believes the new numbering while the rows still hold the old on
 save writes a status onto the wrong step. Nothing was saved during the window this time —
 an audit of all eight live applications confirmed it — but the window is real.
 
+
+### The exam and the interview reach the record — 1 Sep 2026
+
+**The entrance exam is sat in the LMS and recorded in admissions, and nothing
+joined the two.** An essay marked 20/25 in the Entrance Exam course stayed
+there; `Admission Application.qualifying_exam_score` went on saying 0, and the
+Assessment panel said "Not sat" for a candidate who had sat it and passed.
+
+`admissions/entrance_exam.py` is that join, one way only: **the LMS is where
+marking happens, and a `Qualifying Exam Result` is what we make of it.**
+
+- The paper is found by quiz **title** (`Entrance Exam — Essays`), not by name,
+  so a rebuilt quiz is still recognised. The candidate is found by
+  `applicant_user` -- a submission by anyone else is not their exam.
+- Essays map **positionally** onto `ESSAYS`; an open-ended question carries no
+  key to match on. A submission without exactly three answers is reported, not
+  guessed at.
+- **Sat is not marked.** The LMS writes a submission the moment they press
+  submit, every open-ended answer at zero. Recording that would tell the college
+  they scored nothing, so `pull` refuses it and the screen says "Sat, not
+  marked".
+- A `doc_events` hook on `LMS Quiz Submission` means marking in the course
+  reaches admissions **on the same save**. Everything in it is best-effort: an
+  admissions bookkeeping failure must never stop somebody marking a quiz.
+- The pass mark is the college's (`Qualifying Exam Result.pass_mark`, currently
+  **40**), never the quiz's own `passing_percentage`, which the LMS sets for its
+  own purposes. Note `phase2n_exam_fields.py` once claimed 70 in its docstring
+  while its constant said 40 -- the docstring was wrong and is fixed, but
+  **which figure the college actually wants is still worth confirming**.
+
+**`checklist.record_fact()` is the other half.** `set_status` is the officer's
+path -- it validates and refuses to complete a step whose gates are unmet.
+`record_fact` is for things that simply happened: an exam marked, an interview
+held. It writes the row directly, never walks a step out of a status an officer
+already recorded, and does not wait for gates -- they sat the exam and passed it
+whether or not the LMS-account step was ever ticked. `QualifyingExamResult` and
+`InterviewRecord` both call it from `on_update`; before this, both DocTypes
+could be filled in and the checklist would not move.
+
+**`record_interview` keeps one record per application.** The college holds one
+interview; a second row is only a question about which one counts.
+
+**The scholarship is answerable from the application now**, not only from
+Finance: the card shows what the candidate wrote and their signature, the
+programme cap, and Approve/Reject. The decision still goes through
+`scholarship.decide`, which enforces the cap.
+
 ### The checklist board — `checklist.board()` + the form script
 
 The 13 steps render as one row each at the top of the application: number, status

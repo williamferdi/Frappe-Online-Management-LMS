@@ -211,6 +211,56 @@ def blocked_reason(application, step_no):
 			)
 	return None
 
+# Statuses that mean somebody has decided something, which nothing derived from
+# a record may overwrite.
+DECIDED = ("Reviewed", "Verified", "Approved", "Rejected", "Not Applicable")
+
+
+def record_fact(application, step_no, status, remarks=None):
+	"""Move a step because something happened, not because somebody chose to.
+
+	`set_status` is the officer's path: it validates the status and refuses to
+	complete a step whose gates are unmet. This is for the other direction --
+	an exam was marked, an interview was held -- where the event is simply
+	true and the step should say so. It writes the row directly, so it neither
+	saves the application nor recurses through `mirror_gates_to_checklist`.
+
+	Never walks a step out of a status an officer already recorded.
+	"""
+	step_no = int(step_no)
+	if status not in statuses_for(step_no):
+		frappe.throw(
+			_("{0} is not a valid status for {1}.").format(status, LABELS[step_no])
+		)
+
+	name = frappe.db.get_value(
+		"Admission Checklist Item",
+		{
+			"parent": application,
+			"parenttype": "Admission Application",
+			"step_no": step_no,
+		},
+		"name",
+	)
+	if not name:
+		return None
+
+	current = frappe.db.get_value("Admission Checklist Item", name, "status")
+	if current == status or current in DECIDED:
+		return current
+
+	values = {
+		"status": status,
+		"updated_by": frappe.session.user,
+		"updated_on": now_datetime(),
+	}
+	if remarks:
+		values["remarks"] = remarks
+
+	frappe.db.set_value(
+		"Admission Checklist Item", name, values, update_modified=False
+	)
+	return status
 
 def set_status(application, step_no, status, remarks=None, ignore_gates=False):
 	"""Move one step. Validates the status and the four hard gates."""

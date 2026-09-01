@@ -12,6 +12,9 @@ import {
 import { toast } from 'sonner'
 
 import { DocumentsCard, ResponsesCard } from '@/components/AdmissionEvidence'
+import { ExamCard } from '@/components/ExamCard'
+import { InterviewCard } from '@/components/InterviewCard'
+import { ScholarshipCard } from '@/components/ScholarshipCard'
 import { PageHeader } from '@/components/PageHeader'
 import { QueryState } from '@/components/QueryState'
 import { Badge } from '@/components/ui/badge'
@@ -54,12 +57,12 @@ export function ApplicationDetail() {
 
 	return (
 		<QueryState query={query} title="Application">
-			{(data) => <Loaded data={data} />}
+			{(data) => <Loaded data={data} onChanged={() => void query.refetch()} />}
 		</QueryState>
 	)
 }
 
-function Loaded({ data }: { data: Detail }) {
+function Loaded({ data, onChanged }: { data: Detail; onChanged: () => void }) {
 	const record = data.application
 	const board = data.checklist
 	const done = board.rows.filter((row) => row.done).length
@@ -126,6 +129,29 @@ function Loaded({ data }: { data: Detail }) {
 					empty="No requests sent yet. Use Resend requests on the reference and mentor steps above to send them."
 				/>
 			</div>
+
+			<div className="mt-4 grid gap-4 xl:grid-cols-2">
+				<ExamCard
+					application={record.name}
+					exam={data.exam}
+					canWrite={board.can_write}
+				/>
+				<InterviewCard
+					application={record.name}
+					interview={data.interview}
+					outcomes={data.interview_outcomes}
+					canWrite={board.can_write}
+				/>
+			</div>
+
+			{data.scholarship && (
+				<div className="mt-4">
+					<ScholarshipCard
+						scholarship={data.scholarship}
+						onDecided={onChanged}
+					/>
+				</div>
+			)}
 		</>
 	)
 }
@@ -467,10 +493,16 @@ function Summary({ data }: { data: Detail }) {
 				<Line
 					left="Entrance exam"
 					right={
-						data.exam ? (
-							<Badge variant={data.exam.result === 'Pass' ? 'success' : 'destructive'}>
-								{data.exam.total}% {data.exam.result}
+						data.exam.result ? (
+							<Badge
+								variant={data.exam.result.result === 'Pass' ? 'success' : 'destructive'}
+							>
+								{data.exam.result.total}% {data.exam.result.result}
 							</Badge>
+						) : data.exam.submission ? (
+							// Sat and waiting to be read is not the same as never sat,
+							// and only one of the two is anybody's job to finish.
+							<Badge variant="warning">Sat, not marked</Badge>
 						) : (
 							<span className="text-muted-foreground text-xs">Not sat</span>
 						)

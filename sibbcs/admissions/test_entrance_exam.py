@@ -13,6 +13,11 @@ from sibbcs.admissions.doctype.qualifying_exam_result.qualifying_exam_result imp
 	ESSAY_TOTAL,
 	ESSAYS,
 )
+from sibbcs.admissions import entrance_exam as bridge
+from sibbcs.admissions.checklist import NO, record_fact, set_status, status_of
+from sibbcs.admissions.doctype.qualifying_exam_result.qualifying_exam_result import (
+	latest_for,
+)
 from sibbcs.setup import phase2m_entrance_exam as exam
 
 PASS = 40
@@ -322,3 +327,295 @@ class TestVendoredLMSPatches(FrappeTestCase):
 				text,
 				f"{bundle.name} was built before the patch -- rebuild the LMS frontend",
 			)
+
+
+class TestTheExamReachesTheApplication(FrappeTestCase):
+	"""The candidate sits it in the LMS; the college records it in admissions.
+
+	Nothing joined the two, so an essay marked 20/25 in the course stayed in
+	the course and the application went on saying the score was zero. These are
+	that join.
+	"""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def an_applicant(self, marks=(20, 15, 25), out_of=25):
+		"""An application whose candidate has sat the exam, marked or not."""
+		from sibbcs.admissions.doctype.admission_application.test_admission_application import (
+			make_application,
+		)
+
+		tag = frappe.generate_hash(length=6)
+		email = f"exam.{tag}@example.invalid"
+		if not frappe.db.exists("User", email):
+			frappe.get_doc(
+				{
+					"doctype": "User",
+					"email": email,
+					"first_name": f"Exam{tag}",
+					"send_welcome_email": 0,
+				}
+			).insert(ignore_permissions=True)
+
+		application = make_application(full_name=f"Exam {tag}", email=email)
+		frappe.db.set_value(
+			"Admission Application", application.name, "applicant_user", email
+		)
+
+		# The exam course is built by phase2m on the live site; a test site
+		# that has never run it still needs something with the same title,
+		# because the title is how the bridge recognises the paper.
+		quiz = bridge.quiz_names()
+		if not quiz:
+			quiz = [
+				frappe.get_doc(
+					{"doctype": "LMS Quiz", "title": bridge.QUIZ_TITLE}
+				).insert(ignore_permissions=True).name
+			]
+		submission = frappe.get_doc(
+			{
+				"doctype": "LMS Quiz Submission",
+				"quiz": quiz[0],
+				"member": email,
+				"score": sum(marks),
+				"score_out_of": out_of * len(marks),
+				"percentage": int(sum(marks) / (out_of * len(marks)) * 100),
+				"passing_percentage": 40,
+				"result": [
+					{
+						"question": f"Essay {index + 1}",
+						"answer": "<p>An answer.</p>",
+						"marks": mark,
+						"marks_out_of": out_of,
+					}
+					for index, mark in enumerate(marks)
+				],
+			}
+		)
+		submission.insert(ignore_permissions=True)
+		return application.name, submission
+
+	def test_the_marks_come_across_as_they_were_given(self):
+		application, _ = self.an_applicant()
+
+		bridge.pull(application)
+
+		result = latest_for(application)
+		self.assertEqual(result.essay_gospel, 20)
+		self.assertEqual(result.essay_calling, 15)
+		self.assertEqual(result.essay_motivation, 25)
+		# 60 of 75.
+		self.assertEqual(result.total, 80)
+		self.assertEqual(result.result, "Pass")
+
+	def test_the_score_lands_on_the_application_the_workflow_reads(self):
+		application, _ = self.an_applicant()
+
+		bridge.pull(application)
+
+		self.assertEqual(
+			frappe.db.get_value(
+				"Admission Application", application, "qualifying_exam_score"
+			),
+			80,
+		)
+
+	def test_the_checklist_step_says_what_the_result_says(self):
+		"""The complaint this answers: an exam marked and passed, and step 7
+		still sitting at Awaiting."""
+		application, _ = self.an_applicant()
+
+		bridge.pull(application)
+
+		self.assertEqual(
+			status_of(application, NO["entrance_exam"]),
+			"Passed",
+		)
+
+	def test_a_failed_paper_says_so(self):
+		application, _ = self.an_applicant(marks=(5, 5, 5))
+
+		bridge.pull(application)
+
+		self.assertEqual(latest_for(application).result, "Fail")
+		self.assertEqual(status_of(application, NO["entrance_exam"]), "Failed")
+
+	def test_sat_but_unmarked_is_refused_rather_than_recorded_as_zero(self):
+		"""The LMS makes a submission the moment they press submit, every
+		open-ended answer at nought. Recording that would tell the college the
+		candidate scored nothing, which is a different statement."""
+		application, _ = self.an_applicant(marks=(0, 0, 0))
+
+		with self.assertRaises(frappe.ValidationError):
+			bridge.pull(application)
+
+		self.assertIsNone(latest_for(application))
+
+	def test_a_paper_marked_out_of_something_else_is_scaled(self):
+		application, _ = self.an_applicant(marks=(8, 10, 10), out_of=10)
+
+		bridge.pull(application)
+
+		result = latest_for(application)
+		self.assertEqual(result.essay_gospel, 20)  # 8/10 of 25
+		self.assertEqual(result.total, 93.33)
+
+	def test_a_candidate_who_has_not_sat_it_is_told_so(self):
+		from sibbcs.admissions.doctype.admission_application.test_admission_application import (
+			make_application,
+		)
+
+		application = make_application(
+			email=f"nosit.{frappe.generate_hash(length=6)}@example.invalid"
+		)
+		with self.assertRaises(frappe.ValidationError):
+			bridge.pull(application.name)
+
+	def test_somebody_elses_submission_is_not_this_candidates_exam(self):
+		mine, _ = self.an_applicant()
+		theirs, submission = self.an_applicant(marks=(25, 25, 25))
+
+		self.assertEqual(bridge.submission_for(mine).result[0].marks, 20)
+		self.assertEqual(bridge.submission_for(theirs).name, submission.name)
+
+	def test_marking_in_the_course_reaches_admissions_on_the_same_save(self):
+		"""The hook, which is what makes this automatic rather than a button."""
+		application, submission = self.an_applicant(marks=(0, 0, 0))
+		self.assertIsNone(latest_for(application))
+
+		for index, mark in enumerate((25, 25, 20)):
+			submission.result[index].marks = mark
+		submission.save(ignore_permissions=True)
+
+		result = latest_for(application)
+		self.assertIsNotNone(result, "marking in the LMS did not reach admissions")
+		self.assertEqual(result.total, 93.33)
+
+	def test_marks_can_be_entered_by_hand_for_a_paper_sat_elsewhere(self):
+		from sibbcs.admissions.doctype.admission_application.test_admission_application import (
+			make_application,
+		)
+
+		application = make_application(
+			email=f"paper.{frappe.generate_hash(length=6)}@example.invalid"
+		).name
+
+		bridge.record(application, essay_gospel=25, essay_calling=25, essay_motivation=25)
+
+		self.assertEqual(latest_for(application).total, 100)
+		self.assertEqual(status_of(application, NO["entrance_exam"]), "Passed")
+
+
+class TestTheInterviewReachesTheChecklist(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def an_application(self):
+		from sibbcs.admissions.doctype.admission_application.test_admission_application import (
+			make_application,
+		)
+
+		return make_application(
+			email=f"int.{frappe.generate_hash(length=6)}@example.invalid"
+		).name
+
+	def test_a_recommendation_clears_the_step(self):
+		application = self.an_application()
+
+		frappe.get_doc(
+			{
+				"doctype": "Interview Record",
+				"application": application,
+				"outcome": "Recommend",
+				"notes": "A clear sense of calling.",
+			}
+		).insert(ignore_permissions=True)
+
+		self.assertEqual(status_of(application, NO["interview"]), "Cleared")
+		self.assertEqual(
+			frappe.db.get_value("Admission Application", application, "interview_outcome"),
+			"Recommend",
+		)
+
+	def test_a_date_with_no_verdict_says_scheduled(self):
+		application = self.an_application()
+
+		frappe.get_doc(
+			{
+				"doctype": "Interview Record",
+				"application": application,
+				"scheduled_on": frappe.utils.now_datetime(),
+			}
+		).insert(ignore_permissions=True)
+
+		self.assertEqual(status_of(application, NO["interview"]), "Scheduled")
+
+	def test_a_deferral_is_neither_a_pass_nor_a_failure(self):
+		application = self.an_application()
+
+		frappe.get_doc(
+			{
+				"doctype": "Interview Record",
+				"application": application,
+				"outcome": "Defer",
+			}
+		).insert(ignore_permissions=True)
+
+		self.assertEqual(status_of(application, NO["interview"]), "Deferred")
+
+	def test_the_console_records_one_interview_not_a_pile_of_them(self):
+		"""The college holds one interview; a second row is only a question
+		about which one counts."""
+		from sibbcs.api import admissions_api
+
+		application = self.an_application()
+
+		admissions_api.record_interview(application, outcome="Defer", notes="Nervous.")
+		admissions_api.record_interview(application, outcome="Recommend", notes="Better.")
+
+		records = frappe.get_all("Interview Record", filters={"application": application})
+		self.assertEqual(len(records), 1)
+		self.assertEqual(status_of(application, NO["interview"]), "Cleared")
+
+	def test_an_outcome_the_doctype_does_not_offer_is_refused(self):
+		from sibbcs.api import admissions_api
+
+		application = self.an_application()
+		with self.assertRaises(frappe.ValidationError):
+			admissions_api.record_interview(application, outcome="Maybe")
+
+
+class TestRecordingAFact(FrappeTestCase):
+	"""`record_fact` is for things that happened, not decisions somebody made."""
+
+	def an_application(self):
+		from sibbcs.admissions.doctype.admission_application.test_admission_application import (
+			make_application,
+		)
+
+		return make_application(
+			email=f"fact.{frappe.generate_hash(length=6)}@example.invalid"
+		).name
+
+	def test_it_does_not_walk_back_an_officers_decision(self):
+		application = self.an_application()
+		set_status(application, NO["interview"], "Rejected")
+
+		record_fact(application, NO["interview"], "Scheduled")
+
+		self.assertEqual(status_of(application, NO["interview"]), "Rejected")
+
+	def test_it_ignores_a_status_the_step_does_not_have(self):
+		application = self.an_application()
+		with self.assertRaises(frappe.ValidationError):
+			record_fact(application, NO["interview"], "Marked")
+
+	def test_it_does_not_wait_for_the_gates_an_officer_would(self):
+		"""They sat the exam and passed it, whether or not the LMS account step
+		was ever ticked. A fact is not a request to advance."""
+		application = self.an_application()
+
+		record_fact(application, NO["entrance_exam"], "Passed")
+
+		self.assertEqual(status_of(application, NO["entrance_exam"]), "Passed")

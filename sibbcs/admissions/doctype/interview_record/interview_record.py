@@ -5,6 +5,14 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+# What the panel decided -> what the checklist step says. `Defer` is neither
+# a pass nor a failure, and the step has its own word for it.
+OUTCOMES = {
+	"Recommend": "Cleared",
+	"Reject": "Rejected",
+	"Defer": "Deferred",
+}
+
 
 class InterviewRecord(Document):
 	def validate(self):
@@ -12,6 +20,28 @@ class InterviewRecord(Document):
 
 	def on_update(self):
 		self.push_to_application()
+		self.push_to_checklist()
+
+
+	def push_to_checklist(self):
+		"""An interview that happened should not leave its step at Awaiting.
+
+		Scheduled while there is no outcome yet, then whatever the panel
+		decided. `record_fact` will not walk the step out of a status an
+		officer has already recorded, so this can only ever add what is known.
+		"""
+		if not self.application:
+			return
+
+		from sibbcs.admissions.checklist import NO, record_fact
+
+		status = OUTCOMES.get(self.outcome) if self.outcome else None
+		if not status and self.scheduled_on:
+			status = "Scheduled"
+		if not status:
+			return
+
+		record_fact(self.application, NO["interview"], status)
 
 	def validate_panel(self):
 		seen = set()

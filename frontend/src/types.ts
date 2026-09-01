@@ -542,6 +542,64 @@ export interface MentorConsentRow {
 	idx: number
 }
 
+export interface ExamAnswer {
+	question: string | null
+	answer: string | null
+	marks: number
+	marks_out_of: number
+}
+
+export interface ExamState {
+	application: string
+	quiz_exists: boolean
+	submission: {
+		name: string
+		member: string
+		submitted_on: string
+		score: number
+		score_out_of: number
+		/** False while the candidate has sat it and nobody has read it yet. */
+		marked: boolean
+		answers: ExamAnswer[]
+	} | null
+	result: {
+		name: string
+		conducted_on: string | null
+		pass_mark: number
+		total: number
+		result: string
+		essay_gospel: number
+		essay_calling: number
+		essay_motivation: number
+	} | null
+	essay_max: number
+	essays: string[]
+}
+
+export interface InterviewRecord {
+	name: string
+	scheduled_on: string | null
+	outcome: string | null
+	notes: string | null
+	modified?: string | null
+}
+
+export interface ScholarshipDetail {
+	name: string
+	program: string | null
+	status: string
+	requested_amount: number
+	approved_amount: number
+	monthly_discount: number
+	justification: string | null
+	signature: string | null
+	submitted_on: string | null
+	approved_by: string | null
+	approved_on: string | null
+	cap: number | null
+	may_decide: boolean
+}
+
 export interface ApplicationDetail {
 	application: ApplicationRecord
 	checklist: ChecklistBoard
@@ -550,27 +608,10 @@ export interface ApplicationDetail {
 	documents: ApplicationDocumentRow[]
 	references: ReferenceRequestRow[]
 	mentors: MentorConsentRow[]
-	exam: {
-		name: string
-		total: number
-		result: string
-		pass_mark: number
-		conducted_on: string
-	} | null
-	interview: {
-		name: string
-		scheduled_on: string | null
-		outcome: string | null
-		notes: string | null
-		panel: string | null
-	} | null
-	scholarship: {
-		name: string
-		status: string
-		approved_amount: number
-		monthly_discount: number
-		requested_amount: number
-	} | null
+	exam: ExamState
+	interview: InterviewRecord | null
+	interview_outcomes: string[]
+	scholarship: ScholarshipDetail | null
 	invoices: {
 		name: string
 		fee_type: string | null

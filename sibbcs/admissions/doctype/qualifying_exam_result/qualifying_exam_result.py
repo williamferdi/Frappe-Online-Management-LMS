@@ -24,6 +24,24 @@ class QualifyingExamResult(Document):
 
 	def on_update(self):
 		self.push_to_application()
+		self.push_to_checklist()
+
+	def push_to_checklist(self):
+		"""And onto the step that tracks the exam.
+
+		Without this the college marked a paper, saw the score land on the
+		application, and still had Entrance Exam Review sitting at Awaiting.
+		"""
+		if not self.application or not self.result:
+			return
+
+		from sibbcs.admissions.checklist import NO, record_fact
+
+		record_fact(
+			self.application,
+			NO["entrance_exam"],
+			"Passed" if self.result == "Pass" else "Failed",
+		)
 
 	def validate_scores(self):
 		for field in SECTIONS:

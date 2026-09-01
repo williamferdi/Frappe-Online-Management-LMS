@@ -118,3 +118,47 @@ export function useRequestResubmit(application: string) {
 		},
 	})
 }
+
+/**
+ * Pull the marks the exam course already holds onto the admissions record.
+ *
+ * The whole application is refetched: recording a result moves the checklist
+ * step and pushes the score onto the application, and the server is where both
+ * of those are decided.
+ */
+export function usePullExam(application: string) {
+	const queryClient = useQueryClient()
+	return useMutation({
+		mutationFn: () =>
+			frappePost('sibbcs.admissions.entrance_exam.pull', { application }),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: staffKeys.application(application) })
+		},
+	})
+}
+
+export function useRecordExam(application: string) {
+	const queryClient = useQueryClient()
+	return useMutation({
+		mutationFn: (marks: Record<string, number>) =>
+			frappePost('sibbcs.admissions.entrance_exam.record', { application, ...marks }),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: staffKeys.application(application) })
+		},
+	})
+}
+
+export function useRecordInterview(application: string) {
+	const queryClient = useQueryClient()
+	return useMutation({
+		mutationFn: (values: { outcome: string; scheduled_on: string; notes: string }) =>
+			frappePost('sibbcs.api.admissions_api.record_interview', {
+				application,
+				...values,
+			}),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: staffKeys.application(application) })
+			void queryClient.invalidateQueries({ queryKey: staffKeys.dashboard })
+		},
+	})
+}
