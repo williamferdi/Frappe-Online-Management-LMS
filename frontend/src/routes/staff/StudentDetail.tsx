@@ -195,6 +195,8 @@ function Personal({ data }: { data: Detail }) {
 	return (
 		<Section title="Personal information">
 			<Field label="Gender" value={student.gender} />
+			<Field label="Mother tongue" value={admission?.application.mother_tongue} />
+			<Field label="Nationality" value={admission?.application.nationality} />
 			<Field
 				label="Date of birth"
 				value={student.dob ? `${formatDate(student.dob)}${age ? ` · ${age} years` : ''}` : null}
@@ -281,11 +283,15 @@ function Formational({
 			)}
 
 			<Field label="Church" value={record.church_name} />
+			<Field label="Denomination" value={record.church_denomination} />
 			<Field label="Role in church" value={record.current_role} />
 			<Field
 				label="Ministry experience"
 				value={record.years_of_ministry ? `${record.years_of_ministry} years` : null}
 			/>
+			<Field label="Salvation" value={record.salvation_status} />
+			<Field label="Baptism" value={record.baptism_status} />
+			<Field label="Sense of call" value={record.sense_of_call} />
 		</Section>
 	)
 }
@@ -344,6 +350,11 @@ function Onboarding({ data }: { data: Detail }) {
 					<Field label="Onboarded" value={formatDate(record.enrolled_on)} />
 					<Field label="Enrolment date" value={formatDate(enrollment?.enrollment_date)} />
 					<Field label="Start term" value={enrollment?.start_term} />
+					<Field label="WhatsApp groups" value={record.whatsapp_groups} />
+					<Field
+						label="Theological writing"
+						value={record.theological_writing_status}
+					/>
 					<Field label="Applicant login" value={record.applicant_user} />
 				</dl>
 
@@ -351,6 +362,14 @@ function Onboarding({ data }: { data: Detail }) {
 					<Gate label="Application fee" done={Boolean(record.application_fee_paid)} />
 					<Gate label="Documents verified" done={Boolean(record.docs_verified)} />
 					<Gate label="Admission fee" done={Boolean(record.admission_fee_paid)} />
+					{/* The college's own determinations, shown only when they apply --
+					    an unticked box is not a fact worth a badge. */}
+					{Boolean(record.ata_eligible) && <Badge variant="success">ATA eligible</Badge>}
+					{Boolean(record.mature_candidate) && <Badge>Mature candidate</Badge>}
+					{Boolean(record.transfer_student) && <Badge>Transfer student</Badge>}
+					{Boolean(record.education_sequence_mismatch) && (
+						<Badge variant="warning">Educational sequence mismatch</Badge>
+					)}
 					{admission.scholarship && (
 						<Badge
 							variant={admission.scholarship.status === 'Approved' ? 'success' : 'muted'}

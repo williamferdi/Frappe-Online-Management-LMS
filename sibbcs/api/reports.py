@@ -99,12 +99,26 @@ def run(doctype, group_by, aggregate=None, filters=None, limit=100):
 		if sum_field:
 			row["total"] = flt(row.get("total"), 2)
 
+	# The whole population, not the sum of the rows above: `limit` caps
+	# groups, so a field with more distinct values than the cap would
+	# otherwise report a total that is short by whatever fell off the end.
+	total_records = cint(
+		frappe.get_list(
+			doctype,
+			filters=filters or {},
+			fields=["count(name) as count"],
+		)[0]["count"]
+	)
+	shown = sum(cint(row["count"]) for row in rows)
+
 	return {
 		"doctype": doctype,
 		"group_by": group_field,
 		"aggregate": sum_field,
 		"rows": rows,
-		"count": sum(cint(row["count"]) for row in rows),
+		"count": total_records,
+		"shown": shown,
+		"truncated": shown < total_records,
 		"total": flt(sum(flt(row.get("total")) for row in rows), 2) if sum_field else None,
 	}
 

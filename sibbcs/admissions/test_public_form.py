@@ -749,3 +749,89 @@ class TestMentorForm(FrappeTestCase):
 		self.assertIn("role_url", parts)
 		self.assertIn("handbook_url", parts)
 		self.assertIn("sacred and meaningful responsibility", parts["lead"])
+
+
+class TestWhatTheCandidateDeclares(FrappeTestCase):
+	"""The six questions the college asks about a person, and the six it
+	answers about them itself.
+
+	The split is the point. Mother tongue and baptism are the candidate's to
+	state; ATA eligibility and whether they were added to the WhatsApp groups
+	are the college's to decide, and an anonymous form must not be able to
+	claim either.
+	"""
+
+	DECLARED = {
+		"mother_tongue": "Telugu",
+		"nationality": "Indian",
+		"church_denomination": "Independent",
+		"salvation_status": "I am Saved",
+		"baptism_status": "Baptised",
+		"sense_of_call": "Yes, clearly",
+	}
+
+	def test_what_the_candidate_says_is_kept(self):
+		result = submit_application(
+			**payload(email="declared1@example.invalid", **self.DECLARED)
+		)
+		doc = frappe.get_doc("Admission Application", result["application"])
+
+		for field, value in self.DECLARED.items():
+			with self.subTest(field=field):
+				self.assertEqual(doc.get(field), value)
+
+	def test_the_colleges_own_determinations_cannot_be_claimed(self):
+		result = submit_application(
+			**payload(
+				email="declared2@example.invalid",
+				ata_eligible=1,
+				mature_candidate=1,
+				transfer_student=1,
+				education_sequence_mismatch=1,
+				whatsapp_groups="Added",
+				theological_writing_status="Completed",
+			)
+		)
+		doc = frappe.get_doc("Admission Application", result["application"])
+
+		self.assertFalse(doc.ata_eligible)
+		self.assertFalse(doc.mature_candidate)
+		self.assertFalse(doc.transfer_student)
+		self.assertFalse(doc.education_sequence_mismatch)
+		self.assertEqual(doc.whatsapp_groups, "Awaiting")
+		self.assertEqual(doc.theological_writing_status, "Not Applicable")
+
+	def test_the_whitelist_excludes_them_by_construction(self):
+		for field in (
+			"ata_eligible", "mature_candidate", "transfer_student",
+			"education_sequence_mismatch", "whatsapp_groups",
+			"theological_writing_status",
+		):
+			self.assertNotIn(field, APPLICANT_FIELDS, field)
+
+	def test_a_choice_the_doctype_does_not_offer_is_dropped_not_thrown(self):
+		"""Only a crafted payload can do this. Refusing it with Frappe's own
+		validation error would hand our field internals back to whoever asked;
+		the application is still worth saving."""
+		result = submit_application(
+			**payload(email="declared3@example.invalid", salvation_status="Chosen One")
+		)
+		doc = frappe.get_doc("Admission Application", result["application"])
+
+		self.assertFalse(doc.salvation_status)
+		self.assertEqual(doc.full_name, "Public Applicant")
+
+	def test_the_form_offers_every_field_it_is_allowed_to(self):
+		"""A field on the whitelist that the page never asks for collects
+		nothing. This is the check that the two stay in step."""
+		import os
+
+		page = open(
+			os.path.join(frappe.get_app_path("sibbcs"), "www", "apply.html"),
+			encoding="utf-8",
+		).read()
+
+		for field in self.DECLARED:
+			with self.subTest(field=field):
+				self.assertIn(f'id="{field}"', page)
+				self.assertIn(f"'{field}'", page)

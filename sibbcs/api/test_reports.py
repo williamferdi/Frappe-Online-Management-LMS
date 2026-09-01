@@ -68,13 +68,33 @@ class TestReportGuards(FrappeTestCase):
 
 class TestReportResults(FrappeTestCase):
 	def test_counts_add_up_to_the_record_count(self):
-		"""A report whose parts do not sum to its whole is worse than none."""
+		"""A report whose parts do not sum to its whole is worse than none.
+
+		`limit` caps groups, not records, so on a doctype with more distinct
+		values than the cap the rows shown are a slice. The report says so --
+		`count` is the whole population and `truncated` says whether the rows
+		are all of it.
+		"""
 		result = reports.run("Course Offering", "term")
-		self.assertEqual(
-			result["count"],
-			sum(row["count"] for row in result["rows"]),
-		)
+
 		self.assertEqual(result["count"], frappe.db.count("Course Offering"))
+		self.assertEqual(result["shown"], sum(row["count"] for row in result["rows"]))
+		self.assertEqual(result["truncated"], result["shown"] < result["count"])
+
+	def test_a_report_with_room_for_every_group_is_not_truncated(self):
+		result = reports.run("Course", "level")
+		self.assertFalse(result["truncated"])
+		self.assertEqual(result["count"], result["shown"])
+
+	def test_a_capped_report_says_the_rows_are_a_slice(self):
+		"""One group per row, one row per limit -- the honest answer is not a
+		smaller total but a flag saying the rest is off the page."""
+		result = reports.run("Course Offering", "term", limit=1)
+
+		self.assertLessEqual(len(result["rows"]), 1)
+		self.assertEqual(result["count"], frappe.db.count("Course Offering"))
+		if result["count"] > result["shown"]:
+			self.assertTrue(result["truncated"])
 
 	def test_an_empty_group_is_shown_not_dropped(self):
 		"""'(not set)' is a real answer, and dropping it makes the total

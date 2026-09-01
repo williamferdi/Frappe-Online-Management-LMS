@@ -638,12 +638,35 @@ it became use the same two. The reference and mentor answers still come from
 `reference_form.view` / `mentor_form.view`, which render the questions
 server-side, so the forms cannot drift from what is displayed.
 
-**What the college's old system showed and we do not hold a field for**: mother
-tongue, nationality, salvation and baptism status, sense of call, the student's
-own denomination, ATA eligibility, mature-candidate and transfer-student flags,
-educational sequence mismatch, WhatsApp group membership, and the theological
-writing status. Adding any of them means a field on Admission Application *and* a
-question on the public form -- the profile only shows what was collected.
+**The twelve fields the old system carried were added on 1 Sep 2026**, in two
+groups that must not be confused:
+
+* **Declared by the candidate**, and asked on `/apply`: `mother_tongue`,
+  `nationality`, `church_denomination`, `salvation_status`, `baptism_status`,
+  `sense_of_call`. All optional -- a required field added to a live form
+  breaks the application somebody is halfway through.
+* **Determined by the college**, and never on the public form: `ata_eligible`,
+  `mature_candidate`, `transfer_student`, `education_sequence_mismatch`,
+  `whatsapp_groups`, `theological_writing_status`.
+
+`public_form.APPLICANT_FIELDS` is a whitelist, so leaving the second group out of
+it *is* the guarantee that a crafted payload cannot claim ATA eligibility. A test
+posts all six and asserts every one stayed at its default.
+
+`_clean()` also drops a Select value the DocType does not offer rather than
+letting `doc.insert()` throw -- Frappe's validation error names our field
+internals, and it would go back to whoever asked. Only a crafted payload can
+reach it; the form lists exactly the offered values.
+
+The four Check flags are **badged only when true**. A row of "No" badges is
+noise the eye has to read past to find the one that matters.
+
+The option lists (`I am Saved` / `Still Seeking`, `Baptised` / `Not Baptised` /
+`Planning to be Baptised`, `Yes, clearly` / `Yes, still discerning` / `Not yet
+sure`) were chosen to match the wording in the college's old profile; changing
+them is a DocType edit plus the matching `<option>` in `www/apply.html`. A test
+asserts every whitelisted field actually appears on that page -- a field the form
+never asks for collects nothing.
 
 ### Finance and accounts — `sibbcs/api/finance_api.py`, `sibbcs/api/users_api.py`
 
@@ -748,6 +771,13 @@ Two honest limits: a **Text Editor field is a textarea holding HTML** and the fo
 says so, and **CSV export writes the rows already on screen**, not a second
 unfiltered fetch — an export that quietly holds more than the table it came from is
 how data leaves by accident.
+
+**A grouped report's `limit` caps groups, not records.** `run()` returns
+`count` (every record in scope), `shown` (those inside the groups listed) and
+`truncated`. It used to return only the sum of the rows, so a field with more
+distinct values than the cap under-reported its own total -- exactly what its
+test claimed to prevent, and the test only caught it once the test site grew
+past a hundred terms.
 
 ### Patches to the vendored LMS
 

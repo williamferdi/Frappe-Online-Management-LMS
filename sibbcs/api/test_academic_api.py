@@ -308,6 +308,13 @@ class TestStudentProfile(FrappeTestCase):
 			ssc_year="2014",
 			hslc_status="Completed",
 			hslc_year="2016",
+			mother_tongue="Telugu",
+			nationality="Indian",
+			church_denomination="Independent",
+			salvation_status="I am Saved",
+			baptism_status="Baptised",
+			sense_of_call="Yes, clearly",
+			ata_eligible=1,
 			church_name="New Life Church",
 			current_role="Assistant pastor",
 			years_of_ministry=2,
@@ -338,6 +345,21 @@ class TestStudentProfile(FrappeTestCase):
 		self.assertEqual(block["application"]["name"], application)
 		self.assertEqual(block["application"]["ssc_status"], "Completed")
 		self.assertEqual(block["application"]["church_name"], "New Life Church")
+
+	def test_the_profile_carries_what_the_candidate_declared(self):
+		"""Mother tongue, denomination, baptism and the rest live on the
+		application and nowhere else -- the profile is where anyone reads them.
+		"""
+		name, _ = self.a_student_admitted_from_an_application()
+
+		record = api.student(name)["admission"]["application"]
+
+		self.assertEqual(record["mother_tongue"], "Telugu")
+		self.assertEqual(record["church_denomination"], "Independent")
+		self.assertEqual(record["baptism_status"], "Baptised")
+		self.assertEqual(record["sense_of_call"], "Yes, clearly")
+		# And the one determination only the college may make.
+		self.assertTrue(record["ata_eligible"])
 
 	def test_the_documents_and_the_people_who_vouched_come_with_it(self):
 		"""The reason for the page: a registrar looking a student up wants the

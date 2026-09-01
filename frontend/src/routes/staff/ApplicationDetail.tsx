@@ -278,15 +278,31 @@ function Candidate({ data }: { data: Detail }) {
 					<Field label="Mobile" value={record.mobile} />
 					<Field label="Date of birth" value={formatDate(record.dob)} />
 					<Field label="Gender" value={record.gender} />
+					<Field label="Mother tongue" value={record.mother_tongue} />
+					<Field label="Nationality" value={record.nationality} />
 					<Field label="Church" value={record.church_name} />
+					<Field label="Denomination" value={record.church_denomination} />
 					<Field label="Role" value={record.current_role} />
 					<Field
 						label="Ministry"
 						value={record.years_of_ministry ? `${record.years_of_ministry} years` : null}
 					/>
+					<Field label="Salvation" value={record.salvation_status} />
+					<Field label="Baptism" value={record.baptism_status} />
+					<Field label="Sense of call" value={record.sense_of_call} />
 					<Field label="Address" value={record.address} />
 					{record.student && <Field label="Student" value={record.student} />}
 				</dl>
+
+				{/* Shown only when true: an unticked box is not a finding. */}
+				<div className="mt-3 flex flex-wrap gap-1.5">
+					{Boolean(record.ata_eligible) && <Badge variant="success">ATA eligible</Badge>}
+					{Boolean(record.mature_candidate) && <Badge>Mature candidate</Badge>}
+					{Boolean(record.transfer_student) && <Badge>Transfer student</Badge>}
+					{Boolean(record.education_sequence_mismatch) && (
+						<Badge variant="warning">Educational sequence mismatch</Badge>
+					)}
+				</div>
 			</CardContent>
 		</Card>
 	)

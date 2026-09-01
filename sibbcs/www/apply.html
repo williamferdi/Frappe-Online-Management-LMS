@@ -72,6 +72,19 @@
         </small>
       </div>
 
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="mother_tongue">Mother tongue</label>
+          <input type="text" class="form-control" id="mother_tongue" maxlength="60"
+                 placeholder="e.g. Tamil">
+        </div>
+        <div class="form-group">
+          <label for="nationality">Nationality</label>
+          <input type="text" class="form-control" id="nationality" maxlength="60"
+                 placeholder="e.g. Indian">
+        </div>
+      </div>
+
       <div class="form-group">
         <label for="address">Postal address</label>
         <textarea class="form-control" id="address" rows="3" maxlength="500"></textarea>
@@ -91,6 +104,12 @@
           <input type="text" class="form-control" id="current_role" maxlength="140"
                  placeholder="e.g. Associate Pastor">
         </div>
+      </div>
+
+      <div class="form-group">
+        <label for="church_denomination">Denomination</label>
+        <input type="text" class="form-control" id="church_denomination" maxlength="140"
+               placeholder="e.g. Baptist, Independent">
       </div>
 
       <div class="grid-2">
@@ -207,6 +226,44 @@
         <textarea class="form-control" id="previous_theological_education" rows="2"
                   maxlength="500" placeholder="Institution, qualification and year — or write None"
                   required></textarea>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Your faith and calling</legend>
+      <p class="text-muted small">
+        We ask these because this is a seminary, not because there is a right
+        answer. Say where you actually are.
+      </p>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="salvation_status">Salvation</label>
+          <select class="form-control" id="salvation_status">
+            <option value="">Prefer not to say</option>
+            <option value="I am Saved">I am saved</option>
+            <option value="Still Seeking">Still seeking</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="baptism_status">Baptism</label>
+          <select class="form-control" id="baptism_status">
+            <option value="">Prefer not to say</option>
+            <option value="Baptised">Baptised</option>
+            <option value="Not Baptised">Not baptised</option>
+            <option value="Planning to be Baptised">Planning to be baptised</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="sense_of_call">Do you sense God's call on your life?</label>
+        <select class="form-control" id="sense_of_call">
+          <option value="">Prefer not to say</option>
+          <option value="Yes, clearly">Yes, clearly</option>
+          <option value="Yes, still discerning">Yes, but still discerning</option>
+          <option value="Not yet sure">Not yet sure</option>
+        </select>
       </div>
     </fieldset>
 
@@ -431,7 +488,9 @@
 
     const fields = [
       'full_name','dob','gender','mobile','whatsapp','email','address',
-      'church_name','current_role','years_of_ministry','has_bachelors',
+      'mother_tongue','nationality',
+      'church_name','church_denomination','current_role','years_of_ministry',
+      'has_bachelors','salvation_status','baptism_status','sense_of_call',
       'ssc_status','ssc_year','hslc_status','hslc_year',
       'ug_status','ug_year','previous_theological_education',
       'program','intake_term',

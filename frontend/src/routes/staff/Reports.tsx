@@ -35,7 +35,10 @@ interface ReportResult {
 	group_by: string
 	aggregate: string | null
 	rows: ReportRow[]
+	/** Every record in scope, not only the groups listed above. */
 	count: number
+	shown: number
+	truncated: boolean
 	total: number | null
 }
 
@@ -192,6 +195,11 @@ function Result({ data }: { data: ReportResult }) {
 							<TableCell />
 							<TableCell className="text-right font-semibold tabular-nums">
 								{data.count}
+								{data.truncated && (
+									<div className="text-muted-foreground text-xs font-normal">
+										{data.shown} in the groups shown
+									</div>
+								)}
 							</TableCell>
 							{data.aggregate && (
 								<TableCell className="pr-5 text-right font-semibold tabular-nums">

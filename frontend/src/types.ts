@@ -468,6 +468,18 @@ export interface ApplicationRecord {
 	years_of_ministry: number | null
 	has_bachelors: 0 | 1
 	previous_theological_education: string | null
+	mother_tongue: string | null
+	nationality: string | null
+	church_denomination: string | null
+	salvation_status: string | null
+	baptism_status: string | null
+	sense_of_call: string | null
+	ata_eligible: 0 | 1
+	mature_candidate: 0 | 1
+	transfer_student: 0 | 1
+	education_sequence_mismatch: 0 | 1
+	whatsapp_groups: string | null
+	theological_writing_status: string | null
 	program: string | null
 	intake_term: string | null
 	entry_level: string | null
@@ -612,6 +624,18 @@ export interface StudentAdmission {
 		years_of_ministry: number | null
 		has_bachelors: 0 | 1
 		previous_theological_education: string | null
+		mother_tongue: string | null
+		nationality: string | null
+		church_denomination: string | null
+		salvation_status: string | null
+		baptism_status: string | null
+		sense_of_call: string | null
+		ata_eligible: 0 | 1
+		mature_candidate: 0 | 1
+		transfer_student: 0 | 1
+		education_sequence_mismatch: 0 | 1
+		whatsapp_groups: string | null
+		theological_writing_status: string | null
 		ssc_status: string | null
 		ssc_year: string | null
 		hslc_status: string | null

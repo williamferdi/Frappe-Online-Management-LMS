@@ -54,6 +54,18 @@ const detail: Detail = {
 			years_of_ministry: 2,
 			has_bachelors: 1,
 			previous_theological_education: null,
+			mother_tongue: 'Telugu',
+			nationality: 'Indian',
+			church_denomination: 'Independent',
+			salvation_status: 'I am Saved',
+			baptism_status: 'Baptised',
+			sense_of_call: 'Yes, clearly',
+			ata_eligible: 1,
+			mature_candidate: 0,
+			transfer_student: 0,
+			education_sequence_mismatch: 0,
+			whatsapp_groups: 'Awaiting',
+			theological_writing_status: 'Waiting For Payment',
 			ssc_status: 'Completed',
 			ssc_year: '2014',
 			hslc_status: 'Completed',
@@ -303,5 +315,30 @@ describe('the student profile', () => {
 		await renderProfile({ ...detail, admission: null })
 
 		expect(screen.getAllByText(/your role may not read/i).length).toBeGreaterThan(0)
+	})
+
+	it('shows what the candidate said about themselves', async () => {
+		await renderProfile()
+
+		const personal = cardFor('Personal information')
+		expect(within(personal).getByText('Telugu')).toBeInTheDocument()
+		expect(within(personal).getByText('Indian')).toBeInTheDocument()
+
+		const formation = cardFor('Formational details')
+		expect(within(formation).getByText('I am Saved')).toBeInTheDocument()
+		expect(within(formation).getByText('Baptised')).toBeInTheDocument()
+		expect(within(formation).getByText('Yes, clearly')).toBeInTheDocument()
+		expect(within(formation).getByText('Independent')).toBeInTheDocument()
+	})
+
+	it('badges only the determinations that are actually true', async () => {
+		// Four flags, one set. A row of "No" badges is noise the eye has to
+		// read past to find the one that matters.
+		await renderProfile()
+
+		expect(screen.getByText('ATA eligible')).toBeInTheDocument()
+		expect(screen.queryByText('Transfer student')).not.toBeInTheDocument()
+		expect(screen.queryByText('Mature candidate')).not.toBeInTheDocument()
+		expect(screen.getByText('Waiting For Payment')).toBeInTheDocument()
 	})
 })

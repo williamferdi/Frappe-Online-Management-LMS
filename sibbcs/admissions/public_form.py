@@ -45,6 +45,16 @@ APPLICANT_FIELDS = (
 	"ug_status",
 	"ug_year",
 	"previous_theological_education",
+	# What the candidate says about themselves. The college's own
+	# determinations -- ATA eligibility, mature candidate, transfer
+	# student, the WhatsApp groups -- are deliberately absent: they are
+	# ours to decide, and this list is the only way in.
+	"mother_tongue",
+	"nationality",
+	"church_denomination",
+	"salvation_status",
+	"baptism_status",
+	"sense_of_call",
 	"program",
 	"intake_term",
 )
@@ -57,6 +67,9 @@ MAX_LEN = {
 	"address": 500,
 	"church_name": 140,
 	"current_role": 140,
+	"mother_tongue": 60,
+	"nationality": 60,
+	"church_denomination": 140,
 }
 
 
@@ -84,10 +97,21 @@ def open_intakes():
 		if not t.application_deadline or getdate(t.application_deadline) >= today
 	]
 
+def _offered(field, value):
+	"""Is this one of the values the DocType actually offers?
+
+	Only a crafted payload can fail this -- the form lists exactly these. Left
+	out rather than refused, because the alternative is `doc.insert()` throwing
+	a validation error naming our internals back at whoever asked.
+	"""
+	options = frappe.get_meta("Admission Application").get_field(field).options or ""
+	return value in [choice.strip() for choice in options.split("\n")]
+
 
 def _clean(values):
 	"""Copy only whitelisted fields, trimmed and length-capped."""
 	cleaned = {}
+	meta = frappe.get_meta("Admission Application")
 	for field in APPLICANT_FIELDS:
 		value = values.get(field)
 		if value in (None, ""):
@@ -97,6 +121,8 @@ def _clean(values):
 			cap = MAX_LEN.get(field)
 			if cap:
 				value = value[:cap]
+		if meta.get_field(field).fieldtype == "Select" and not _offered(field, value):
+			continue
 		cleaned[field] = value
 
 	cleaned["email"] = (cleaned.get("email") or "").lower()

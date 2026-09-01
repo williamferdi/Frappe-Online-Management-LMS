@@ -13,6 +13,8 @@
   "dob",
   "age",
   "gender",
+  "mother_tongue",
+  "nationality",
   "cb_applicant",
   "mobile",
   "whatsapp",
@@ -24,6 +26,7 @@
   "id_document",
   "sb_ministry",
   "church_name",
+  "church_denomination",
   "current_role",
   "cb_ministry",
   "years_of_ministry",
@@ -37,6 +40,11 @@
   "hslc_status",
   "ssc_year",
   "ssc_status",
+  "sb_faith",
+  "salvation_status",
+  "baptism_status",
+  "cb_faith",
+  "sense_of_call",
   "sb_education",
   "sb_program",
   "program",
@@ -58,6 +66,12 @@
   "interview_outcome",
   "offer_sent_on",
   "admission_fee_paid",
+  "sb_assessment",
+  "ata_eligible",
+  "mature_candidate",
+  "cb_assessment",
+  "transfer_student",
+  "education_sequence_mismatch",
   "sb_documents",
   "application_documents",
   "sb_references",
@@ -70,6 +84,8 @@
   "student",
   "onboard_term",
   "onboard_level",
+  "whatsapp_groups",
+  "theological_writing_status",
   "sb_onboarding",
   "scholarship_request",
   "scholarship_form_sent_on",
@@ -128,6 +144,16 @@
    "fieldtype": "Select",
    "label": "Gender",
    "options": "\nMale\nFemale"
+  },
+  {
+   "fieldname": "mother_tongue",
+   "fieldtype": "Data",
+   "label": "Mother Tongue"
+  },
+  {
+   "fieldname": "nationality",
+   "fieldtype": "Data",
+   "label": "Nationality"
   },
   {
    "fieldname": "cb_applicant",
@@ -189,6 +215,11 @@
    "label": "Church"
   },
   {
+   "fieldname": "church_denomination",
+   "fieldtype": "Data",
+   "label": "Church Denomination"
+  },
+  {
    "fieldname": "current_role",
    "fieldtype": "Data",
    "label": "Current Role"
@@ -212,6 +243,84 @@
    "fieldname": "ministry_experience_doc",
    "fieldtype": "Attach",
    "label": "Ministry Experience Document"
+  },
+  {
+   "description": "Institution, qualification and year, or 'None'.",
+   "fieldname": "previous_theological_education",
+   "fieldtype": "Small Text",
+   "label": "Any Previous Theological Education?"
+  },
+  {
+   "fieldname": "ug_year",
+   "fieldtype": "Data",
+   "label": "Undergraduate Completion Year",
+   "length": 4
+  },
+  {
+   "fieldname": "ug_status",
+   "fieldtype": "Select",
+   "label": "Undergraduate Completion Status",
+   "options": "\nCompleted\nPursuing\nNot Completed"
+  },
+  {
+   "fieldname": "cb_education",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "hslc_year",
+   "fieldtype": "Data",
+   "label": "HSLC / 12th Completion Year",
+   "length": 4
+  },
+  {
+   "fieldname": "hslc_status",
+   "fieldtype": "Select",
+   "label": "HSLC / 12th Completion Status",
+   "options": "\nCompleted\nPursuing\nNot Completed"
+  },
+  {
+   "fieldname": "ssc_year",
+   "fieldtype": "Data",
+   "label": "SSC / 10th Completion Year",
+   "length": 4
+  },
+  {
+   "fieldname": "ssc_status",
+   "fieldtype": "Select",
+   "label": "SSC / 10th Completion Status",
+   "options": "\nCompleted\nPursuing\nNot Completed"
+  },
+  {
+   "fieldname": "sb_faith",
+   "fieldtype": "Section Break",
+   "label": "Faith and Calling"
+  },
+  {
+   "fieldname": "salvation_status",
+   "fieldtype": "Select",
+   "label": "Salvation Status",
+   "options": "\nI am Saved\nStill Seeking\nPrefer not to say"
+  },
+  {
+   "fieldname": "baptism_status",
+   "fieldtype": "Select",
+   "label": "Baptism Status",
+   "options": "\nBaptised\nNot Baptised\nPlanning to be Baptised"
+  },
+  {
+   "fieldname": "cb_faith",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sense_of_call",
+   "fieldtype": "Select",
+   "label": "Sense of God's Call in Life",
+   "options": "\nYes, clearly\nYes, still discerning\nNot yet sure"
+  },
+  {
+   "fieldname": "sb_education",
+   "fieldtype": "Section Break",
+   "label": "Educational History"
   },
   {
    "fieldname": "sb_program",
@@ -261,6 +370,39 @@
    "read_only": 1
   },
   {
+   "description": "Authorises document upload from the public form for this application only.",
+   "fieldname": "upload_token",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Upload Token",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_checklist",
+   "fieldtype": "Section Break",
+   "label": "Admission Checklist"
+  },
+  {
+   "description": "Drawn by the form script from admissions.checklist.board.",
+   "fieldname": "checklist_board",
+   "fieldtype": "HTML",
+   "label": "Checklist"
+  },
+  {
+   "collapsible": 1,
+   "description": "The stored rows behind the board. Remarks and the audit stamps live here.",
+   "fieldname": "sb_checklist_rows",
+   "fieldtype": "Section Break",
+   "label": "Checklist Rows"
+  },
+  {
+   "fieldname": "checklist",
+   "fieldtype": "Table",
+   "label": "Checklist",
+   "options": "Admission Checklist Item"
+  },
+  {
    "fieldname": "sb_gates",
    "fieldtype": "Section Break",
    "label": "Gates"
@@ -308,6 +450,42 @@
    "label": "Admission Fee Paid"
   },
   {
+   "fieldname": "sb_assessment",
+   "fieldtype": "Section Break",
+   "label": "Eligibility Assessment"
+  },
+  {
+   "default": "0",
+   "description": "Meets the Asia Theological Association's entry requirements.",
+   "fieldname": "ata_eligible",
+   "fieldtype": "Check",
+   "label": "ATA Eligible"
+  },
+  {
+   "default": "0",
+   "description": "Admitted on ministry experience rather than on the usual qualifications.",
+   "fieldname": "mature_candidate",
+   "fieldtype": "Check",
+   "label": "Mature Candidate"
+  },
+  {
+   "fieldname": "cb_assessment",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "transfer_student",
+   "fieldtype": "Check",
+   "label": "Transfer Student"
+  },
+  {
+   "default": "0",
+   "description": "The dates on the certificates do not run in the usual order.",
+   "fieldname": "education_sequence_mismatch",
+   "fieldtype": "Check",
+   "label": "Educational Sequence Mismatch"
+  },
+  {
    "fieldname": "sb_documents",
    "fieldtype": "Section Break",
    "label": "Documents"
@@ -341,6 +519,17 @@
    "options": "Mentor Consent"
   },
   {
+   "fieldname": "manual_acknowledgements",
+   "fieldtype": "Table",
+   "label": "Manuals",
+   "options": "Manual Acknowledgement"
+  },
+  {
+   "fieldname": "sb_manual",
+   "fieldtype": "Section Break",
+   "label": "Manual Reading"
+  },
+  {
    "fieldname": "sb_outcome",
    "fieldtype": "Section Break",
    "label": "Outcome"
@@ -352,55 +541,6 @@
    "no_copy": 1,
    "options": "Student",
    "read_only": 1
-  },
-  {
-   "fieldname": "cb_outcome",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "enrolled_on",
-   "fieldtype": "Datetime",
-   "label": "Enrolled On",
-   "no_copy": 1,
-   "read_only": 1
-  },
-  {
-   "fieldname": "sb_notes",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "notes",
-   "fieldtype": "Text",
-   "label": "Internal Notes"
-  },
-  {
-   "fieldname": "scholarship_request",
-   "fieldtype": "Link",
-   "label": "Scholarship Request",
-   "options": "Scholarship Request",
-   "read_only": 1
-  },
-  {
-   "fieldname": "checklist",
-   "fieldtype": "Table",
-   "label": "Checklist",
-   "options": "Admission Checklist Item"
-  },
-  {
-   "fieldname": "sb_checklist",
-   "fieldtype": "Section Break",
-   "label": "Admission Checklist"
-  },
-  {
-   "fieldname": "manual_acknowledgements",
-   "fieldtype": "Table",
-   "label": "Manuals",
-   "options": "Manual Acknowledgement"
-  },
-  {
-   "fieldname": "sb_manual",
-   "fieldtype": "Section Break",
-   "label": "Manual Reading"
   },
   {
    "description": "Defaults to the intake term if left blank.",
@@ -417,67 +557,63 @@
    "options": "\n1\n2\n3\n4"
   },
   {
+   "default": "Awaiting",
+   "fieldname": "whatsapp_groups",
+   "fieldtype": "Select",
+   "label": "Added to Official WhatsApp Groups",
+   "options": "Awaiting\nAdded\nNot Applicable"
+  },
+  {
+   "default": "Not Applicable",
+   "fieldname": "theological_writing_status",
+   "fieldtype": "Select",
+   "label": "Status of Theological Writing",
+   "options": "Not Applicable\nAwaiting\nWaiting For Payment\nIn Progress\nSubmitted\nCompleted"
+  },
+  {
    "fieldname": "sb_onboarding",
    "fieldtype": "Section Break",
    "label": "Onboarding Decision"
   },
   {
-   "description": "Institution, qualification and year, or 'None'.",
-   "fieldname": "previous_theological_education",
+   "fieldname": "scholarship_request",
+   "fieldtype": "Link",
+   "label": "Scholarship Request",
+   "options": "Scholarship Request",
+   "read_only": 1
+  },
+  {
+   "fieldname": "scholarship_form_sent_on",
+   "fieldtype": "Datetime",
+   "label": "Form Sent On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "scholarship_form_url",
    "fieldtype": "Small Text",
-   "label": "Any Previous Theological Education?"
+   "label": "Scholarship Form Link",
+   "read_only": 1
   },
   {
-   "fieldname": "ug_year",
+   "fieldname": "scholarship_token",
    "fieldtype": "Data",
-   "label": "Undergraduate Completion Year",
-   "length": 4
+   "label": "Scholarship Token",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
-   "fieldname": "ug_status",
-   "fieldtype": "Select",
-   "label": "Undergraduate Completion Status",
-   "options": "\nCompleted\nPursuing\nNot Completed"
+   "fieldname": "sb_scholarship",
+   "fieldtype": "Section Break",
+   "label": "Scholarship"
   },
   {
-   "fieldname": "cb_education",
+   "fieldname": "cb_outcome",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "hslc_year",
-   "fieldtype": "Data",
-   "label": "HSLC / 12th Completion Year",
-   "length": 4
-  },
-  {
-   "fieldname": "hslc_status",
-   "fieldtype": "Select",
-   "label": "HSLC / 12th Completion Status",
-   "options": "\nCompleted\nPursuing\nNot Completed"
-  },
-  {
-   "fieldname": "ssc_year",
-   "fieldtype": "Data",
-   "label": "SSC / 10th Completion Year",
-   "length": 4
-  },
-  {
-   "fieldname": "ssc_status",
-   "fieldtype": "Select",
-   "label": "SSC / 10th Completion Status",
-   "options": "\nCompleted\nPursuing\nNot Completed"
-  },
-  {
-   "fieldname": "sb_education",
-   "fieldtype": "Section Break",
-   "label": "Educational History"
-  },
-  {
-   "description": "Authorises document upload from the public form for this application only.",
-   "fieldname": "upload_token",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Upload Token",
+   "fieldname": "enrolled_on",
+   "fieldtype": "Datetime",
+   "label": "Enrolled On",
    "no_copy": 1,
    "read_only": 1
   },
@@ -486,6 +622,24 @@
    "fieldtype": "Datetime",
    "label": "Exam Link Sent On",
    "read_only": 1
+  },
+  {
+   "fieldname": "interview_link_sent_on",
+   "fieldtype": "Datetime",
+   "label": "Booking Link Sent On",
+   "read_only": 1
+  },
+  {
+   "description": "This candidate's own Calendly link, with their details prefilled and the application number attached. Copy it if you need to send it by WhatsApp.",
+   "fieldname": "interview_booking_url",
+   "fieldtype": "Small Text",
+   "label": "Booking Link",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_interview",
+   "fieldtype": "Section Break",
+   "label": "Interview Booking"
   },
   {
    "fieldname": "entrance_exam_link",
@@ -517,66 +671,20 @@
    "label": "LMS Access"
   },
   {
-   "description": "Drawn by the form script from admissions.checklist.board.",
-   "fieldname": "checklist_board",
-   "fieldtype": "HTML",
-   "label": "Checklist"
+   "fieldname": "sb_notes",
+   "fieldtype": "Section Break"
   },
   {
-   "collapsible": 1,
-   "description": "The stored rows behind the board. Remarks and the audit stamps live here.",
-   "fieldname": "sb_checklist_rows",
-   "fieldtype": "Section Break",
-   "label": "Checklist Rows"
-  },
-  {
-   "fieldname": "interview_link_sent_on",
-   "fieldtype": "Datetime",
-   "label": "Booking Link Sent On",
-   "read_only": 1
-  },
-  {
-   "description": "This candidate's own Calendly link, with their details prefilled and the application number attached. Copy it if you need to send it by WhatsApp.",
-   "fieldname": "interview_booking_url",
-   "fieldtype": "Small Text",
-   "label": "Booking Link",
-   "read_only": 1
-  },
-  {
-   "fieldname": "sb_interview",
-   "fieldtype": "Section Break",
-   "label": "Interview Booking"
-  },
-  {
-   "fieldname": "scholarship_form_sent_on",
-   "fieldtype": "Datetime",
-   "label": "Form Sent On",
-   "read_only": 1
-  },
-  {
-   "fieldname": "scholarship_form_url",
-   "fieldtype": "Small Text",
-   "label": "Scholarship Form Link",
-   "read_only": 1
-  },
-  {
-   "fieldname": "scholarship_token",
-   "fieldtype": "Data",
-   "label": "Scholarship Token",
-   "no_copy": 1,
-   "read_only": 1
-  },
-  {
-   "fieldname": "sb_scholarship",
-   "fieldtype": "Section Break",
-   "label": "Scholarship"
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Internal Notes"
   }
  ],
  "grid_page_length": 50,
  "image_field": "photo",
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-01 11:27:50.590433",
+ "modified": "2026-09-01 12:05:02.683775",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Admission Application",

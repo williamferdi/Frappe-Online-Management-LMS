@@ -225,6 +225,18 @@ DETAIL_FIELDS = (
 	"enrolled_on", "notes", "scholarship_request", "applicant_user",
 	"exam_link_sent_on", "interview_link_sent_on", "scholarship_form_sent_on",
 	"onboard_term", "onboard_level",
+	"mother_tongue",
+	"nationality",
+	"church_denomination",
+	"salvation_status",
+	"baptism_status",
+	"sense_of_call",
+	"ata_eligible",
+	"mature_candidate",
+	"transfer_student",
+	"education_sequence_mismatch",
+	"whatsapp_groups",
+	"theological_writing_status",
 )
 
 
