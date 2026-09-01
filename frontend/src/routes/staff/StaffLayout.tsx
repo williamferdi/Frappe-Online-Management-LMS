@@ -4,6 +4,7 @@ import {
 	Database,
 	GraduationCap,
 	LayoutDashboard,
+	UserCog,
 	UserRoundCheck,
 	Users,
 } from 'lucide-react'
@@ -18,9 +19,10 @@ const SECTIONS: NavSection[] = [
 		heading: 'Operations',
 		items: [
 			{ to: '/staff/admissions', label: 'Admissions', icon: UserRoundCheck },
+			{ to: '/staff/students', label: 'Students', icon: Users },
 			{ to: '/staff/academic', label: 'Academic', icon: GraduationCap },
 			{ to: '/staff/finance', label: 'Finance', icon: BadgeIndianRupee },
-			{ to: '/staff/users', label: 'Users', icon: Users },
+			{ to: '/staff/users', label: 'Users', icon: UserCog },
 			{ to: '/staff/data', label: 'Records', icon: Database },
 			{ to: '/staff/reports', label: 'Reports', icon: BarChart3 },
 		],

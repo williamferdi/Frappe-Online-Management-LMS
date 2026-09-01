@@ -4,7 +4,6 @@ import {
 	ArrowLeft,
 	CheckCircle2,
 	Circle,
-	Eye,
 	Lock,
 	LoaderCircle,
 	Pencil,
@@ -12,25 +11,13 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { DocumentsCard, ResponsesCard } from '@/components/AdmissionEvidence'
 import { PageHeader } from '@/components/PageHeader'
-import {
-	DocumentLink,
-	ResponseDialog,
-	type ResponseKind,
-} from '@/components/ResponseDialog'
 import { QueryState } from '@/components/QueryState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table'
 import { useApplication, useRunAction, useUpdateStep } from '@/hooks/useStaff'
 import { FrappeError } from '@/lib/frappe'
 import { cn, formatDate, money } from '@/lib/utils'
@@ -115,8 +102,18 @@ function Loaded({ data }: { data: Detail }) {
 				</div>
 			</div>
 
-			<Documents data={data} />
-			<Responses data={data} />
+			<div className="mt-4 space-y-4">
+				<DocumentsCard
+					documents={data.documents}
+					empty="Nothing uploaded yet. The candidate uploads these through the link on their application; the upload page is at /apply."
+				/>
+				<ResponsesCard
+					application={data.application.name}
+					references={data.references}
+					mentors={data.mentors}
+					empty="No requests sent yet. Use Resend requests on the reference and mentor steps above to send them."
+				/>
+			</div>
 		</>
 	)
 }
@@ -292,166 +289,6 @@ function Candidate({ data }: { data: Detail }) {
 				</dl>
 			</CardContent>
 		</Card>
-	)
-}
-
-function Documents({ data }: { data: Detail }) {
-	const verified = data.documents.filter((row) => row.verified).length
-
-	return (
-		<Card className="mt-4">
-			<CardHeader className="flex-row items-center justify-between">
-				<CardTitle className="text-base">Applicant documents</CardTitle>
-				{data.documents.length > 0 && (
-					<span className="text-muted-foreground text-xs">
-						{verified} of {data.documents.length} verified
-					</span>
-				)}
-			</CardHeader>
-			<CardContent className="p-0 pb-2">
-				{data.documents.length === 0 ? (
-					<p className="text-muted-foreground px-5 pb-5 pt-1 text-sm">
-						Nothing uploaded yet. The candidate uploads these through the link on
-						their application; the upload page is at <code>/apply</code>.
-					</p>
-				) : (
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead className="pl-5">Document</TableHead>
-								<TableHead>Status</TableHead>
-								<TableHead>Verified by</TableHead>
-								<TableHead className="pr-5 text-right">File</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{data.documents.map((doc) => (
-								<TableRow key={doc.name}>
-									<TableCell className="pl-5 font-medium">{doc.document_type}</TableCell>
-									<TableCell>
-										<Badge variant={doc.verified ? 'success' : 'muted'}>
-											{doc.verified ? 'Verified' : 'Not verified'}
-										</Badge>
-									</TableCell>
-									<TableCell className="text-muted-foreground text-xs">
-										{doc.verified_by || '—'}
-									</TableCell>
-									<TableCell className="pr-5 text-right">
-										<DocumentLink file={doc.file} label="Open" />
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				)}
-			</CardContent>
-		</Card>
-	)
-}
-
-function Responses({ data }: { data: Detail }) {
-	const [open, setOpen] = useState<{ kind: ResponseKind; row: string; name: string } | null>(
-		null,
-	)
-	const application = data.application.name
-
-	const rows = [
-		...data.references.map((ref, index) => ({
-			kind: 'reference' as ResponseKind,
-			row: ref.name,
-			label: `Reference ${index + 1}`,
-			who: ref.referee_name || ref.referee_email || 'Not named',
-			detail: ref.referee_type,
-			sent: ref.sent_on,
-			received: ref.submitted_on,
-			verdict: ref.recommendation,
-		})),
-		...data.mentors.map((mentor) => ({
-			kind: 'mentor' as ResponseKind,
-			row: mentor.name,
-			label: 'Mentor form',
-			who: mentor.mentor_name || mentor.mentor_email || 'Not named',
-			detail: null,
-			sent: mentor.sent_on,
-			received: mentor.consented_on,
-			verdict: null,
-		})),
-	]
-
-	return (
-		<>
-			<Card className="mt-4">
-				<CardHeader>
-					<CardTitle className="text-base">References and mentor</CardTitle>
-				</CardHeader>
-				<CardContent className="p-0 pb-2">
-					{rows.length === 0 ? (
-						<p className="text-muted-foreground px-5 pb-5 pt-1 text-sm">
-							No requests sent yet. Use <b>Resend requests</b> on the reference and
-							mentor steps above to send them.
-						</p>
-					) : (
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead className="pl-5">Request</TableHead>
-									<TableHead>Who</TableHead>
-									<TableHead>Sent</TableHead>
-									<TableHead>Received</TableHead>
-									<TableHead className="pr-5 text-right">Response</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{rows.map((row) => (
-									<TableRow key={row.row}>
-										<TableCell className="pl-5 font-medium">{row.label}</TableCell>
-										<TableCell>
-											<div className="text-sm">{row.who}</div>
-											{row.detail && (
-												<div className="text-muted-foreground text-xs">{row.detail}</div>
-											)}
-										</TableCell>
-										<TableCell className="text-muted-foreground text-xs">
-											{row.sent ? formatDate(row.sent) : 'Not sent'}
-										</TableCell>
-										<TableCell>
-											{row.received ? (
-												<Badge variant="success">{formatDate(row.received)}</Badge>
-											) : (
-												<Badge variant="muted">Awaiting</Badge>
-											)}
-										</TableCell>
-										<TableCell className="pr-5 text-right">
-											{row.received ? (
-												<Button
-													size="sm"
-													variant="outline"
-													onClick={() =>
-														setOpen({ kind: row.kind, row: row.row, name: row.who })
-													}
-												>
-													<Eye /> Read
-												</Button>
-											) : (
-												<span className="text-muted-foreground text-xs">—</span>
-											)}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					)}
-				</CardContent>
-			</Card>
-
-			<ResponseDialog
-				kind={open?.kind ?? 'reference'}
-				application={application}
-				row={open?.row ?? null}
-				name={open?.name ?? ''}
-				onClose={() => setOpen(null)}
-			/>
-		</>
 	)
 }
 

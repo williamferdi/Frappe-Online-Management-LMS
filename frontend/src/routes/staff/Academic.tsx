@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { GraduationCap, LoaderCircle, Search, TrendingUp, Users } from 'lucide-react'
+import { GraduationCap, LoaderCircle, TrendingUp, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { Chip, Empty } from '@/components/Chip'
 import { PageHeader } from '@/components/PageHeader'
 import { QueryState } from '@/components/QueryState'
 import { Badge } from '@/components/ui/badge'
@@ -16,7 +17,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import {
 	Table,
 	TableBody,
@@ -26,16 +26,14 @@ import {
 	TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { useDebounced } from '@/hooks/useDebounced'
-import { useOfferings, usePromote, usePromotions, useStudents } from '@/hooks/useAcademic'
+import { useOfferings, usePromote, usePromotions } from '@/hooks/useAcademic'
 import { FrappeError } from '@/lib/frappe'
 import { cn } from '@/lib/utils'
-import type { PromotionRow, StudentsResponse } from '@/types'
+import type { PromotionRow } from '@/types'
 
-type Tab = 'students' | 'offerings' | 'promotions'
+type Tab = 'offerings' | 'promotions'
 
-const TABS: { id: Tab; label: string; icon: typeof Users }[] = [
-	{ id: 'students', label: 'Students', icon: Users },
+const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
 	{ id: 'offerings', label: 'Offerings', icon: GraduationCap },
 	{ id: 'promotions', label: 'Promotions', icon: TrendingUp },
 ]
@@ -44,11 +42,11 @@ export function Academic() {
 	// The tab lives in the address, so a link to the promotions board is a link
 	// to the promotions board rather than to whatever tab was last open.
 	const [params, setParams] = useSearchParams()
-	const tab = (params.get('tab') as Tab) || 'students'
+	const tab = (params.get('tab') as Tab) || 'offerings'
 
 	return (
 		<>
-			<PageHeader title="Academic" description="Students, course runs and level promotions" />
+			<PageHeader title="Academic" description="Course runs and level promotions" />
 
 			<div className="mb-4 flex flex-wrap gap-1">
 				{TABS.map((entry) => (
@@ -56,162 +54,16 @@ export function Academic() {
 						key={entry.id}
 						size="sm"
 						variant={tab === entry.id ? 'default' : 'outline'}
-						onClick={() => setParams(entry.id === 'students' ? {} : { tab: entry.id })}
+						onClick={() => setParams(entry.id === 'offerings' ? {} : { tab: entry.id })}
 					>
 						<entry.icon /> {entry.label}
 					</Button>
 				))}
 			</div>
 
-			{tab === 'students' && <Students />}
 			{tab === 'offerings' && <Offerings />}
 			{tab === 'promotions' && <Promotions />}
 		</>
-	)
-}
-
-function Students() {
-	const [search, setSearch] = useState('')
-	const [program, setProgram] = useState('')
-	const [level, setLevel] = useState('')
-	const debounced = useDebounced(search, 300)
-	const query = useStudents({ search: debounced, program, level })
-
-	return (
-		<QueryState query={query} title="Students">
-			{(data) => (
-				<>
-					<Filters
-						data={data}
-						search={search}
-						onSearch={setSearch}
-						program={program}
-						onProgram={setProgram}
-						level={level}
-						onLevel={setLevel}
-					/>
-
-					{data.rows.length === 0 ? (
-						<Empty
-							icon={Users}
-							title="No students match"
-							detail="Students appear here once an admitted candidate is onboarded."
-						/>
-					) : (
-						<>
-							{data.truncated && (
-								<p className="text-muted-foreground mb-2 text-xs">
-									Showing the first {data.rows.length}. Narrow the search to see the
-									rest.
-								</p>
-							)}
-							<Card>
-								<CardContent className="p-0">
-									<Table>
-										<TableHeader>
-											<TableRow>
-												<TableHead className="pl-5">Student</TableHead>
-												<TableHead>Programme</TableHead>
-												<TableHead>Level</TableHead>
-												<TableHead className="text-right">Credits</TableHead>
-												<TableHead className="text-right">CGPA</TableHead>
-												<TableHead className="pr-5">Status</TableHead>
-											</TableRow>
-										</TableHeader>
-										<TableBody>
-											{data.rows.map((row) => (
-												<TableRow key={row.name}>
-													<TableCell className="pl-5">
-														<Link
-															to={`/staff/academic/students/${row.name}`}
-															className="hover:text-primary block transition-colors"
-														>
-															<div className="font-medium">{row.full_name}</div>
-															<div className="text-muted-foreground text-xs">
-																{row.name}
-																{row.email && <> · {row.email}</>}
-															</div>
-														</Link>
-													</TableCell>
-													<TableCell className="text-sm">
-														{row.enrollment?.program || '—'}
-													</TableCell>
-													<TableCell className="text-sm">
-														{row.enrollment ? `Level ${row.enrollment.current_level}` : '—'}
-													</TableCell>
-													<TableCell className="text-right tabular-nums">
-														{row.enrollment?.credits_earned ?? '—'}
-													</TableCell>
-													<TableCell className="text-right tabular-nums">
-														{row.enrollment?.cgpa ? row.enrollment.cgpa.toFixed(2) : '—'}
-													</TableCell>
-													<TableCell className="pr-5">
-														<Badge variant={row.status === 'Active' ? 'success' : 'muted'}>
-															{row.status}
-														</Badge>
-													</TableCell>
-												</TableRow>
-											))}
-										</TableBody>
-									</Table>
-								</CardContent>
-							</Card>
-						</>
-					)}
-				</>
-			)}
-		</QueryState>
-	)
-}
-
-function Filters({
-	data,
-	search,
-	onSearch,
-	program,
-	onProgram,
-	level,
-	onLevel,
-}: {
-	data: StudentsResponse
-	search: string
-	onSearch: (value: string) => void
-	program: string
-	onProgram: (value: string) => void
-	level: string
-	onLevel: (value: string) => void
-}) {
-	return (
-		<div className="mb-4 flex flex-wrap items-center gap-2">
-			<div className="relative min-w-56 flex-1">
-				<Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
-				<Input
-					value={search}
-					onChange={(event) => onSearch(event.target.value)}
-					placeholder="Name, email or student ID"
-					className="pl-9"
-					aria-label="Search students"
-				/>
-			</div>
-			<Chip label="All programmes" active={!program} onClick={() => onProgram('')} />
-			{data.programs.map((option) => (
-				<Chip
-					key={option}
-					label={option}
-					active={program === option}
-					onClick={() => onProgram(option)}
-				/>
-			))}
-			<Chip label="All levels" active={!level} onClick={() => onLevel('')} />
-			{data.levels.map((option) => (
-				<Chip
-					key={option}
-					label={`L${option}`}
-					active={level === option}
-					onClick={() => onLevel(option)}
-				/>
-			))}
-		</div>
 	)
 }
 
@@ -471,43 +323,3 @@ function PromoteDialog({
 	)
 }
 
-function Chip({
-	label,
-	active,
-	onClick,
-}: {
-	label: string
-	active: boolean
-	onClick: () => void
-}) {
-	return (
-		<Button
-			size="sm"
-			variant={active ? 'default' : 'outline'}
-			className="h-8"
-			onClick={onClick}
-		>
-			{label}
-		</Button>
-	)
-}
-
-function Empty({
-	icon: Icon,
-	title,
-	detail,
-}: {
-	icon: typeof Users
-	title: string
-	detail: string
-}) {
-	return (
-		<Card>
-			<CardContent className="flex flex-col items-center gap-2 py-14 text-center">
-				<Icon className="text-muted-foreground size-6" />
-				<div className="font-medium">{title}</div>
-				<p className="text-muted-foreground max-w-sm text-sm">{detail}</p>
-			</CardContent>
-		</Card>
-	)
-}

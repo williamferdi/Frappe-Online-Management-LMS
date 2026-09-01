@@ -570,10 +570,10 @@ empty rows.
 
 ### The academic console — `sibbcs/api/academic_api.py`
 
-`/staff/academic` with three tabs (students, offerings, promotions) kept in the
-query string so a link to the promotions board is a link to the promotions board.
-Then `/staff/academic/students/:name` and `/staff/academic/offerings/:name`, the
-second being the grade sheet.
+`/staff/academic` with two tabs (offerings, promotions) kept in the query string
+so a link to the promotions board is a link to the promotions board. The grade
+sheet is `/staff/academic/offerings/:name`. **Students moved out** to their own
+place in the left menu -- see below.
 
 **Grade entry saves through the document, never around it.** `Course Registration`
 keeps the grade fields at **permlevel 1**, so an ordinary `doc.save()` already *is*
@@ -602,6 +602,48 @@ the site moves it to `Completed`, so a test that borrows one leaves the next run
 nothing to borrow and silently skips. Note `make_offering` leaves an offering in
 **Draft**, which the rule engine correctly refuses to register anyone onto — pass
 `status="Published"`.
+
+
+### The student profile -- `/staff/students`, `academic_api.student()`
+
+The roll is its own item in the left menu rather than a tab inside Academic:
+looking a student up is the most common thing anyone does in this console, and
+it is not only an academic question. `/staff/students` lists, and
+`/staff/students/:name` is the whole profile. The old `/staff/academic/students/:name`
+still resolves -- it redirects, so bookmarks and old links keep working.
+
+**A profile is two records read together.** `Student` holds identity and contact
+and nothing else -- no schooling, no church, no certificates. All of that was
+asked once on the **Admission Application** and `conversion.py` deliberately does
+not copy it across, so `academic_api.student()` reads the linked application for
+the education, the ministry, the documents, the references and the mentor. Change
+one of those fields and the profile follows; there is no second copy to drift.
+
+**The block is omitted, never faked.** `_admission_profile()` returns `None` when
+there is no application *or* when `frappe.has_permission("Admission Application",
+"read")` says no -- **Faculty** hold nothing on that DocType but are in
+`ACADEMIC_ROLES` and can open a student. The page then says *which* of the two it
+is: "created directly rather than admitted" and "your role may not read it" are
+different facts, and a registrar chasing a missing certificate needs to know
+which one they are looking at.
+
+**The onboarding statuses are `checklist.board()`, read live.** Not a copy, not a
+second derivation -- two pages disagreeing about where a candidate stands is
+worse than one page showing nothing. A test asserts the profile's rows equal the
+board's.
+
+**The evidence cards are shared.** `components/AdmissionEvidence.tsx` holds
+`DocumentsCard` and `ResponsesCard`; the application under review and the student
+it became use the same two. The reference and mentor answers still come from
+`reference_form.view` / `mentor_form.view`, which render the questions
+server-side, so the forms cannot drift from what is displayed.
+
+**What the college's old system showed and we do not hold a field for**: mother
+tongue, nationality, salvation and baptism status, sense of call, the student's
+own denomination, ATA eligibility, mature-candidate and transfer-student flags,
+educational sequence mismatch, WhatsApp group membership, and the theological
+writing status. Adding any of them means a field on Admission Application *and* a
+question on the public form -- the profile only shows what was collected.
 
 ### Finance and accounts — `sibbcs/api/finance_api.py`, `sibbcs/api/users_api.py`
 

@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate, useParams } from 'react-router-dom'
 
 import { boot } from '@/lib/frappe'
 import { landingRoute } from '@/lib/session'
@@ -15,6 +15,7 @@ import { RecordList } from '@/routes/staff/RecordList'
 import { Reports } from '@/routes/staff/Reports'
 import { StaffDashboard } from '@/routes/staff/StaffDashboard'
 import { StudentDetail } from '@/routes/staff/StudentDetail'
+import { Students } from '@/routes/staff/Students'
 import { Users } from '@/routes/staff/Users'
 import { StaffLayout } from '@/routes/staff/StaffLayout'
 import { Dashboard } from '@/routes/portal/Dashboard'
@@ -28,6 +29,11 @@ import { Discussions } from '@/routes/portal/Discussions'
 import { Inbox } from '@/routes/portal/Inbox'
 import { Register } from '@/routes/portal/Register'
 import { ToDo } from '@/routes/portal/ToDo'
+
+function MovedStudent() {
+	const { name = '' } = useParams()
+	return <Navigate to={`/staff/students/${encodeURIComponent(name)}`} replace />
+}
 
 export const router = createBrowserRouter([
 	{ path: '/', element: <Navigate to={landingRoute(boot)} replace /> },
@@ -69,7 +75,11 @@ export const router = createBrowserRouter([
 					{ path: 'admissions', element: <Admissions /> },
 					{ path: 'admissions/:name', element: <ApplicationDetail /> },
 					{ path: 'academic', element: <Academic /> },
-					{ path: 'academic/students/:name', element: <StudentDetail /> },
+					{ path: 'students', element: <Students /> },
+					{ path: 'students/:name', element: <StudentDetail /> },
+					// The roll used to be a tab inside Academic. Anything already
+					// linked or bookmarked there still lands on the profile.
+					{ path: 'academic/students/:name', element: <MovedStudent /> },
 					{ path: 'academic/offerings/:name', element: <GradeSheet /> },
 					{ path: 'finance', element: <Finance /> },
 					{ path: 'users', element: <Users /> },

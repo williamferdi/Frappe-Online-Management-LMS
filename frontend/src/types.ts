@@ -489,35 +489,51 @@ export interface ApplicationRecord {
 	onboard_level: string | null
 }
 
+export interface ApplicationDocumentRow {
+	name: string
+	document_type: string
+	file: string | null
+	verified: 0 | 1
+	verified_by: string | null
+	remarks?: string | null
+	idx: number
+}
+
+export interface ReferenceRequestRow {
+	name: string
+	referee_name: string | null
+	referee_email: string | null
+	referee_type: string | null
+	sent_on: string | null
+	submitted_on: string | null
+	recommendation: string | null
+	idx: number
+}
+
+export interface MentorConsentRow {
+	name: string
+	mentor_name: string | null
+	mentor_email: string | null
+	mentor_mobile?: string | null
+	church?: string | null
+	denomination?: string | null
+	current_position?: string | null
+	years_of_ministry?: number | null
+	mentoring_experience?: string | null
+	prior_theological_education?: string | null
+	handbook_acknowledged?: 0 | 1
+	consent_file?: string | null
+	sent_on: string | null
+	consented_on: string | null
+	idx: number
+}
+
 export interface ApplicationDetail {
 	application: ApplicationRecord
 	checklist: ChecklistBoard
-	documents: {
-		name: string
-		document_type: string
-		file: string | null
-		verified: 0 | 1
-		verified_by: string | null
-		idx: number
-	}[]
-	references: {
-		name: string
-		referee_name: string | null
-		referee_email: string | null
-		referee_type: string | null
-		sent_on: string | null
-		submitted_on: string | null
-		recommendation: string | null
-		idx: number
-	}[]
-	mentors: {
-		name: string
-		mentor_name: string | null
-		mentor_email: string | null
-		sent_on: string | null
-		consented_on: string | null
-		idx: number
-	}[]
+	documents: ApplicationDocumentRow[]
+	references: ReferenceRequestRow[]
+	mentors: MentorConsentRow[]
 	exam: {
 		name: string
 		total: number
@@ -581,6 +597,62 @@ export interface StudentsResponse {
 	filters: { program: string | null; level: string | null }
 }
 
+export interface StudentAdmission {
+	application: {
+		name: string
+		creation: string
+		workflow_state: string
+		program: string | null
+		intake_term: string | null
+		entry_level: string | null
+		age: number | null
+		photo: string | null
+		church_name: string | null
+		current_role: string | null
+		years_of_ministry: number | null
+		has_bachelors: 0 | 1
+		previous_theological_education: string | null
+		ssc_status: string | null
+		ssc_year: string | null
+		hslc_status: string | null
+		hslc_year: string | null
+		ug_status: string | null
+		ug_year: string | null
+		id_document: string | null
+		ministry_experience_doc: string | null
+		application_fee_paid: 0 | 1
+		docs_verified: 0 | 1
+		qualifying_exam_score: number | null
+		interview_outcome: string | null
+		offer_sent_on: string | null
+		admission_fee_paid: 0 | 1
+		onboard_term: string | null
+		onboard_level: string | null
+		enrolled_on: string | null
+		applicant_user: string | null
+		scholarship_request: string | null
+	}
+	checklist: ChecklistBoard
+	documents: ApplicationDocumentRow[]
+	references: ReferenceRequestRow[]
+	mentors: MentorConsentRow[]
+	manuals: {
+		name: string
+		manual: string
+		sent_on: string | null
+		acknowledged_on: string | null
+		acknowledged_name: string | null
+		idx: number
+	}[]
+	scholarship: {
+		name: string
+		status: string
+		requested_amount: number
+		approved_amount: number
+		monthly_discount: number
+	} | null
+}
+
 export interface StudentDetail {
 	student: {
 		name: string
@@ -627,6 +699,8 @@ export interface StudentDetail {
 		outstanding_amount: number
 		due_date: string | null
 	}[]
+	/** Null when there is no application, or the reader may not read it. */
+	admission: StudentAdmission | null
 	promotions: {
 		name: string
 		from_level: string

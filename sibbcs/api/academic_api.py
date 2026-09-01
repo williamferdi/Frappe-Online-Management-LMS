@@ -16,6 +16,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt
 
+from sibbcs.admissions import checklist
 from sibbcs.api.paging import fetch_capped
 from sibbcs.academic.doctype.course_registration.course_registration import (
 	refresh_enrollment_progress,
@@ -172,6 +173,7 @@ def student(name):
 		)
 		if frappe.has_permission("Fee Invoice", "read")
 		else [],
+		"admission": _admission_profile(record.admission_application),
 		"promotions": frappe.get_all(
 			"Level Promotion",
 			filters={"program_enrollment": enrollment.name} if enrollment else {"name": ""},
@@ -179,6 +181,122 @@ def student(name):
 			        "courses_passed", "credits_at_promotion", "remarks"],
 			order_by="creation desc",
 		),
+	}
+
+
+# ---------------------------------------------------------------------------
+# the admission record behind a student
+# ---------------------------------------------------------------------------
+
+# A `Student` row is identity and contact only. Everything else a college holds
+# about a person -- their schooling, their ministry, who vouched for them, which
+# certificates they sent -- was asked once on the Admission Application and
+# deliberately never copied across, so the full profile is the two read
+# together.
+ADMISSION_FIELDS = (
+	"name",
+	"creation",
+	"workflow_state",
+	"program",
+	"intake_term",
+	"entry_level",
+	"age",
+	"photo",
+	"church_name",
+	"current_role",
+	"years_of_ministry",
+	"has_bachelors",
+	"previous_theological_education",
+	"ssc_status",
+	"ssc_year",
+	"hslc_status",
+	"hslc_year",
+	"ug_status",
+	"ug_year",
+	"id_document",
+	"ministry_experience_doc",
+	"application_fee_paid",
+	"docs_verified",
+	"qualifying_exam_score",
+	"interview_outcome",
+	"offer_sent_on",
+	"admission_fee_paid",
+	"onboard_term",
+	"onboard_level",
+	"enrolled_on",
+	"applicant_user",
+	"scholarship_request",
+)
+
+
+def _child_rows(doctype, parent, fields):
+	return frappe.get_all(
+		doctype,
+		filters={"parent": parent, "parenttype": "Admission Application"},
+		fields=fields,
+		order_by="idx",
+	)
+
+
+def _admission_profile(application):
+	"""What the candidate told us, or None when it is not this user's to read.
+
+	Faculty may see a student and enter their grades but hold no permission on
+	Admission Application. The profile then does without this block rather than
+	the whole page failing -- and the omission is the permission matrix
+	speaking, not a bug.
+	"""
+	if not application or not frappe.db.exists("Admission Application", application):
+		return None
+
+	if not frappe.has_permission("Admission Application", "read", doc=application):
+		return None
+
+	record = frappe.db.get_value(
+		"Admission Application", application, list(ADMISSION_FIELDS), as_dict=True
+	)
+
+	scholarship = None
+	if record.scholarship_request and frappe.has_permission("Scholarship Request", "read"):
+		scholarship = frappe.db.get_value(
+			"Scholarship Request",
+			record.scholarship_request,
+			["name", "status", "requested_amount", "approved_amount", "monthly_discount"],
+			as_dict=True,
+		)
+
+	return {
+		"application": record,
+		"checklist": checklist.board(application),
+		"documents": _child_rows(
+			"Application Document",
+			application,
+			["name", "document_type", "file", "verified", "verified_by", "remarks", "idx"],
+		),
+		"references": _child_rows(
+			"Reference Request",
+			application,
+			[
+				"name", "referee_name", "referee_email", "referee_type",
+				"sent_on", "submitted_on", "recommendation", "idx",
+			],
+		),
+		"mentors": _child_rows(
+			"Mentor Consent",
+			application,
+			[
+				"name", "mentor_name", "mentor_email", "mentor_mobile", "church",
+				"denomination", "current_position", "years_of_ministry",
+				"mentoring_experience", "prior_theological_education",
+				"handbook_acknowledged", "consent_file", "sent_on", "consented_on", "idx",
+			],
+		),
+		"manuals": _child_rows(
+			"Manual Acknowledgement",
+			application,
+			["name", "manual", "sent_on", "acknowledged_on", "acknowledged_name", "idx"],
+		),
+		"scholarship": scholarship,
 	}
 
 

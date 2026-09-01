@@ -20,7 +20,12 @@ from sibbcs.academic.doctype.course_offering.test_course_offering import make_of
 from sibbcs.academic.doctype.course_registration.test_course_registration import (
 	make_registration,
 )
+from sibbcs.admissions import checklist
+from sibbcs.admissions.doctype.admission_application.test_admission_application import (
+	make_application,
+)
 from sibbcs.api import academic_api as api
+from sibbcs.api.test_api import make_user
 from sibbcs.api.test_student_api import make_student
 
 
@@ -276,3 +281,113 @@ class TestPromotions(FrappeTestCase):
 		frappe.set_user(email)
 		with self.assertRaises(frappe.PermissionError):
 			api.promotions()
+
+
+class TestStudentProfile(FrappeTestCase):
+	"""The admission record behind a student.
+
+	A `Student` row holds identity and contact and nothing else. The schooling,
+	the certificates, the referees and the mentor stay on the Admission
+	Application and are never copied across at onboarding, so the profile page
+	reads both -- and these tests are that the second half arrives, and that it
+	stops arriving for a reader who may not read it.
+	"""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+
+	def a_student_admitted_from_an_application(self):
+		tag = frappe.generate_hash(length=6)
+		application = make_application(
+			full_name=f"Admitted {tag}",
+			email=f"admitted.{tag}@example.invalid",
+			ssc_status="Completed",
+			ssc_year="2014",
+			hslc_status="Completed",
+			hslc_year="2016",
+			church_name="New Life Church",
+			current_role="Assistant pastor",
+			years_of_ministry=2,
+			documents=[
+				{"document_type": "SSC/10th Mark Sheet", "file": "/files/ssc.pdf", "verified": 1},
+				{"document_type": "National ID", "file": "/files/id.pdf"},
+			],
+			references=[
+				{"referee_name": "Pastor Rajesh", "referee_email": f"ref.{tag}@example.invalid",
+				 "referee_type": "Pastor-Mentor"},
+			],
+			mentors=[
+				{"mentor_name": "Benny", "mentor_email": f"mentor.{tag}@example.invalid",
+				 "mentor_mobile": "+918098619631", "current_position": "Bible college professor"},
+			],
+		)
+
+		student, _, _ = make_student()
+		frappe.db.set_value("Student", student.name, "admission_application", application.name)
+		return student.name, application.name
+
+	def test_the_profile_carries_the_admission_record(self):
+		name, application = self.a_student_admitted_from_an_application()
+
+		block = api.student(name)["admission"]
+
+		self.assertIsNotNone(block)
+		self.assertEqual(block["application"]["name"], application)
+		self.assertEqual(block["application"]["ssc_status"], "Completed")
+		self.assertEqual(block["application"]["church_name"], "New Life Church")
+
+	def test_the_documents_and_the_people_who_vouched_come_with_it(self):
+		"""The reason for the page: a registrar looking a student up wants the
+		certificates and the reference answers, not a link to go and find them."""
+		name, _ = self.a_student_admitted_from_an_application()
+
+		block = api.student(name)["admission"]
+
+		self.assertEqual(
+			[row.document_type for row in block["documents"]],
+			["SSC/10th Mark Sheet", "National ID"],
+		)
+		self.assertEqual(block["references"][0].referee_name, "Pastor Rajesh")
+		self.assertEqual(block["mentors"][0].mentor_name, "Benny")
+		# The mentor's own details, which the profile shows as formation.
+		self.assertEqual(block["mentors"][0].current_position, "Bible college professor")
+
+	def test_the_checklist_is_the_admissions_board_not_a_second_copy(self):
+		"""Two pages showing different answers to 'where is this person' is
+		worse than one page showing none."""
+		name, application = self.a_student_admitted_from_an_application()
+
+		block = api.student(name)["admission"]
+
+		self.assertEqual(
+			[(row["step_no"], row["status"]) for row in block["checklist"]["rows"]],
+			[(row["step_no"], row["status"]) for row in checklist.board(application)["rows"]],
+		)
+
+	def test_a_student_created_directly_simply_has_none(self):
+		student, _, _ = make_student()
+		self.assertIsNone(api.student(student.name)["admission"])
+
+	def test_a_reader_without_admission_permission_gets_the_rest(self):
+		"""Faculty may see a student and grade them but hold nothing on
+		Admission Application. The page drops the block; it does not fail."""
+		name, _ = self.a_student_admitted_from_an_application()
+		email = f"faculty.{frappe.generate_hash(length=8)}@example.invalid"
+		make_user(email, ["Faculty"])
+
+		frappe.set_user(email)
+		profile = api.student(name)
+
+		self.assertIsNone(profile["admission"])
+		self.assertEqual(profile["student"]["name"], name)
+
+	def test_a_student_cannot_read_another_students_profile(self):
+		name, _ = self.a_student_admitted_from_an_application()
+		_, _, email = make_student()
+
+		frappe.set_user(email)
+		with self.assertRaises(frappe.PermissionError):
+			api.student(name)
