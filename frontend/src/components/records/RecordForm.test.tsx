@@ -42,8 +42,8 @@ const CHECKLIST_COLUMNS: FieldMeta[] = [
 const STEPS = [
 	'Full Application Review',
 	'Applicant Documents Review',
-	'Reference 1 Review',
-	'Reference 2 Review',
+	'Spiritual & Ministerial Reference Review',
+	'Academic & Professional Reference Review',
 ]
 
 const meta: Describe = {

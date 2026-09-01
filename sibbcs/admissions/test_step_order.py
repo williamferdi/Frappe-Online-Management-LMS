@@ -12,10 +12,12 @@ from frappe.tests.utils import FrappeTestCase
 
 from sibbcs.admissions.checklist import (
 	ACTIONS,
+	LABELS,
 	NO,
 	NO_BY_LABEL,
 	REQUIRES,
 	STEPS,
+	STEP_LABELS,
 	statuses_for,
 	status_of,
 )
@@ -185,3 +187,91 @@ class TestStepOrder(FrappeTestCase):
 		self.assertEqual(
 			frappe.db.get_value("Admission Checklist Item", row.name, "step_no"), 99
 		)
+
+
+class TestTheReferenceStepsAreNamed(FrappeTestCase):
+	"""The two references are named on the apply form, on the referee's own
+	form and in the console; the checklist was the last place counting them.
+
+	The label is stored on every application's rows and the field is a Select,
+	so a row left carrying an old option cannot be saved at all -- which is why
+	the rename is a patch, and why these tests are about the stored data as
+	much as the code.
+	"""
+
+	def test_the_steps_carry_the_names_the_college_uses(self):
+		self.assertEqual(LABELS[NO["reference_1"]], "Spiritual & Ministerial Reference Review")
+		self.assertEqual(LABELS[NO["reference_2"]], "Academic & Professional Reference Review")
+
+	def test_the_doctype_offers_exactly_the_labels_the_code_uses(self):
+		"""A step whose label the Select does not offer cannot be saved."""
+		options = frappe.get_meta("Admission Checklist Item").get_field("step").options
+		offered = [line.strip() for line in options.split("\n") if line.strip()]
+		for label in STEP_LABELS:
+			self.assertIn(label, offered, label)
+
+	def test_a_new_application_is_seeded_with_the_new_names(self):
+		app = make_application()
+		labels = {row.step for row in app.checklist}
+
+		self.assertIn("Spiritual & Ministerial Reference Review", labels)
+		self.assertIn("Academic & Professional Reference Review", labels)
+		self.assertNotIn("Reference 1 Review", labels)
+		self.assertNotIn("Reference 2 Review", labels)
+
+	def test_the_patch_renames_a_row_left_on_the_old_label(self):
+		from sibbcs.patches.rename_reference_steps import execute
+
+		app = make_application()
+		row = next(r for r in app.checklist if r.step_no == NO["reference_1"])
+		frappe.db.set_value(
+			"Admission Checklist Item",
+			row.name,
+			{"step": "Reference 1 Review", "status": "Reviewed"},
+			update_modified=False,
+		)
+
+		execute()
+
+		after = frappe.db.get_value(
+			"Admission Checklist Item", row.name, ["step", "status"], as_dict=True
+		)
+		self.assertEqual(after.step, "Spiritual & Ministerial Reference Review")
+		# The officer's verdict is not the thing being renamed.
+		self.assertEqual(after.status, "Reviewed")
+
+	def test_the_patch_is_safe_to_run_twice(self):
+		from sibbcs.patches.rename_reference_steps import execute
+
+		app = make_application()
+		execute()
+		execute()
+
+		app.reload()
+		self.assertEqual(
+			len([r for r in app.checklist if r.step_no == NO["reference_1"]]), 1
+		)
+
+	def test_an_old_label_is_still_recognised_by_the_renumbering(self):
+		"""Restoring a backup from before the rename must not leave those rows
+		unrecognised -- the renumbering patch matches on the label."""
+		self.assertEqual(NO_BY_LABEL["Reference 1 Review"], NO["reference_1"])
+		self.assertEqual(NO_BY_LABEL["Reference 2 Review"], NO["reference_2"])
+
+	def test_nothing_addresses_a_reference_step_by_its_label(self):
+		"""Everything keys on NO[...], which is why renaming is a data change
+		and not a code-wide search and replace."""
+		import subprocess
+
+		app_path = frappe.get_app_path("sibbcs")
+		found = subprocess.run(
+			["grep", "-rn", "--include=*.py", "Reference 1 Review", app_path],
+			capture_output=True,
+			text=True,
+		).stdout.strip().splitlines()
+
+		allowed = ("checklist.py", "rename_reference_steps.py", "test_step_order.py")
+		offenders = [
+			line for line in found if not any(name in line for name in allowed)
+		]
+		self.assertEqual(offenders, [], "the old label is still referenced")

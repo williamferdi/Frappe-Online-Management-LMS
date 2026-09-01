@@ -32,7 +32,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Step",
-   "options": "Full Application Review\nApplicant Documents Review\nReference 1 Review\nReference 2 Review\nScholarship Form Review\nMentor Form Review\nLMS Account Creation\nEntrance Exam Review\nZoom Interview Review\nAdmission Fee Status\nAdmission Decision\nManual Reading Review\nOnboarding Status",
+   "options": "Full Application Review\nApplicant Documents Review\nSpiritual & Ministerial Reference Review\nAcademic & Professional Reference Review\nScholarship Form Review\nMentor Form Review\nLMS Account Creation\nEntrance Exam Review\nZoom Interview Review\nAdmission Fee Status\nAdmission Decision\nManual Reading Review\nOnboarding Status",
    "read_only": 1,
    "reqd": 1
   },

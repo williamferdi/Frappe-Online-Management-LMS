@@ -908,6 +908,15 @@ where they learn whether a candidate needs one) and will again. So:
 - Existing rows are remapped by their stored **label**, never by their old number, in
   `patches/renumber_checklist_steps.py`. An unrecognised label is reported and skipped
   rather than guessed at: a wrong guess silently rewrites somebody's admission record.
+- Renaming a step is a **data change too**. `step` is a Select, so a row left holding an
+  option the field no longer offers cannot be saved at all: the DocType options, `STEPS`
+  and every stored row have to move together. `patches/rename_reference_steps.py` does the
+  rows, matching on the old label rather than on `step_no` for the same reason the
+  renumbering does. `RENAMED_LABELS` in `checklist.py` keeps the old names resolvable, so
+  restoring a pre-rename backup does not leave those rows unrecognised by the renumbering.
+  Done once so far: Reference 1 / 2 became **Spiritual & Ministerial Reference Review** and
+  **Academic & Professional Reference Review** on 1 Sep 2026, matching what `/apply` asks
+  for and what the referee's own form is titled.
 - `test_step_order.py` pins the invariants — contiguous 1..n, unique keys and labels,
   defaults inside their own status list, and **no gate pointing at a later step** (which
   could never be satisfied).

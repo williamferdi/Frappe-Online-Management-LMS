@@ -41,11 +41,11 @@ STEPS = [
 	 ["Awaiting", "Partial Submission", "Awaiting Review", "Resubmit Requested", "Verified"],
 	 "Awaiting", ["Verified"], OFFICER, "documents"),
 
-	(3, "Reference 1 Review",
+	(3, "Spiritual & Ministerial Reference Review",
 	 ["Awaiting", "Request Sent", "Received", "Awaiting Review", "Reviewed", "Not Applicable"],
 	 "Awaiting", ["Reviewed", "Not Applicable"], OFFICER, "reference_1"),
 
-	(4, "Reference 2 Review",
+	(4, "Academic & Professional Reference Review",
 	 ["Awaiting", "Request Sent", "Received", "Awaiting Review", "Reviewed", "Not Applicable"],
 	 "Awaiting", ["Reviewed", "Not Applicable"], OFFICER, "reference_2"),
 
@@ -107,9 +107,21 @@ STEP_LABELS = [s[1] for s in STEPS]
 # and nothing else.
 NO = {s[6]: s[0] for s in STEPS}
 
+# What each step used to be called. The two references were "Reference 1" and
+# "Reference 2" until the college named them for what they are; a stored row
+# still carrying an old label has to be recognisable, or the renumbering patch
+# would skip it as unknown when an old backup is restored.
+RENAMED_LABELS = {
+	"Reference 1 Review": "Spiritual & Ministerial Reference Review",
+	"Reference 2 Review": "Academic & Professional Reference Review",
+}
+
 # A row's stored label is what survives a renumbering, so it is what the
-# migration matches on.
+# migration matches on -- under either name.
 NO_BY_LABEL = {s[1]: s[0] for s in STEPS}
+NO_BY_LABEL.update(
+	{old: NO_BY_LABEL[new] for old, new in RENAMED_LABELS.items() if new in NO_BY_LABEL}
+)
 
 # The only four hard gates. Everything else is freely parallel.
 # step_no -> [(required_step_no, required_status or None meaning "done")]
