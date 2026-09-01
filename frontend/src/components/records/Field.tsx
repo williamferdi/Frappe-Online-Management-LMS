@@ -81,7 +81,7 @@ export function RecordField({ field, value, values, onChange, disabled }: FieldP
 				{label}
 				{required && <span className="text-destructive"> *</span>}
 			</Label>
-			<Control
+			<FieldControl
 				field={field}
 				id={id}
 				value={value}
@@ -95,7 +95,9 @@ export function RecordField({ field, value, values, onChange, disabled }: FieldP
 	)
 }
 
-function Control({
+/** The input on its own, with no label. The child-table grid puts the
+ *  labels in a header row instead of repeating them on every line. */
+export function FieldControl({
 	field,
 	id,
 	value,

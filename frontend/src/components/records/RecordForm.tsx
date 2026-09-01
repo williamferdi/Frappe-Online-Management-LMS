@@ -2,7 +2,12 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { LoaderCircle, Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { RecordField, dependsOnMet, type Values } from '@/components/records/Field'
+import {
+	FieldControl,
+	RecordField,
+	dependsOnMet,
+	type Values,
+} from '@/components/records/Field'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -206,6 +211,15 @@ export function RecordForm({
 	)
 }
 
+/**
+ * A child table as a table.
+ *
+ * The first version rendered each row as a bordered card of labelled fields,
+ * which for the thirteen-step admission checklist meant the word "Status" and
+ * its help text thirteen times, four column labels repeated per row, and
+ * nothing lining up between rows. A grid of records wants column headers once
+ * and short rows underneath -- which is also how the same data reads in Desk.
+ */
 function ChildTable({
 	field,
 	columns,
@@ -219,64 +233,123 @@ function ChildTable({
 	disabled: boolean
 	onChange: (rows: Values[]) => void
 }) {
-	// A child grid showing forty columns is unreadable; Frappe already marks
-	// the ones worth seeing, and falls back to the first few.
-	const shown = columns.filter((c) => c.in_list_view)
-	const visible = shown.length ? shown : columns.slice(0, 4)
+	// Frappe already marks the columns worth seeing in a grid; the fallback is
+	// for child tables where nobody has said.
+	const marked = columns.filter((column) => column.in_list_view)
+	const visible = (marked.length ? marked : columns.slice(0, 5)).filter(
+		(column) => !CHILD.has(column.fieldtype),
+	)
+
+	// Said once, under the table, rather than on every row.
+	const notes = visible.filter((column) => column.description)
 
 	return (
 		<div>
 			<div className="mb-2 flex items-center justify-between">
 				<span className="text-sm font-medium">{field.label || field.fieldname}</span>
-				{!disabled && (
-					<Button
-						type="button"
-						size="sm"
-						variant="outline"
-						onClick={() => onChange([...rows, {}])}
-					>
-						<Plus /> Row
-					</Button>
-				)}
+				<div className="flex items-center gap-2">
+					<span className="text-muted-foreground text-xs">
+						{rows.length} {rows.length === 1 ? 'row' : 'rows'}
+					</span>
+					{!disabled && (
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							onClick={() => onChange([...rows, {}])}
+						>
+							<Plus /> Row
+						</Button>
+					)}
+				</div>
 			</div>
 
 			{rows.length === 0 ? (
-				<p className="text-muted-foreground text-sm">No rows.</p>
+				<p className="text-muted-foreground rounded-lg border border-dashed px-4 py-6 text-center text-sm">
+					No rows yet.
+				</p>
 			) : (
-				<div className="space-y-2">
-					{rows.map((row, index) => (
-						<div key={index} className="flex flex-wrap items-end gap-2 rounded-lg border p-3">
-							{visible.map((column) => (
-								<div key={column.fieldname} className="min-w-36 flex-1">
-									<RecordField
-										field={index === 0 ? column : { ...column, label: column.label }}
-										value={row[column.fieldname]}
-										values={row}
-										disabled={disabled}
-										onChange={(value) =>
-											onChange(
-												rows.map((r, i) =>
-													i === index ? { ...r, [column.fieldname]: value } : r,
-												),
-											)
-										}
-									/>
-								</div>
+				<div className="overflow-x-auto rounded-lg border">
+					<table className="w-full text-sm">
+						<thead>
+							<tr className="bg-muted/50 border-b">
+								{visible.map((column) => (
+									<th
+										key={column.fieldname}
+										title={column.description ?? undefined}
+										className="text-muted-foreground px-2.5 py-2 text-left text-xs font-medium uppercase tracking-wider whitespace-nowrap"
+									>
+										{column.label || column.fieldname}
+										{Boolean(column.reqd) && <span className="text-destructive"> *</span>}
+									</th>
+								))}
+								{!disabled && <th className="w-10" />}
+							</tr>
+						</thead>
+						<tbody>
+							{rows.map((row, index) => (
+								<tr key={index} className="border-b last:border-0">
+									{visible.map((column) => (
+										<td key={column.fieldname} className="px-2.5 py-1.5 align-middle">
+											{column.read_only || disabled ? (
+												// A disabled input for something nobody can change is a
+												// box that looks broken; plain text says what it is.
+												<span className="text-muted-foreground block truncate py-1.5">
+													{row[column.fieldname] == null || row[column.fieldname] === ''
+														? '—'
+														: String(row[column.fieldname])}
+												</span>
+											) : (
+												<div className="[&_input]:h-8 [&_select]:h-8 [&_textarea]:min-h-8 [&_textarea]:py-1.5 min-w-32">
+													<FieldControl
+														field={column}
+														id={`${field.fieldname}-${index}-${column.fieldname}`}
+														value={row[column.fieldname]}
+														readOnly={false}
+														onChange={(value) =>
+															onChange(
+																rows.map((current, i) =>
+																	i === index
+																		? { ...current, [column.fieldname]: value }
+																		: current,
+																),
+															)
+														}
+													/>
+												</div>
+											)}
+										</td>
+									))}
+									{!disabled && (
+										<td className="px-1 py-1.5 align-middle">
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon"
+												className="size-8"
+												aria-label={`Remove row ${index + 1}`}
+												onClick={() => onChange(rows.filter((_, i) => i !== index))}
+											>
+												<Trash2 />
+											</Button>
+										</td>
+									)}
+								</tr>
 							))}
-							{!disabled && (
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon"
-									aria-label="Remove row"
-									onClick={() => onChange(rows.filter((_, i) => i !== index))}
-								>
-									<Trash2 />
-								</Button>
-							)}
-						</div>
-					))}
+						</tbody>
+					</table>
 				</div>
+			)}
+
+			{notes.length > 0 && (
+				<ul className="text-muted-foreground mt-2 space-y-0.5 text-xs">
+					{notes.map((column) => (
+						<li key={column.fieldname}>
+							<span className="font-medium">{column.label || column.fieldname}:</span>{' '}
+							{column.description}
+						</li>
+					))}
+				</ul>
 			)}
 		</div>
 	)
