@@ -17,8 +17,23 @@ import { QueryState } from '@/components/QueryState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
-import { useApplication, useRunAction, useUpdateStep } from '@/hooks/useStaff'
+import { Textarea } from '@/components/ui/textarea'
+import {
+	useApplication,
+	useRequestResubmit,
+	useReviewDocument,
+	useRunAction,
+	useUpdateStep,
+} from '@/hooks/useStaff'
 import { FrappeError } from '@/lib/frappe'
 import { cn, formatDate, money } from '@/lib/utils'
 import type { ApplicationDetail as Detail, ChecklistRow } from '@/types'
@@ -103,10 +118,7 @@ function Loaded({ data }: { data: Detail }) {
 			</div>
 
 			<div className="mt-4 space-y-4">
-				<DocumentsCard
-					documents={data.documents}
-					empty="Nothing uploaded yet. The candidate uploads these through the link on their application; the upload page is at /apply."
-				/>
+				<Documents data={data} />
 				<ResponsesCard
 					application={data.application.name}
 					references={data.references}
@@ -263,6 +275,142 @@ function Step({
 		</li>
 	)
 }
+
+/**
+ * The officer's working copy of the documents table.
+ *
+ * Two things happen here that do not happen on the student profile: a tick box
+ * per row, and one button that asks the candidate for whatever is still
+ * outstanding. Neither decides the checklist step -- ticking the last required
+ * document moves it server-side, and this screen simply refetches and shows
+ * where it landed.
+ */
+function Documents({ data }: { data: Detail }) {
+	const application = data.application.name
+	const [asking, setAsking] = useState(false)
+	const [message, setMessage] = useState('')
+	const [busyRow, setBusyRow] = useState<string | null>(null)
+
+	const review = useReviewDocument(application)
+	const resubmit = useRequestResubmit(application)
+
+	// The same two cases the server distinguishes: never arrived, and
+	// arrived but not accepted. A row with no file behind it is the first
+	// of those, whatever the table shows.
+	const outstanding = [
+		...data.required_documents
+			.filter(
+				(type) =>
+					!data.documents.some((row) => row.document_type === type && row.file),
+			)
+			.map((type) => ({ type, missing: true })),
+		...data.documents
+			.filter((row) => row.file && !row.verified)
+			.map((row) => ({ type: row.document_type, missing: false })),
+	]
+
+	function save(row: string, values: { verified?: boolean; remarks?: string }) {
+		setBusyRow(row)
+		review.mutate(
+			{ row, ...values },
+			{
+				onError: (error) =>
+					toast.error(
+						error instanceof FrappeError ? error.message : 'That change was not saved.',
+					),
+				onSettled: () => setBusyRow(null),
+			},
+		)
+	}
+
+	return (
+		<>
+			<DocumentsCard
+				documents={data.documents}
+				required={data.required_documents}
+				requestedOn={data.application.docs_resubmit_requested_on}
+				busyRow={busyRow}
+				empty="Nothing uploaded yet. The candidate uploads these through the link on their application; the upload page is at /apply."
+				onVerify={
+					data.checklist.can_write
+						? (row, verified) => save(row, { verified })
+						: undefined
+				}
+				onRemarks={
+					data.checklist.can_write ? (row, remarks) => save(row, { remarks }) : undefined
+				}
+				onResubmit={
+					data.checklist.can_write && outstanding.length > 0
+						? () => setAsking(true)
+						: undefined
+				}
+			/>
+
+			<Dialog open={asking} onOpenChange={(open) => !open && setAsking(false)}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Ask for these documents again</DialogTitle>
+						<DialogDescription>
+							One email to {data.application.email}, with a link that lets them upload
+							without logging in. The step moves to Resubmit Requested until something
+							new arrives.
+						</DialogDescription>
+					</DialogHeader>
+
+					<ul className="text-sm">
+						{outstanding.map((item) => (
+							<li key={item.type} className="flex items-center justify-between gap-2 py-1">
+								<span>{item.type}</span>
+								<Badge variant={item.missing ? 'destructive' : 'warning'}>
+									{item.missing ? 'Never received' : 'Not accepted'}
+								</Badge>
+							</li>
+						))}
+					</ul>
+
+					<Textarea
+						value={message}
+						onChange={(event) => setMessage(event.target.value)}
+						placeholder="Anything else you want to say (optional)"
+						rows={3}
+					/>
+					<p className="text-muted-foreground text-xs">
+						Your remarks on each document are quoted in the email, so the candidate knows
+						what was wrong with each one.
+					</p>
+
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setAsking(false)}>
+							Cancel
+						</Button>
+						<Button
+							disabled={resubmit.isPending}
+							onClick={() =>
+								resubmit.mutate(message.trim() || undefined, {
+									onSuccess: (result) => {
+										toast.success(`Asked ${result.sent_to} for ${result.items.length} documents`)
+										setAsking(false)
+										setMessage('')
+									},
+									onError: (error) =>
+										toast.error(
+											error instanceof FrappeError
+												? error.message
+												: 'The request could not be sent.',
+										),
+								})
+							}
+						>
+							{resubmit.isPending ? <LoaderCircle className="animate-spin" /> : <Send />}
+							Send the request
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</>
+	)
+}
+
 
 function Candidate({ data }: { data: Detail }) {
 	const record = data.application

@@ -169,6 +169,21 @@ def _check_pdf_readable(content):
 			title=_("Unreadable PDF"),
 		)
 
+def _answer_resubmit_request(doc):
+	"""A file has arrived, so the step is waiting on the office again.
+
+	`mirror_gates_to_checklist` deliberately refuses to move a step out of
+	Resubmit Requested -- otherwise any save at all would erase the fact that
+	somebody was asked. This is the one event that ends the wait, so it is the
+	one place allowed to clear it.
+	"""
+	from sibbcs.admissions.checklist import NO
+
+	for row in doc.get("checklist") or []:
+		if int(row.step_no or 0) == NO["documents"] and row.status == "Resubmit Requested":
+			row.status = "Awaiting Review"
+			row.updated_by = frappe.session.user
+			row.updated_on = frappe.utils.now_datetime()
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def upload_document(application, upload_token, document_type, filename, content, content_type=None):
@@ -217,6 +232,9 @@ def upload_document(application, upload_token, document_type, filename, content,
 		existing.file = file_doc.file_url
 		existing.verified = 0
 		existing.verified_by = None
+		# A re-upload is the answer to whatever the officer wrote on the
+		# old file; keeping it would read as a complaint about the new one.
+		existing.remarks = None
 	else:
 		doc.append(
 			"application_documents",
@@ -229,6 +247,8 @@ def upload_document(application, upload_token, document_type, filename, content,
 	# looking for it.
 	if document_type == "Photo":
 		doc.photo = file_doc.file_url
+
+	_answer_resubmit_request(doc)
 
 	doc.flags.ignore_permissions = True
 	doc.save(ignore_permissions=True)

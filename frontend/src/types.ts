@@ -485,6 +485,8 @@ export interface ApplicationRecord {
 	entry_level: string | null
 	workflow_state: string
 	application_fee_paid: 0 | 1
+	docs_verified: 0 | 1
+	docs_resubmit_requested_on: string | null
 	admission_fee_paid: 0 | 1
 	qualifying_exam_score: number | null
 	interview_outcome: string | null
@@ -543,6 +545,8 @@ export interface MentorConsentRow {
 export interface ApplicationDetail {
 	application: ApplicationRecord
 	checklist: ChecklistBoard
+	/** The document types that gate the checklist step. */
+	required_documents: string[]
 	documents: ApplicationDocumentRow[]
 	references: ReferenceRequestRow[]
 	mentors: MentorConsentRow[]

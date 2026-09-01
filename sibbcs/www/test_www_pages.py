@@ -29,6 +29,7 @@ PAGES_WITH_CONTROLLERS = [
 	"my-courses",
 	"apply",
 	"fee-paid",
+	"documents",
 ]
 
 
@@ -160,6 +161,7 @@ class TestPublicShell(FrappeTestCase):
 		"manual-reading",
 		"scholarship",
 		"fee-paid",
+		"documents",
 	]
 
 	def shell(self):
@@ -213,3 +215,83 @@ class TestPublicShell(FrappeTestCase):
 				markup = open(os.path.join(WWW, page + ".html"), encoding="utf-8").read()
 				if "sibbcsCsrfToken" in markup:
 					self.assertIn("templates/includes/csrf.html", markup)
+
+
+class TestTheDocumentPage(FrappeTestCase):
+	"""The page a candidate is sent when documents are wanted again.
+
+	Its credential is the upload_token already on the application -- the same
+	one `uploads.upload_document` has always checked -- so the page adds a way
+	in, not a new power.
+	"""
+
+	def an_application(self):
+		from sibbcs.admissions.doctype.admission_application.test_admission_application import (
+			make_application,
+		)
+
+		tag = frappe.generate_hash(length=6)
+		return make_application(
+			full_name=f"Upload {tag}",
+			email=f"upload.{tag}@example.invalid",
+			documents=[
+				{
+					"document_type": "SSC/10th Mark Sheet",
+					"file": "/files/ssc.pdf",
+					"remarks": "The scan is cut off",
+				}
+			],
+		)
+
+	def context_for(self, **form):
+		from sibbcs.www import documents as page
+
+		frappe.form_dict.update(form)
+		try:
+			return page.get_context(frappe._dict())
+		finally:
+			for key in form:
+				frappe.form_dict.pop(key, None)
+
+	def test_a_link_with_no_token_opens_nothing(self):
+		doc = self.an_application()
+		self.assertFalse(self.context_for(application=doc.name).valid)
+
+	def test_a_wrong_token_opens_nothing(self):
+		doc = self.an_application()
+		context = self.context_for(application=doc.name, token="x" * 40)
+
+		self.assertFalse(context.valid)
+		self.assertIn("not valid", context.error)
+
+	def test_the_right_token_shows_that_candidate_their_own_documents(self):
+		doc = self.an_application()
+		context = self.context_for(application=doc.name, token=doc.upload_token)
+
+		self.assertTrue(context.valid)
+		self.assertEqual(context.applicant_name, doc.full_name)
+
+		by_type = {row["document_type"]: row for row in context.documents}
+		self.assertTrue(by_type["SSC/10th Mark Sheet"]["uploaded"])
+		self.assertFalse(by_type["Photo"]["uploaded"])
+		self.assertTrue(by_type["Photo"]["required"])
+
+	def test_it_tells_them_why_a_document_was_not_accepted(self):
+		"""The remark is the reason, and it is no use to anybody unread."""
+		doc = self.an_application()
+		context = self.context_for(application=doc.name, token=doc.upload_token)
+
+		row = next(
+			r for r in context.documents if r["document_type"] == "SSC/10th Mark Sheet"
+		)
+		self.assertEqual(row["remarks"], "The scan is cut off")
+
+	def test_an_application_past_uploads_is_refused(self):
+		doc = self.an_application()
+		frappe.db.set_value(
+			"Admission Application", doc.name, "workflow_state", "Admitted"
+		)
+
+		self.assertFalse(
+			self.context_for(application=doc.name, token=doc.upload_token).valid
+		)

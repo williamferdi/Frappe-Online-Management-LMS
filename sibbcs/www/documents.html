@@ -1,0 +1,192 @@
+{% extends "templates/sibbcs_public.html" %}
+
+{% block title %}Your documents — SIBBCS Online{% endblock %}
+
+{% block page_content %}
+{% include "templates/includes/csrf.html" %}
+<div class="sibbcs-documents">
+
+  {% if not valid %}
+    <div class="alert alert-warning">
+      <h4>This link cannot be opened</h4>
+      <p>{{ error }}</p>
+      <p class="text-muted small">
+        If you believe this is a mistake, please contact the Admissions Office
+        and quote your application reference.
+      </p>
+    </div>
+  {% else %}
+
+    <div class="doc-head">
+      <h1>Your documents</h1>
+      <p class="text-muted">
+        {{ applicant_name }} &middot; {{ program }} &middot;
+        <span class="ref">{{ application }}</span>
+      </p>
+      <p class="text-muted small">
+        PDF, JPG or PNG, up to 5&nbsp;MB each. Each file uploads as soon as you
+        choose it — there is nothing to submit at the end. Sending a document
+        again replaces the one we hold.
+      </p>
+    </div>
+
+    <ul class="doc-list">
+      {% for row in documents %}
+        <li class="doc-row {{ 'is-verified' if row.verified else '' }}"
+            data-doctype="{{ row.document_type }}">
+          <div class="doc-main">
+            <div class="doc-name">
+              {{ row.document_type }}
+              {% if row.required %}<span class="req" title="Required">*</span>{% endif %}
+            </div>
+
+            <div class="doc-state">
+              {% if row.verified %}
+                <span class="pill pill-ok">Accepted</span>
+              {% elif row.uploaded %}
+                <span class="pill pill-wait">Received, being checked</span>
+              {% elif row.required %}
+                <span class="pill pill-need">Still needed</span>
+              {% else %}
+                <span class="pill pill-opt">Not sent</span>
+              {% endif %}
+            </div>
+
+            {% if row.remarks and not row.verified %}
+              <p class="doc-note">{{ row.remarks }}</p>
+            {% endif %}
+          </div>
+
+          <div class="doc-action">
+            {% if row.verified %}
+              <span class="text-muted small">Nothing to do</span>
+            {% else %}
+              <input type="file" class="doc-input"
+                     id="file-{{ loop.index }}"
+                     data-doctype="{{ row.document_type }}"
+                     accept=".pdf,.jpg,.jpeg,.png">
+              <span class="doc-status" aria-live="polite"></span>
+            {% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+
+    <p class="text-muted small doc-foot">
+      <span class="req">*</span> Required before your application can be
+      reviewed. We will email you once everything has been checked.
+    </p>
+
+  {% endif %}
+</div>
+
+<style>
+  .sibbcs-documents { max-width: 760px; }
+  .doc-head h1 { margin-bottom: 4px; }
+  .doc-head .ref { font-family: monospace; }
+  .doc-list { list-style: none; padding: 0; margin: 24px 0 0; }
+  .doc-row {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    align-items: center; justify-content: space-between;
+    padding: 14px 0; border-top: 1px solid rgba(0,0,0,.08);
+  }
+  .doc-row:last-child { border-bottom: 1px solid rgba(0,0,0,.08); }
+  .doc-main { min-width: 260px; flex: 1; }
+  .doc-name { font-weight: 600; }
+  .doc-name .req { color: #b23; margin-left: 2px; }
+  .doc-state { margin-top: 4px; }
+  .pill {
+    display: inline-block; font-size: 12px; padding: 2px 8px;
+    border-radius: 999px; line-height: 1.6;
+  }
+  .pill-ok { background: rgba(22,140,80,.12); color: #146c4e; }
+  .pill-wait { background: rgba(180,140,20,.14); color: #7a5c00; }
+  .pill-need { background: rgba(190,40,50,.10); color: #a12a33; }
+  .pill-opt { background: rgba(0,0,0,.06); color: #666; }
+  .doc-note {
+    margin: 6px 0 0; font-size: 13px; color: #7a5c00;
+    background: rgba(180,140,20,.08); padding: 6px 10px; border-radius: 6px;
+  }
+  .doc-action { min-width: 240px; text-align: right; }
+  .doc-status { display: block; font-size: 12px; margin-top: 4px; }
+  .doc-status.ok { color: #146c4e; }
+  .doc-status.bad { color: #a12a33; }
+  .doc-foot { margin-top: 16px; }
+  .is-verified .doc-name { color: #146c4e; }
+</style>
+
+{% if valid %}
+<script>
+(function () {
+  var application = {{ application | tojson }};
+  var token = {{ token | tojson }};
+
+  function read(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result).split(',')[1]); };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  Array.prototype.forEach.call(
+    document.querySelectorAll('.doc-input'),
+    function (input) {
+      input.addEventListener('change', async function () {
+        var file = input.files && input.files[0];
+        if (!file) return;
+
+        var status = input.parentElement.querySelector('.doc-status');
+        input.disabled = true;
+        status.className = 'doc-status';
+        status.textContent = 'Uploading…';
+
+        try {
+          var content = await read(file);
+          var response = await fetch(
+            '/api/method/sibbcs.admissions.uploads.upload_document',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Frappe-CSRF-Token': sibbcsCsrfToken(),
+              },
+              body: JSON.stringify({
+                application: application,
+                upload_token: token,
+                document_type: input.dataset.doctype,
+                filename: file.name,
+                content_type: file.type,
+                content: content,
+              }),
+            }
+          );
+
+          var body = await response.json();
+          if (!response.ok) {
+            // Frappe puts the readable half in _server_messages.
+            var text = 'That file could not be accepted.';
+            try {
+              var messages = JSON.parse(body._server_messages || '[]');
+              if (messages.length) text = JSON.parse(messages[0]).message;
+            } catch (e) { /* keep the plain wording */ }
+            throw new Error(text);
+          }
+
+          status.className = 'doc-status ok';
+          status.textContent = 'Sent. The Admissions Office will check it.';
+          var note = input.closest('.doc-row').querySelector('.doc-note');
+          if (note) note.remove();
+        } catch (error) {
+          input.disabled = false;
+          status.className = 'doc-status bad';
+          status.textContent = error.message || 'That file could not be accepted.';
+        }
+      });
+    }
+  );
+})();
+</script>
+{% endif %}
+{% endblock %}

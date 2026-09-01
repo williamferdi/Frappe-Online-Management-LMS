@@ -779,6 +779,51 @@ distinct values than the cap under-reported its own total -- exactly what its
 test claimed to prevent, and the test only caught it once the test site grew
 past a hundred terms.
 
+
+### Document review -- `sibbcs/admissions/documents.py`, `www/documents.html`
+
+Step 2 is the only checklist step whose verdict is per-file, so it has its own
+module and its own controls on `/staff/admissions/:name`: a tick box and a
+remarks field on every row, and one button that asks the candidate for whatever
+is still outstanding.
+
+**Nothing in `documents.py` sets the step's status.** `set_docs_verified()`
+already derives the gate from `REQUIRED_DOCUMENTS` and
+`mirror_gates_to_checklist()` moves the step from it, so ticking the last
+required box verifies the step on the same save. That is why `review()` saves
+through the parent document -- a `frappe.db.set_value` would tick the box and
+leave the step where it was.
+
+**The gate is the four required documents, not all seven.** Verify an optional
+one and nothing moves, which looks broken unless the screen says so: the card
+shows "3 of 7 verified · 4 of 4 required" and the endpoint returns the required
+list rather than the front end keeping its own copy.
+
+**"Resubmit Requested" had to be made sticky.** `mirror_gates_to_checklist`
+runs on every save and would have put the step straight back to Awaiting Review
+-- the documents on file have not changed since the officer asked -- losing the
+fact that anybody was ever asked. `STICKY_STATUSES` on the DocType stops that,
+and `uploads._answer_resubmit_request()` is the one event allowed to clear it,
+because a file arriving is the answer. Both directions have tests.
+
+**Every application now gets an `upload_token` at insert**, not only the ones
+that came through `/apply`. One typed into Desk had none, so there was no link
+to send it.
+
+**`/documents?application=…&token=…`** is the candidate's page: each accepted
+type with where it stands, the officer's remark on anything rejected, and a
+file input that uploads on change through the endpoint that already existed.
+`uploads.upload_document` replaces the row, clears `verified`, and now clears
+the remark too -- keeping it would read as a complaint about the new file.
+
+**Remarks are quoted to the candidate** in the resubmit email, and both the
+review card and the dialog say so. They are a reason, not an internal note; if
+the college wants private notes, `notes` on the application is the field.
+
+A resubmit is refused, with advice rather than a raw error, when nothing is
+outstanding, the application has moved past `uploads.OPEN_STATES`, there is no
+email address, or no outgoing mail account is configured.
+
 ### Patches to the vendored LMS
 
 `bench update` pulls a fresh `apps/lms` and silently discards anything we changed there,

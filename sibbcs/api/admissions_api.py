@@ -14,6 +14,9 @@ from frappe import _
 from frappe.utils import cint
 
 from sibbcs.admissions import checklist
+from sibbcs.admissions.doctype.admission_application.admission_application import (
+	REQUIRED_DOCUMENTS,
+)
 
 # The action names `checklist.ACTIONS` hands out, mapped to what actually runs.
 # Kept here rather than in checklist.py so that module stays free of imports
@@ -221,6 +224,7 @@ DETAIL_FIELDS = (
 	"address", "photo", "church_name", "current_role", "years_of_ministry",
 	"has_bachelors", "previous_theological_education", "program", "intake_term",
 	"entry_level", "workflow_state", "application_fee_paid", "admission_fee_paid",
+	"docs_verified", "docs_resubmit_requested_on",
 	"qualifying_exam_score", "interview_outcome", "offer_sent_on", "student",
 	"enrolled_on", "notes", "scholarship_request", "applicant_user",
 	"exam_link_sent_on", "interview_link_sent_on", "scholarship_form_sent_on",
@@ -252,6 +256,9 @@ def application(name):
 
 	return {
 		"application": record,
+		# Named by the DocType module, never by the browser: the checklist
+		# step turns on this list, and a second copy would drift.
+		"required_documents": list(REQUIRED_DOCUMENTS),
 		"checklist": checklist.board(name),
 		"documents": frappe.get_all(
 			"Application Document",

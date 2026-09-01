@@ -61,6 +61,7 @@
   "sb_gates",
   "application_fee_paid",
   "docs_verified",
+  "docs_resubmit_requested_on",
   "qualifying_exam_score",
   "cb_gates",
   "interview_outcome",
@@ -421,6 +422,13 @@
    "read_only": 1
   },
   {
+   "description": "When the Admissions Office last asked for documents again.",
+   "fieldname": "docs_resubmit_requested_on",
+   "fieldtype": "Datetime",
+   "label": "Resubmit Requested On",
+   "read_only": 1
+  },
+  {
    "fieldname": "qualifying_exam_score",
    "fieldtype": "Float",
    "label": "Qualifying Exam Score",
@@ -684,7 +692,7 @@
  "image_field": "photo",
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-01 12:05:02.683775",
+ "modified": "2026-09-01 15:45:55.130705",
  "modified_by": "Administrator",
  "module": "Admissions",
  "name": "Admission Application",

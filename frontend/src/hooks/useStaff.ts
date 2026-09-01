@@ -80,3 +80,41 @@ export function useRunAction(application: string) {
 		},
 	})
 }
+
+/**
+ * Tick, untick or annotate one uploaded document.
+ *
+ * The whole application is refetched rather than the row patched: ticking the
+ * last required box moves the checklist step, which can unblock a later one.
+ * The server works that out; guessing at it here would be a second rule.
+ */
+export function useReviewDocument(application: string) {
+	const queryClient = useQueryClient()
+	return useMutation({
+		mutationFn: (values: { row: string; verified?: boolean; remarks?: string }) =>
+			frappePost('sibbcs.admissions.documents.review', {
+				application,
+				row: values.row,
+				verified: values.verified === undefined ? undefined : values.verified ? 1 : 0,
+				remarks: values.remarks,
+			}),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: staffKeys.application(application) })
+			void queryClient.invalidateQueries({ queryKey: staffKeys.dashboard })
+		},
+	})
+}
+
+export function useRequestResubmit(application: string) {
+	const queryClient = useQueryClient()
+	return useMutation({
+		mutationFn: (message?: string) =>
+			frappePost<{ sent_to: string; items: { document_type: string }[] }>(
+				'sibbcs.admissions.documents.request_resubmit',
+				{ application, message },
+			),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: staffKeys.application(application) })
+		},
+	})
+}

@@ -17,6 +17,11 @@ REQUIRED_DOCUMENTS = [
 ]
 
 
+# Statuses that record something a person did, which nothing inferred from
+# the record may undo. Only the event they are waiting for clears them.
+STICKY_STATUSES = {"Resubmit Requested"}
+
+
 class AdmissionApplication(Document):
 	def validate(self):
 		self.normalise()
@@ -121,6 +126,14 @@ class AdmissionApplication(Document):
 			# Never walk a step backwards out of a completed state; an officer's
 			# explicit decision outranks anything inferred here.
 			if row.status == status or is_done(step_no, row.status):
+				return
+			# Nor out of a request the candidate has not answered yet. The
+			# documents on file have not changed since an officer asked for
+			# better ones, so the mirror would put the step straight back to
+			# Awaiting Review on the very next save and lose the fact that
+			# anybody asked. `uploads.upload_document` clears it when a file
+			# actually arrives.
+			if row.status in STICKY_STATUSES:
 				return
 			row.status = status
 			row.updated_by = frappe.session.user
@@ -239,6 +252,14 @@ class AdmissionApplication(Document):
 
 	def issue_tokens(self):
 		"""Give every referee and mentor row an opaque single-use token."""
+		if not self.upload_token:
+			# Every application, not only the ones that came through /apply.
+			# An application typed into Desk had no token, so there was no
+			# link to send when the office needed a document from it.
+			from sibbcs.admissions.uploads import new_upload_token
+
+			self.upload_token = new_upload_token()
+
 		for row in self.reference_requests:
 			if not row.token:
 				row.token = generate_token()

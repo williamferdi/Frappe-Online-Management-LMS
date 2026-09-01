@@ -58,7 +58,15 @@ const detail: Detail = {
 		scholarship_form_sent_on: null,
 		onboard_term: null,
 		onboard_level: null,
+		docs_verified: 0,
+		docs_resubmit_requested_on: null,
 	},
+	required_documents: [
+		'SSC/10th Mark Sheet',
+		'HSLC/12th Mark Sheet',
+		'National ID',
+		'Photo',
+	],
 	checklist: {
 		application: 'APP-2026-00011',
 		state: 'In Review',
@@ -152,11 +160,13 @@ const detail: Detail = {
 }
 
 const get = vi.fn()
+const post = vi.fn()
 
 async function renderScreen(data: Detail = detail) {
 	vi.resetModules()
 	Object.assign(window, { user: 'admin@x.com', roles: ['System Manager'], csrf_token: 't' })
 
+	post.mockReset().mockResolvedValue({ sent_to: 'd@example.invalid', items: [{}, {}] })
 	get.mockReset().mockImplementation(async (method: string) => {
 		if (method === 'sibbcs.admissions.reference_form.view') {
 			return {
@@ -173,7 +183,7 @@ async function renderScreen(data: Detail = detail) {
 
 	vi.doMock('@/lib/frappe', async () => {
 		const actual = await vi.importActual<typeof import('@/lib/frappe')>('@/lib/frappe')
-		return { ...actual, frappeGet: get, frappePost: vi.fn() }
+		return { ...actual, frappeGet: get, frappePost: post }
 	})
 
 	const { ApplicationDetail } = await import('./ApplicationDetail')
@@ -203,13 +213,95 @@ function rowFor(text: string) {
 }
 
 describe('the application detail screen', () => {
-	it('lists the uploaded documents with their verification state', async () => {
+	it('shows each document as a box the officer can tick', async () => {
 		await renderScreen()
 
 		expect(await screen.findByText('SSC/10th Mark Sheet')).toBeInTheDocument()
+		expect(
+			within(rowFor('SSC/10th Mark Sheet')).getByRole('checkbox'),
+		).toBeChecked()
+		expect(within(rowFor('National ID')).getByRole('checkbox')).not.toBeChecked()
+		expect(screen.getByText(/1 of 2 verified/)).toBeInTheDocument()
+	})
+
+	it('counts the required documents separately, because those are what gate the step', async () => {
+		// Ticking an optional document changes nothing about the checklist, and
+		// an officer who is not told that will think the screen is broken.
+		await renderScreen()
+		expect(screen.getByText(/1 of 4 required/)).toBeInTheDocument()
+	})
+
+	it('cannot tick a document that was never uploaded', async () => {
+		await renderScreen()
+		expect(within(rowFor('National ID')).getByRole('checkbox')).toBeDisabled()
+	})
+
+	it('saves a tick against the row, not the document type', async () => {
+		await renderScreen()
+		await userEvent.click(within(rowFor('SSC/10th Mark Sheet')).getByRole('checkbox'))
+
+		expect(post).toHaveBeenCalledWith('sibbcs.admissions.documents.review', {
+			application: 'APP-2026-00011',
+			row: 'DOC-1',
+			verified: 0,
+			remarks: undefined,
+		})
+	})
+
+	it('saves remarks when the officer leaves the box, and not before', async () => {
+		await renderScreen()
+		const remarks = within(rowFor('SSC/10th Mark Sheet')).getByRole('textbox')
+
+		await userEvent.type(remarks, 'The scan is cut off')
+		expect(post).not.toHaveBeenCalled()
+
+		await userEvent.tab()
+		expect(post).toHaveBeenCalledWith('sibbcs.admissions.documents.review', {
+			application: 'APP-2026-00011',
+			row: 'DOC-1',
+			verified: undefined,
+			remarks: 'The scan is cut off',
+		})
+	})
+
+	it('asks for the outstanding documents in one click', async () => {
+		await renderScreen()
+		await userEvent.click(screen.getByRole('button', { name: /request resubmit/i }))
+
+		const dialog = await screen.findByRole('dialog')
+		// The one uploaded but unverified, and the required ones never sent.
+		expect(within(dialog).getByText('National ID')).toBeInTheDocument()
+		expect(within(dialog).getByText('HSLC/12th Mark Sheet')).toBeInTheDocument()
+		expect(within(dialog).getAllByText('Never received')).toHaveLength(3)
+
+		await userEvent.click(within(dialog).getByRole('button', { name: /send the request/i }))
+
+		expect(post).toHaveBeenCalledWith('sibbcs.admissions.documents.request_resubmit', {
+			application: 'APP-2026-00011',
+			message: undefined,
+		})
+	})
+
+	it('offers no resubmit button when every document is verified', async () => {
+		await renderScreen({
+			...detail,
+			documents: detail.documents.map((row) => ({ ...row, verified: 1 as const })),
+			required_documents: ['SSC/10th Mark Sheet'],
+		})
+
+		expect(
+			screen.queryByRole('button', { name: /request resubmit/i }),
+		).not.toBeInTheDocument()
+	})
+
+	it('gives a reader who cannot write the record, not the controls', async () => {
+		await renderScreen({
+			...detail,
+			checklist: { ...detail.checklist, can_write: false },
+		})
+
+		expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
 		expect(within(rowFor('SSC/10th Mark Sheet')).getByText('Verified')).toBeInTheDocument()
-		expect(within(rowFor('National ID')).getByText('Not verified')).toBeInTheDocument()
-		expect(screen.getByText('1 of 2 verified')).toBeInTheDocument()
 	})
 
 	it('links to the file, and says so when there is none', async () => {
