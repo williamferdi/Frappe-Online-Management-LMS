@@ -389,3 +389,62 @@ class TestTheGuestStylesheetIsVersioned(FrappeTestCase):
 			"sibbcs.setup.website.add_asset_version",
 			frappe.get_hooks("update_website_context"),
 		)
+
+class TestTheAppShellIsNotCached(FrappeTestCase):
+	"""A cached shell keeps loading the previous build.
+
+	The shell names a content-hashed bundle, so a browser that holds on to it
+	goes on running yesterday's JavaScript: a change ships, the page does not
+	move, and the deploy looks like it did nothing. It is also not a public
+	document -- it carries the viewer's name, their roles and a CSRF token.
+	"""
+
+	class FakeResponse:
+		def __init__(self):
+			self.headers = {}
+
+	class FakeRequest:
+		def __init__(self, path):
+			self.path = path
+
+	def header_for(self, path):
+		from sibbcs.setup.website import no_store_on_app_shell
+
+		response = self.FakeResponse()
+		no_store_on_app_shell(response=response, request=self.FakeRequest(path))
+		return response.headers.get("Cache-Control")
+
+	def test_every_console_and_portal_address_says_no_store(self):
+		for path in (
+			"/staff",
+			"/staff/admissions",
+			"/staff/admissions/APP-2026-00014",
+			"/portal",
+			"/portal/grades",
+		):
+			with self.subTest(path=path):
+				self.assertEqual(self.header_for(path), "no-store, must-revalidate")
+
+	def test_a_guest_page_is_left_alone(self):
+		"""Those are ordinary documents and may be cached normally."""
+		for path in ("/apply", "/documents", "/reference", "/"):
+			with self.subTest(path=path):
+				self.assertIsNone(self.header_for(path))
+
+	def test_an_address_that_merely_starts_with_the_word_is_left_alone(self):
+		"""/staffroom is not the staff console."""
+		self.assertIsNone(self.header_for("/staffroom"))
+
+	def test_it_survives_being_called_with_nothing(self):
+		"""after_request hooks run on every request, including ones with no
+		response to speak of; this must never be what breaks a page."""
+		from sibbcs.setup.website import no_store_on_app_shell
+
+		self.assertIsNone(no_store_on_app_shell())
+		self.assertIsNone(no_store_on_app_shell(response=self.FakeResponse()))
+
+	def test_the_hook_is_registered(self):
+		self.assertIn(
+			"sibbcs.setup.website.no_store_on_app_shell",
+			frappe.get_hooks("after_request"),
+		)

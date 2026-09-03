@@ -296,6 +296,10 @@ scheduler_events["daily"] = [
 # stylesheet reaches somebody who has been here before.
 update_website_context = "sibbcs.setup.website.add_asset_version"
 
+# The app shell names a hashed bundle and carries a CSRF token; a browser
+# that keeps it keeps running the previous build.
+after_request = ["sibbcs.setup.website.no_store_on_app_shell"]
+
 website_route_rules = [
 	{"from_route": "/portal/<path:app_path>", "to_route": "_portal"},
 	{"from_route": "/portal", "to_route": "_portal"},

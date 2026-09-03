@@ -748,6 +748,40 @@ beyond the limit and reports `truncated`. Two hundred results with no sign there
 four hundred is a Registrar reading a truncated list and believing it. A test
 surfaced this: searching a fragment shared by every fixture student hit the cap.
 
+
+### The app shell must not be cached — 3 Sep 2026
+
+`/staff/...` and `/portal/...` are one 1.8 KB HTML shell that **names a
+content-hashed bundle**. It was served with **no `Cache-Control` header at
+all**, so browsers applied heuristic freshness and kept it -- and a kept shell
+goes on loading the *previous* build. A change ships, the page does not move,
+and the deploy looks like it did nothing.
+
+That is what "the photograph is not showing" turned out to be. The evidence was
+in `logs/bench-start.log`: at 18:50 the browser fetched
+`/private/files/APP-2026-00014-photo.jpeg` and got **200** -- the image was
+there, the file was readable, the component rendered it -- and later views of
+the same list never asked for it again, because they were running the bundle
+from before the change.
+
+`sibbcs.setup.website.no_store_on_app_shell`, registered as an `after_request`
+hook, sends `no-store, must-revalidate` on those two prefixes only. Guest pages
+are ordinary documents and are left alone.
+
+**`no_cache = 1` in a page controller does not do this.** It disables Frappe's
+*server-side* page cache (`X-From-Cache: False`) and says nothing to the
+browser. There is no per-page hook for response headers either -- a template
+page renderer only carries `self.headers` for web forms -- which is why this is
+an `after_request` hook rather than something in `_portal.py`.
+
+The shell also carries the boot payload: the viewer's name, their roles and a
+**CSRF token**. `no-store` is the right directive for that on its own merits,
+cache-busting aside.
+
+**Two deploys in a row were invisible for this reason** (the guest stylesheet,
+then the console bundle). If a front-end change appears not to have shipped,
+check the served bundle hash against the built one before touching the code.
+
 ### The guest pages — `templates/sibbcs_public.html`, `public/css/public.css`
 
 The six no-login pages (apply, reference, mentor consent, scholarship, manual
