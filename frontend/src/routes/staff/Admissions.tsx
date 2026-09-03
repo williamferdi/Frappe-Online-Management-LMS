@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, UserRoundCheck } from 'lucide-react'
 
+import { Face } from '@/components/Face'
 import { PageHeader } from '@/components/PageHeader'
 import { QueryState } from '@/components/QueryState'
 import { Badge } from '@/components/ui/badge'
@@ -139,13 +140,16 @@ function Row({ row }: { row: PipelineRow }) {
 			<TableCell className="pl-5">
 				<Link
 					to={`/staff/admissions/${row.name}`}
-					className="hover:text-primary block min-w-0 transition-colors"
+					className="hover:text-primary flex min-w-0 items-center gap-3 transition-colors"
 				>
-					<div className="truncate font-medium">{row.full_name}</div>
-					<div className="text-muted-foreground truncate text-xs">
-						{row.name}
-						{row.email && <> · {row.email}</>}
-					</div>
+					<Face name={row.full_name} photo={row.photo} />
+					<span className="min-w-0">
+						<span className="block truncate font-medium">{row.full_name}</span>
+						<span className="text-muted-foreground block truncate text-xs">
+							{row.name}
+							{row.email && <> · {row.email}</>}
+						</span>
+					</span>
 				</Link>
 			</TableCell>
 			<TableCell>

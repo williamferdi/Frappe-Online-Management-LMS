@@ -21,7 +21,7 @@ const detail: Detail = {
 		age: 32,
 		gender: 'Female',
 		address: 'Coimbatore',
-		photo: null,
+		photo: '/private/files/deborah.jpg',
 		church_name: 'Grace Baptist',
 		current_role: 'Youth Pastor',
 		years_of_ministry: 3,
@@ -406,5 +406,26 @@ describe('the application detail screen', () => {
 		await renderScreen({ ...detail, documents: [], references: [], mentors: [] })
 		expect(await screen.findByText(/nothing uploaded yet/i)).toBeInTheDocument()
 		expect(screen.getByText(/no requests sent yet/i)).toBeInTheDocument()
+	})
+
+	it('puts the candidate face-up at the top of their own screen', async () => {
+		await renderScreen()
+
+		// The signature on the scholarship card is an image too, so this asks
+		// for the portrait by its source rather than by being first.
+		const sources = [...document.querySelectorAll('img')].map((image) =>
+			image.getAttribute('src'),
+		)
+		expect(sources).toContain('/private/files/deborah.jpg')
+	})
+
+	it('falls back to initials for a candidate who sent no photograph', async () => {
+		await renderScreen({ ...detail, application: { ...detail.application, photo: null } })
+
+		const sources = [...document.querySelectorAll('img')].map((image) =>
+			image.getAttribute('src'),
+		)
+		expect(sources).not.toContain('/private/files/deborah.jpg')
+		expect(screen.getByText('DV')).toBeInTheDocument()
 	})
 })

@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 
 import { DocumentsCard, ResponsesCard } from '@/components/AdmissionEvidence'
 import { ExamCard } from '@/components/ExamCard'
+import { Face } from '@/components/Face'
 import { InterviewCard } from '@/components/InterviewCard'
 import { ScholarshipCard } from '@/components/ScholarshipCard'
 import { PageHeader } from '@/components/PageHeader'
@@ -72,6 +73,9 @@ function Loaded({ data, onChanged }: { data: Detail; onChanged: () => void }) {
 		<>
 			<PageHeader
 				title={record.full_name}
+				avatar={
+					<Face name={record.full_name} photo={record.photo} className="size-12" />
+				}
 				description={`${record.name} · ${record.program ?? 'No programme'} · ${record.workflow_state}`}
 				actions={
 					<div className="flex gap-2">
