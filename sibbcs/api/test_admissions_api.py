@@ -74,10 +74,18 @@ class TestPipeline(FrappeTestCase):
 					endpoint()
 
 	def test_the_list_does_not_ship_personal_data_it_does_not_need(self):
-		"""A pipeline row is a name and a state. Date of birth, address and the
-		candidate's photograph belong on the detail screen, behind a click."""
-		for field in ("dob", "address", "photo", "id_document", "notes"):
+		"""A pipeline row is a person and a state.
+
+		The photograph is deliberately in: the college asked for faces in the
+		list, and a row is easier to find by the person than by the reference.
+		What stays behind a click is the rest -- date of birth, address, the ID
+		document and the officer.s notes -- none of which a list needs to draw
+		itself.
+		"""
+		for field in ("dob", "address", "id_document", "notes"):
 			self.assertNotIn(field, admissions_api.LIST_FIELDS)
+
+		self.assertIn("photo", admissions_api.LIST_FIELDS)
 
 	def test_progress_matches_what_the_checklist_itself_reports(self):
 		"""The list counts done steps with one grouped query instead of loading

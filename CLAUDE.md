@@ -604,6 +604,53 @@ nothing to borrow and silently skips. Note `make_offering` leaves an offering in
 `status="Published"`.
 
 
+
+### The demographics panel — `/staff/students`
+
+Six donuts above the roll: programme, gender, current status, academic level,
+mature candidates, transfer students. `academic_api.demographics()` builds them
+in four queries whatever the number of students -- the obvious version asks the
+enrolment and the application per student, which is 200 round trips today and
+2,000 next year.
+
+**The panels describe the whole roll, not the filtered list.** They are a
+standing description of the college; a search box that made them jump would
+make them useless for the thing they are for.
+
+**Colour is assigned by the job it does**, and the palette was validated rather
+than eyeballed (`scripts/validate_palette.js` from the dataviz skill, both
+modes, our own surfaces):
+
+- **categorical** (programme, gender) -- a fixed slot order, never cycled, and
+  a slice keeps its slot whatever else is drawn, so a programme emptying out
+  cannot repaint the others. Validated on the *adjacent* pairlist, which is the
+  honest one for a ring: a slice only touches its neighbours and the legend does
+  the identifying.
+- **status** (active, withdrawn) -- the reserved status colours, never reused as
+  a series.
+- **ordinal** (Level 1-4) -- one hue, light to dark, so the order is in the
+  colour.
+- **binary** (yes / the rest of the roll) -- one hue against a neutral, because
+  "no" is a remainder rather than a competing identity.
+
+The lighter slots sit under 3:1 on a white surface, which the validator flags as
+requiring relief: the legend under every donut carries the label **and** the
+count, so identity never rests on colour alone. Empty categories stay in the
+legend -- "B.Th 0" is a fact worth seeing.
+
+Series colours live in `index.css` beside the rest of the theme, under `:root`
+and `.dark`. The dark values are steps chosen for the dark surface, not a flip
+of the light ones, and `light-dark()` is deliberately not used: the app switches
+theme with a class, which that function would not follow.
+
+**Faces in both lists.** `Student.photo` and `Admission Application.photo` now
+reach `/staff/students` and `/staff/admissions`. The files are private, so they
+load on the reader's own session and fall back to initials. Note this reverses
+an earlier judgement that the pipeline should not ship a photograph to a list --
+the college asked for it, and a row is easier to find by the person than by the
+reference. Date of birth, address, the ID document and the officer's notes are
+still behind a click, and the test says so.
+
 ### The student profile -- `/staff/students`, `academic_api.student()`
 
 The roll is its own item in the left menu rather than a tab inside Academic:

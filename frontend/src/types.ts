@@ -406,6 +406,7 @@ export interface ConsoleDashboard {
 export interface PipelineRow {
 	name: string
 	full_name: string
+	photo: string | null
 	email: string | null
 	mobile: string | null
 	program: string | null
@@ -638,11 +639,23 @@ export interface StudentEnrollment {
 export interface StudentRow {
 	name: string
 	full_name: string
+	photo: string | null
 	email: string | null
 	mobile: string | null
 	status: string
 	user: string | null
 	enrollment: StudentEnrollment | null
+}
+
+export interface Demographics {
+	total: number
+	panels: {
+		key: string
+		title: string
+		/** What job the colour does: identity, state, an ordered scale, or yes/no. */
+		kind: 'categorical' | 'status' | 'ordinal' | 'binary'
+		slices: { label: string; count: number }[]
+	}[]
 }
 
 export interface StudentsResponse {

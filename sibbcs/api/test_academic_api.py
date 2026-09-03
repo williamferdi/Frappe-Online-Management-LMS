@@ -413,3 +413,100 @@ class TestStudentProfile(FrappeTestCase):
 		frappe.set_user(email)
 		with self.assertRaises(frappe.PermissionError):
 			api.student(name)
+
+
+class TestDemographics(FrappeTestCase):
+	"""Six breakdowns of the roll, drawn as donuts above the student list."""
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+
+	def test_every_panel_adds_up_to_the_roll(self):
+		"""A donut whose slices do not sum to its own centre number is worse
+		than no donut."""
+		make_student()
+		data = api.demographics()
+
+		self.assertEqual(data["total"], frappe.db.count("Student"))
+		for panel in data["panels"]:
+			with self.subTest(panel=panel["key"]):
+				self.assertEqual(
+					sum(slice["count"] for slice in panel["slices"]),
+					data["total"],
+					panel["title"],
+				)
+
+	def test_a_category_with_nobody_in_it_is_still_shown(self):
+		"""'B.Th 0' is a fact worth seeing; a donut that drops empty categories
+		answers a question nobody asked."""
+		data = api.demographics()
+
+		programmes = next(p for p in data["panels"] if p["key"] == "program")
+		labels = [slice["label"] for slice in programmes["slices"]]
+		for name in frappe.get_all("Program", pluck="name"):
+			self.assertIn(name, labels)
+
+	def test_the_categories_come_from_the_doctype(self):
+		"""Not a list in the front end: a status added in Desk would otherwise
+		vanish into a bucket nobody notices."""
+		data = api.demographics()
+
+		statuses = next(p for p in data["panels"] if p["key"] == "status")
+		options = frappe.get_meta("Student").get_field("status").options.split("\n")
+		for option in [line.strip() for line in options if line.strip()]:
+			self.assertIn(option, [slice["label"] for slice in statuses["slices"]])
+
+	def test_each_panel_says_what_kind_of_scale_it_is(self):
+		"""The colour is chosen by the job it does -- identity, state, an
+		ordered scale -- and the server is where that is known."""
+		kinds = {panel["key"]: panel["kind"] for panel in api.demographics()["panels"]}
+
+		self.assertEqual(kinds["program"], "categorical")
+		self.assertEqual(kinds["status"], "status")
+		self.assertEqual(kinds["level"], "ordinal")
+		self.assertEqual(kinds["mature_candidate"], "binary")
+
+	def test_a_student_with_no_enrolment_is_counted_somewhere(self):
+		student = frappe.get_doc(
+			{
+				"doctype": "Student",
+				"full_name": f"Unenrolled {frappe.generate_hash(length=6)}",
+				"status": "Active",
+			}
+		).insert(ignore_permissions=True)
+
+		data = api.demographics()
+		level = next(p for p in data["panels"] if p["key"] == "level")
+
+		self.assertIn("Not enrolled", [slice["label"] for slice in level["slices"]])
+		self.assertEqual(
+			sum(slice["count"] for slice in level["slices"]), data["total"]
+		)
+		self.assertTrue(frappe.db.exists("Student", student.name))
+
+	def test_the_two_admission_panels_are_dropped_for_a_reader_who_may_not_read_them(self):
+		"""Faculty hold nothing on Admission Application. A zero that means
+		'you may not see this' is a lie, so the panels go."""
+		email = f"faculty.{frappe.generate_hash(length=8)}@example.invalid"
+		make_user(email, ["Faculty"])
+
+		frappe.set_user(email)
+		keys = [panel["key"] for panel in api.demographics()["panels"]]
+
+		self.assertNotIn("mature_candidate", keys)
+		self.assertNotIn("transfer_student", keys)
+		self.assertIn("program", keys)
+
+	def test_a_student_is_refused_the_whole_roll(self):
+		_, _, email = make_student()
+		frappe.set_user(email)
+
+		with self.assertRaises(frappe.PermissionError):
+			api.demographics()
+
+	def test_the_roll_carries_a_photograph_to_the_list(self):
+		"""The list draws a face; without this it draws initials for everybody."""
+		self.assertIn("photo", api.STUDENT_LIST_FIELDS)
+		rows = api.students()["rows"]
+		if rows:
+			self.assertIn("photo", rows[0])

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { Search, Users } from 'lucide-react'
 
 import { Chip, Empty } from '@/components/Chip'
+import { Demographics } from '@/components/Demographics'
+import { Face } from '@/components/Face'
 import { PageHeader } from '@/components/PageHeader'
 import { QueryState } from '@/components/QueryState'
 import { Badge } from '@/components/ui/badge'
@@ -42,7 +44,9 @@ export function Students() {
 				description="Every enrolled student, and the full profile behind each one"
 			/>
 
-			<QueryState query={query} title="Students">
+			<Demographics />
+
+	<QueryState query={query} title="Students">
 				{(data) => (
 					<>
 						<Filters
@@ -87,13 +91,16 @@ export function Students() {
 														<TableCell className="pl-5">
 															<Link
 																to={`/staff/students/${encodeURIComponent(row.name)}`}
-																className="hover:text-primary block transition-colors"
+																className="hover:text-primary flex items-center gap-3 transition-colors"
 															>
-																<div className="font-medium">{row.full_name}</div>
-																<div className="text-muted-foreground text-xs">
-																	{row.name}
-																	{row.email && <> · {row.email}</>}
-																</div>
+																<Face name={row.full_name} photo={row.photo} />
+																<span className="min-w-0">
+																	<span className="block font-medium">{row.full_name}</span>
+																	<span className="text-muted-foreground block truncate text-xs">
+																		{row.name}
+																		{row.email && <> · {row.email}</>}
+																	</span>
+																</span>
 															</Link>
 														</TableCell>
 														<TableCell className="text-sm">

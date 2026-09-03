@@ -52,7 +52,16 @@ def _require_academic():
 # students
 # ---------------------------------------------------------------------------
 
-STUDENT_LIST_FIELDS = ("name", "full_name", "email", "mobile", "status", "user")
+STUDENT_LIST_FIELDS = (
+	"name",
+	"full_name",
+	"email",
+	"mobile",
+	"status",
+	"user",
+	# A roll of names is a spreadsheet; a roll of faces is a college.
+	"photo",
+)
 
 
 @frappe.whitelist()
@@ -311,6 +320,150 @@ def _admission_profile(application):
 		"scholarship": scholarship,
 	}
 
+
+
+
+# ---------------------------------------------------------------------------
+# who is on the roll
+# ---------------------------------------------------------------------------
+
+# Every panel names its own categories rather than counting whatever happens to
+# be in the data: a category with nobody in it is a fact worth seeing, and a
+# donut that silently drops "B.Th 0" answers a question nobody asked.
+YES_NO = ("Yes", "No")
+
+
+def _tally(rows, field, categories, unknown="Not set"):
+	"""Counts in the order the categories were declared, plus what fell outside.
+
+	Anything not in `categories` lands in one bucket rather than inventing a
+	slice per stray value -- a status somebody added in Desk should show up as
+	a number to ask about, not as a new colour.
+	"""
+	counts = {category: 0 for category in categories}
+	stray = 0
+	for row in rows:
+		value = row.get(field)
+		value = str(value) if value not in (None, "") else None
+		if value in counts:
+			counts[value] += 1
+		else:
+			stray += 1
+
+	slices = [{"label": category, "count": counts[category]} for category in categories]
+	if stray:
+		slices.append({"label": unknown, "count": stray})
+	return slices
+
+
+def _options(doctype, fieldname):
+	field = frappe.get_meta(doctype).get_field(fieldname)
+	return [line.strip() for line in (field.options or "").split("\n") if line.strip()]
+
+
+@frappe.whitelist()
+def demographics():
+	"""The roll at a glance: six breakdowns of the enrolled students.
+
+	Deliberately the whole roll rather than whatever the list is filtered to.
+	The panels are a standing description of the college -- a search box that
+	made them jump would make them useless for the thing they are for.
+
+	Four queries, whatever the number of students. The obvious version of this
+	asks the enrolment and the application per student, which is 200 round
+	trips today and 2,000 next year.
+	"""
+	_require_academic()
+
+	students = frappe.get_all(
+		"Student",
+		fields=["name", "gender", "status", "admission_application"],
+	)
+	total = len(students)
+
+	enrollments = {}
+	for row in frappe.get_all(
+		"Program Enrollment",
+		fields=["student", "program", "current_level", "creation"],
+		order_by="creation desc",
+	):
+		# Newest first, so the first one seen for a student wins.
+		enrollments.setdefault(row.student, row)
+
+	for row in students:
+		enrolment = enrollments.get(row.name) or {}
+		row["program"] = enrolment.get("program")
+		row["current_level"] = enrolment.get("current_level")
+
+	panels = [
+		{
+			"key": "program",
+			"title": "Programme",
+			"kind": "categorical",
+			"slices": _tally(
+				students, "program", frappe.get_all("Program", pluck="name"), "No programme"
+			),
+		},
+		{
+			"key": "gender",
+			"title": "Gender",
+			"kind": "categorical",
+			"slices": _tally(students, "gender", _options("Student", "gender")),
+		},
+		{
+			"key": "status",
+			"title": "Current status",
+			"kind": "status",
+			"slices": _tally(students, "status", _options("Student", "status")),
+		},
+		{
+			"key": "level",
+			"title": "Academic level",
+			"kind": "ordinal",
+			"slices": _tally(
+				students,
+				"current_level",
+				_options("Program Enrollment", "current_level"),
+				"Not enrolled",
+			),
+		},
+	]
+
+	# The last two live on the admission application, which Faculty hold nothing
+	# on. The panels are dropped rather than shown empty -- a zero that means
+	# "you may not read this" is a lie.
+	if frappe.has_permission("Admission Application", "read"):
+		applications = {
+			row.name: row
+			for row in frappe.get_all(
+				"Admission Application",
+				filters={"name": ("in", [s.admission_application for s in students if s.admission_application] or [""])},
+				fields=["name", "mature_candidate", "transfer_student"],
+			)
+		}
+
+		for field, title in (
+			("mature_candidate", "Mature candidates"),
+			("transfer_student", "Transfer students"),
+		):
+			yes = sum(
+				1
+				for student in students
+				if cint(applications.get(student.admission_application, {}).get(field))
+			)
+			panels.append(
+				{
+					"key": field,
+					"title": title,
+					"kind": "binary",
+					"slices": [
+						{"label": "Yes", "count": yes},
+						{"label": "No", "count": total - yes},
+					],
+				}
+			)
+
+	return {"total": total, "panels": panels}
 
 # ---------------------------------------------------------------------------
 # offerings and the roster

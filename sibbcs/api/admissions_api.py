@@ -37,6 +37,8 @@ ACTION_HANDLERS = {
 LIST_FIELDS = (
 	"name",
 	"full_name",
+	# The candidate has a face, and the pipeline is a list of people.
+	"photo",
 	"email",
 	"mobile",
 	"program",

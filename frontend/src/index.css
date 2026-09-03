@@ -150,3 +150,58 @@
 		outline-offset: 2px;
 	}
 }
+
+/*
+ * Chart series colours.
+ *
+ * Assigned by the job the colour does rather than by taste, and validated for
+ * colour-vision deficiency before being written down here: categorical slots
+ * are a fixed order (never cycled), the status slots are reserved and never
+ * reused as a series, and the ordinal ramp is one hue light to dark so the
+ * order is legible in the colour itself.
+ *
+ * The dark values are steps chosen for the dark surface, not a flip of the
+ * light ones -- which is why they live here beside the rest of the theme
+ * rather than being computed at the point of use.
+ */
+:root {
+	--viz-cat-1: #2a78d6;
+	--viz-cat-2: #eb6834;
+	--viz-cat-3: #1baf7a;
+	--viz-cat-4: #eda100;
+	--viz-cat-5: #e87ba4;
+
+	--viz-status-1: #0ca30c;
+	--viz-status-2: #fab219;
+	--viz-status-3: #2a78d6;
+	--viz-status-4: #ec835a;
+	--viz-status-5: #d03b3b;
+
+	--viz-step-1: #86b6ef;
+	--viz-step-2: #5598e7;
+	--viz-step-3: #2a78d6;
+	--viz-step-4: #1c5cab;
+
+	--viz-rest: #c9c9c4;
+}
+
+.dark {
+	--viz-cat-1: #3987e5;
+	--viz-cat-2: #d95926;
+	--viz-cat-3: #199e70;
+	--viz-cat-4: #c98500;
+	--viz-cat-5: #d55181;
+
+	--viz-status-1: #0ca30c;
+	--viz-status-2: #fab219;
+	--viz-status-3: #3987e5;
+	--viz-status-4: #ec835a;
+	--viz-status-5: #d03b3b;
+
+	--viz-step-1: #cde2fb;
+	--viz-step-2: #86b6ef;
+	--viz-step-3: #3987e5;
+	--viz-step-4: #256abf;
+
+	--viz-rest: #54544f;
+}
