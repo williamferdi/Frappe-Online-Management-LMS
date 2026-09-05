@@ -371,9 +371,10 @@ def create_content_space(course_offering):
 	return {
 		"course": course,
 		"lms_course": lms_course,
-		# Where a Course Creator actually writes the lessons. The authoring UI
-		# is the LMS's own; this app renders what it holds.
-		"authoring_url": f"/lms/courses/{lms_course}/edit",
+		# The course's own page in the LMS, which is where chapters and lessons
+		# are added -- Frappe LMS has no separate edit route, and inventing one
+		# sends a teacher to "Page not found".
+		"authoring_url": f"/lms/courses/{lms_course}",
 	}
 
 
@@ -406,5 +407,5 @@ def content_space(course_offering):
 		"course": course,
 		"lms_course": lms_course,
 		"lessons": lessons,
-		"authoring_url": f"/lms/courses/{lms_course}/edit" if lms_course else None,
+		"authoring_url": f"/lms/courses/{lms_course}" if lms_course else None,
 	}
