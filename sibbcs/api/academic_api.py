@@ -16,6 +16,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt
 
+from sibbcs.academic import permissions as academic_permissions
 from sibbcs.admissions import checklist
 from sibbcs.api.paging import fetch_capped
 from sibbcs.academic.doctype.course_registration.course_registration import (
@@ -481,6 +482,13 @@ def offerings(term=None, status=None, limit=200):
 	if status:
 		filters["status"] = status
 
+	# None means the whole register; a list means these and no others. An
+	# empty list is a teacher who has been given no course, and must not
+	# read as no filter at all.
+	scope = academic_permissions.offering_scope()
+	if scope is not None:
+		filters["name"] = ("in", scope)
+
 	rows = frappe.get_all(
 		"Course Offering",
 		filters=filters,
@@ -534,6 +542,9 @@ def offerings(term=None, status=None, limit=200):
 def roster(course_offering):
 	"""Who is on one offering, and where their grading stands."""
 	_require_academic()
+	# Read below with frappe.get_all, which bypasses permissions, so neither
+	# the query condition nor has_permission ever sees this. Ask by hand.
+	academic_permissions.assert_may_teach(course_offering)
 
 	offering = frappe.db.get_value(
 		"Course Offering",

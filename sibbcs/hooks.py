@@ -306,3 +306,22 @@ website_route_rules = [
 	{"from_route": "/staff/<path:app_path>", "to_route": "_portal"},
 	{"from_route": "/staff", "to_route": "_portal"},
 ]
+
+
+# --- who may see whose marks --------------------------------------------
+# The permission matrix says what a role may do with a DocType; it cannot say
+# which rows. Both halves are needed: the query condition filters a list, and
+# has_permission guards the same record fetched by name. The /staff API reads
+# through frappe.get_all and is subject to neither -- it calls
+# permissions.assert_may_teach for itself.
+permission_query_conditions = {
+	"Course Registration": "sibbcs.academic.permissions.course_registration_query",
+	"Student": "sibbcs.academic.permissions.student_query",
+	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_query",
+}
+
+has_permission = {
+	"Course Registration": "sibbcs.academic.permissions.course_registration_permission",
+	"Student": "sibbcs.academic.permissions.student_permission",
+	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_permission",
+}
