@@ -50,5 +50,13 @@ export function PortalLayout() {
 		}),
 	}))
 
-	return <AppShell product="Student Portal" sections={sections} />
+	// A course wants the width: the player has its own module sidebar, and two
+	// of them either side of a lesson leaves the reading squeezed in the middle.
+	return (
+		<AppShell
+			product="Student Portal"
+			sections={sections}
+			collapseOn={(pathname) => pathname.startsWith('/portal/courses')}
+		/>
+	)
 }

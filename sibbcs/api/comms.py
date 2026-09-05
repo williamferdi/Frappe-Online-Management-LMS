@@ -448,6 +448,148 @@ def _may_use_room(course_offering):
 		)
 
 
+# ---------------------------------------------------------------------------
+# a thread on one lesson
+# ---------------------------------------------------------------------------
+
+LESSON_REFERENCE = "Course Module Item"
+
+
+def _may_discuss_item(module_item):
+	"""Who may read and post on one lesson's thread.
+
+	A teacher of the course, or a student registered on it for whom the item
+	is actually reachable -- a locked lesson's discussion is locked too, or the
+	thread becomes a way to read about a lesson you cannot open.
+
+	Returns the student's registration when there is one, so the caller can
+	check reachability without asking twice.
+	"""
+	from sibbcs.academic import modules
+	from sibbcs.academic import permissions as academic_permissions
+
+	offering = frappe.db.get_value("Course Module Item", module_item, "course_offering")
+	if not offering:
+		frappe.throw(_("Discussion not found."), frappe.PermissionError)
+
+	if academic_permissions.is_teaching_staff():
+		# Staff, narrowed to their own courses. `offering_scope() is None`
+		# would not do here: it is also true of every student, which let
+		# anybody read any lesson's thread on any course.
+		academic_permissions.assert_may_teach(offering)
+		return None
+
+	mine = [row for row in _my_offerings() if row.course_offering == offering]
+	if not mine:
+		frappe.throw(_("You are not registered on that course."), frappe.PermissionError)
+
+	registration = frappe.db.get_value(
+		"Course Registration",
+		{"program_enrollment": get_enrollment(), "course_offering": offering},
+		"name",
+	)
+	state = modules.item_is_reachable(module_item, registration)
+	if not state["open"]:
+		frappe.throw(state["reason"] or _("This is locked."), frappe.PermissionError)
+
+	return registration
+
+
+def _lesson_topic(module_item, create=False):
+	"""The thread for one item, made on the first thing anybody says.
+
+	Not made up front: a topic per item on every course would be thousands of
+	empty threads, and an empty thread reads as a room nobody came to rather
+	than a room nobody has opened.
+	"""
+	existing = frappe.get_all(
+		"Discussion Topic",
+		filters={
+			"reference_doctype": LESSON_REFERENCE,
+			"reference_docname": module_item,
+		},
+		pluck="name",
+		limit=1,
+	)
+	if existing:
+		return existing[0]
+	if not create:
+		return None
+
+	title = frappe.db.get_value("Course Module Item", module_item, "title") or module_item
+	topic = frappe.get_doc(
+		{
+			"doctype": "Discussion Topic",
+			"title": title,
+			"reference_doctype": LESSON_REFERENCE,
+			"reference_docname": module_item,
+		}
+	).insert(ignore_permissions=True)
+	return topic.name
+
+
+@frappe.whitelist()
+def lesson_discussion(module_item):
+	"""Everything said about one lesson."""
+	_require_user()
+	_may_discuss_item(module_item)
+
+	topic = _lesson_topic(module_item)
+	if not topic:
+		return {"topic": None, "replies": []}
+
+	replies = frappe.get_all(
+		"Discussion Reply",
+		filters={"topic": topic},
+		fields=["name", "reply", "owner", "creation"],
+		order_by="creation asc",
+	)
+	authors = _sender_names({row.owner for row in replies})
+	staff = _staff_users()
+
+	for reply in replies:
+		reply["author_name"] = authors.get(reply.owner, reply.owner)
+		reply["mine"] = reply.owner == frappe.session.user
+		# Worth marking: an answer from the person teaching the course is not
+		# the same as an answer from the room.
+		reply["from_staff"] = reply.owner in staff
+
+	return {"topic": topic, "replies": replies}
+
+
+def _staff_users():
+	"""Who counts as teaching staff, for marking their replies."""
+	return {
+		row.parent
+		for row in frappe.get_all(
+			"Has Role",
+			filters={
+				"role": ("in", ("Faculty", "Facilitator", "Academic Coordinator", "Registrar")),
+				"parenttype": "User",
+			},
+			fields=["parent"],
+		)
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def post_lesson_reply(module_item, reply):
+	"""Say something about one lesson."""
+	_require_user()
+	_may_discuss_item(module_item)
+
+	if not (reply or "").strip():
+		frappe.throw(_("The reply is empty."))
+
+	topic = _lesson_topic(module_item, create=True)
+	doc = frappe.get_doc(
+		{"doctype": "Discussion Reply", "topic": topic, "reply": reply}
+	).insert(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {"reply": doc.name, "topic": topic}
+
+
 @frappe.whitelist()
 def discussion_topics(course_offering):
 	"""Topics in one course room, with reply counts."""

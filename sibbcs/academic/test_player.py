@@ -257,6 +257,123 @@ class TestCoursePlayer(FrappeTestCase):
 		self.assertTrue(row["has_note"])
 		self.assertTrue(row["bookmarked"])
 
+	# --- the lesson's own thread -------------------------------------------
+
+	def test_a_thread_is_made_on_the_first_thing_anybody_says(self):
+		"""Not up front: a topic per item on every course would be thousands
+		of empty threads, and an empty thread reads as a room nobody came to."""
+		from sibbcs.api import comms
+
+		item = make_step(self.module, title="Read me")
+
+		frappe.set_user(self.email)
+		self.assertIsNone(comms.lesson_discussion(item.name)["topic"])
+
+		comms.post_lesson_reply(item.name, "What does verse 14 mean?")
+		thread = comms.lesson_discussion(item.name)
+
+		self.assertIsNotNone(thread["topic"])
+		self.assertEqual(len(thread["replies"]), 1)
+
+	def test_a_thread_hangs_off_the_item_not_the_course(self):
+		"""A question about one lesson buried in a course-wide thread is a
+		question nobody finds again."""
+		from sibbcs.api import comms
+
+		first = make_step(self.module, title="One", position=0)
+		second = make_step(self.module, title="Two", position=1)
+
+		frappe.set_user(self.email)
+		comms.post_lesson_reply(first.name, "About the first")
+
+		self.assertEqual(len(comms.lesson_discussion(first.name)["replies"]), 1)
+		self.assertEqual(comms.lesson_discussion(second.name)["replies"], [])
+
+	def test_a_locked_lessons_thread_is_locked_with_it(self):
+		"""Otherwise the thread is a way to read about a lesson you cannot
+		open -- the lock working everywhere except where somebody would look."""
+		from sibbcs.api import comms
+
+		later = make_module(
+			self.offering, "Later", unlock_at=add_days(now_datetime(), 7)
+		).name
+		item = make_step(later, title="Locked")
+
+		frappe.set_user(self.email)
+		with self.assertRaises(frappe.PermissionError):
+			comms.lesson_discussion(item.name)
+		with self.assertRaises(frappe.PermissionError):
+			comms.post_lesson_reply(item.name, "Sneaking a look")
+
+	def test_a_student_on_another_course_is_kept_out(self):
+		from sibbcs.api import comms
+
+		item = make_step(self.module, title="Read me")
+
+		other_email = f"outsider.{frappe.generate_hash(length=6)}@example.invalid"
+		frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": other_email,
+				"first_name": "Outsider",
+				"user_type": "System User",
+				"send_welcome_email": 0,
+				"roles": [{"role": "Student"}],
+			}
+		).insert(ignore_permissions=True)
+		outsider = make_student(
+			f"Outsider {frappe.generate_hash(length=5)}", user=other_email
+		).name
+		make_enrollment(outsider)
+
+		frappe.set_user(other_email)
+		with self.assertRaises(frappe.PermissionError):
+			comms.lesson_discussion(item.name)
+
+	def test_a_teacher_is_in_the_room(self):
+		"""A lesson question with no teacher in it is a suggestion box."""
+		from sibbcs.academic.doctype.course_offering.test_course_offering import (
+			make_instructor,
+		)
+		from sibbcs.api import comms
+
+		item = make_step(self.module, title="Read me")
+
+		suffix = frappe.generate_hash(length=6)
+		teacher = f"teacher.{suffix}@example.invalid"
+		frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": teacher,
+				"first_name": "Teacher",
+				"user_type": "System User",
+				"send_welcome_email": 0,
+				"roles": [{"role": "Faculty"}],
+			}
+		).insert(ignore_permissions=True)
+		instructor = make_instructor(f"Teacher {suffix}", user=teacher).name
+		frappe.db.set_value("Course Offering", self.offering, "instructor", instructor)
+
+		frappe.set_user(teacher)
+		comms.post_lesson_reply(item.name, "Verse 14 is about the covenant.")
+
+		frappe.set_user(self.email)
+		replies = comms.lesson_discussion(item.name)["replies"]
+		self.assertEqual(len(replies), 1)
+		self.assertTrue(
+			replies[0]["from_staff"],
+			"an answer from whoever teaches the course is marked as such",
+		)
+
+	def test_an_empty_reply_is_refused(self):
+		from sibbcs.api import comms
+
+		item = make_step(self.module, title="Read me")
+
+		frappe.set_user(self.email)
+		with self.assertRaises(frappe.ValidationError):
+			comms.post_lesson_reply(item.name, "   ")
+
 	def test_a_teacher_cannot_read_a_students_notes(self):
 		"""A note is where somebody writes "I don't understand this", and a
 		teacher who can read that changes what students write."""

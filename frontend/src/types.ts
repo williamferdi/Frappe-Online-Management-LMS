@@ -1500,6 +1500,24 @@ export interface LessonDraft {
 	blocks: { type: string; data?: Record<string, unknown> }[]
 }
 
+/** A thread hanging off one lesson rather than the whole course. */
+export interface LessonDiscussionReply {
+	name: string
+	reply: string
+	owner: string
+	creation: string
+	author_name: string
+	mine: boolean
+	/** An answer from whoever teaches the course is not the same as an answer
+	 *  from the room. */
+	from_staff: boolean
+}
+
+export interface LessonDiscussion {
+	topic: string | null
+	replies: LessonDiscussionReply[]
+}
+
 // --- the course player ----------------------------------------------------
 
 export interface PlayerProgress {

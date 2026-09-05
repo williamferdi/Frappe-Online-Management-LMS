@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { Menu, X, type LucideIcon } from 'lucide-react'
+import { Menu, PanelLeftClose, PanelLeftOpen, X, type LucideIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { UserMenu } from '@/components/UserMenu'
@@ -23,15 +23,66 @@ export interface NavSection {
 interface AppShellProps {
 	product: string
 	sections: NavSection[]
+	/** Pages that want the width more than they want the menu. */
+	collapseOn?: (pathname: string) => boolean
 }
 
-export function AppShell({ product, sections }: AppShellProps) {
+/** Remembered per browser, so the choice survives a reload.
+ *
+ *  Wrapped because storage throws outright in some contexts -- a private
+ *  window with site data blocked, a thumbnail capture -- and a menu that
+ *  cannot render is a worse bug than a menu that forgets. */
+const REMEMBERED = 'sibbcs.nav.collapsed'
+
+function readCollapsed(): boolean {
+	try {
+		return window.localStorage.getItem(REMEMBERED) === '1'
+	} catch {
+		return false
+	}
+}
+
+function rememberCollapsed(value: boolean) {
+	try {
+		window.localStorage.setItem(REMEMBERED, value ? '1' : '0')
+	} catch {
+		// Nothing to do, and nothing worth telling anybody about.
+	}
+}
+
+export function AppShell({ product, sections, collapseOn }: AppShellProps) {
 	const [open, setOpen] = useState(false)
+	const [collapsed, setCollapsed] = useState(readCollapsed)
 	const location = useLocation()
+
+	// Whether *we* collapsed it. Somebody who closed the menu themselves meant
+	// it, and reopening it for them on the next page is the software arguing.
+	const collapsedByUs = useRef(false)
 
 	// A tap on a nav link should close the drawer; without this the new page
 	// renders behind the menu on a phone.
 	useEffect(() => setOpen(false), [location.pathname])
+
+	useEffect(() => {
+		if (!collapseOn) return
+		const wants = collapseOn(location.pathname)
+
+		if (wants && !collapsed) {
+			collapsedByUs.current = true
+			setCollapsed(true)
+		} else if (!wants && collapsed && collapsedByUs.current) {
+			collapsedByUs.current = false
+			setCollapsed(false)
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [location.pathname])
+
+	const toggle = () => {
+		// A deliberate choice, so stop treating it as ours to undo.
+		collapsedByUs.current = false
+		setCollapsed(!collapsed)
+		rememberCollapsed(!collapsed)
+	}
 
 	return (
 		<div className="bg-background min-h-svh">
@@ -52,8 +103,10 @@ export function AppShell({ product, sections }: AppShellProps) {
 
 			<aside
 				className={cn(
-					'bg-sidebar border-sidebar-border fixed inset-y-0 left-0 z-40 flex w-[15.5rem] flex-col border-r transition-transform duration-200 lg:translate-x-0',
+					'bg-sidebar border-sidebar-border fixed inset-y-0 left-0 z-40 flex w-[15.5rem] flex-col border-r transition-transform duration-200',
 					open ? 'translate-x-0' : '-translate-x-full',
+					// The wide-screen state is its own: the drawer is for phones.
+					collapsed ? 'lg:-translate-x-full' : 'lg:translate-x-0',
 				)}
 			>
 				<div className="flex h-14 items-center gap-2.5 px-4">
@@ -111,7 +164,12 @@ export function AppShell({ product, sections }: AppShellProps) {
 				</nav>
 			</aside>
 
-			<div className="lg:pl-[15.5rem]">
+			<div
+				className={cn(
+					'transition-[padding] duration-200',
+					collapsed ? 'lg:pl-0' : 'lg:pl-[15.5rem]',
+				)}
+			>
 				<header className="bg-background/85 border-border sticky top-0 z-20 flex h-14 items-center gap-2 border-b px-4 backdrop-blur-md sm:px-6">
 					<Button
 						variant="ghost"
@@ -121,6 +179,17 @@ export function AppShell({ product, sections }: AppShellProps) {
 						aria-label="Open navigation"
 					>
 						<Menu />
+					</Button>
+
+					<Button
+						variant="ghost"
+						size="icon"
+						className="hidden lg:inline-flex"
+						onClick={toggle}
+						aria-label={collapsed ? 'Show the menu' : 'Hide the menu'}
+						aria-expanded={!collapsed}
+					>
+						{collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
 					</Button>
 					<div className="ml-auto flex items-center gap-1">
 						<ThemeToggle />

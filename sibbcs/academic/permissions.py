@@ -198,6 +198,19 @@ def student_for(user=None):
 # --- the /staff API -------------------------------------------------------
 
 
+def is_teaching_staff(user=None):
+	"""Whether this user is staff at all, rather than a student.
+
+	Not the same question as `offering_scope(user) is None`, which is also
+	true of every student -- the scoping does not apply to them, which is not
+	the same as it applying and finding no limit. Anything deciding "staff or
+	student" must ask this; anything narrowing a teacher to their own courses
+	asks `assert_may_teach` after it.
+	"""
+	user = user or frappe.session.user
+	return bool(_roles(user) & (set(UNRESTRICTED) | set(TEACHING_ROLES)))
+
+
 def offering_scope(user=None):
 	"""The offerings this user may look into, or None meaning all of them.
 

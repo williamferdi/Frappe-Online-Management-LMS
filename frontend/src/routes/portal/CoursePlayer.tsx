@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { useDebounced } from '@/hooks/useDebounced'
+import { useLessonDiscussion, usePostLessonReply } from '@/hooks/useComms'
 import {
 	useMarkItemDone,
 	usePlayerCourse,
@@ -437,7 +438,7 @@ function ItemBody({ data, registration }: { data: PlayerItem; registration: stri
 				</Button>
 			)}
 
-			<Discussion registration={registration} />
+			<LessonDiscussionPanel moduleItem={item.name} />
 
 			<nav className="flex items-center justify-between gap-3 border-t pt-4">
 				{data.previous ? (
@@ -580,12 +581,84 @@ function Notes({
 	)
 }
 
-function Discussion({ registration }: { registration: string }) {
+/**
+ * The thread for this lesson.
+ *
+ * Attached to the item rather than the course: a question about verse 14
+ * buried in a course-wide thread is a question nobody finds again. A locked
+ * lesson\'s thread is locked with it, so this is never a way to read about a
+ * lesson you cannot open.
+ */
+function LessonDiscussionPanel({ moduleItem }: { moduleItem: string }) {
+	const query = useLessonDiscussion(moduleItem)
+	const post = usePostLessonReply(moduleItem)
+	const [draft, setDraft] = useState('')
+
+	const replies = query.data?.replies ?? []
+
 	return (
-		<Button variant="outline" size="sm" asChild>
-			<Link to={`/portal/discussions?registration=${encodeURIComponent(registration)}`}>
-				<MessageSquare className="size-4" /> Discuss this course
-			</Link>
-		</Button>
+		<section className="border-t pt-5">
+			<h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+				<MessageSquare className="size-4" /> Discussion
+				{replies.length > 0 && (
+					<span className="text-muted-foreground text-xs font-normal">
+						{replies.length}
+					</span>
+				)}
+			</h2>
+
+			{query.isPending ? (
+				<p className="text-muted-foreground text-sm">Loading…</p>
+			) : replies.length === 0 ? (
+				<p className="text-muted-foreground mb-3 text-sm">
+					No questions on this one yet. Ask the first.
+				</p>
+			) : (
+				<ul className="mb-4 space-y-3">
+					{replies.map((reply) => (
+						<li key={reply.name} className="flex gap-3">
+							<div className="min-w-0 flex-1">
+								<div className="flex flex-wrap items-baseline gap-2">
+									<span className="text-sm font-medium">{reply.author_name}</span>
+									{reply.from_staff && (
+										<Badge variant="secondary" className="text-[10px]">
+											Teaching staff
+										</Badge>
+									)}
+									<span className="text-muted-foreground text-xs">
+										{reply.creation.slice(0, 16).replace('T', ' ')}
+									</span>
+								</div>
+								<div className="mt-0.5">
+									<RichText html={reply.reply} />
+								</div>
+							</div>
+						</li>
+					))}
+				</ul>
+			)}
+
+			<Textarea
+				aria-label="Ask about this lesson"
+				rows={3}
+				placeholder="Ask about this lesson…"
+				value={draft}
+				onChange={(event) => setDraft(event.target.value)}
+			/>
+			<div className="mt-2 flex justify-end">
+				<Button
+					size="sm"
+					disabled={!draft.trim() || post.isPending}
+					onClick={() =>
+						post.mutate(draft, {
+							onSuccess: () => setDraft(''),
+							onError: (problem) => toast.error(message(problem)),
+						})
+					}
+				>
+					Post
+				</Button>
+			</div>
+		</section>
 	)
 }

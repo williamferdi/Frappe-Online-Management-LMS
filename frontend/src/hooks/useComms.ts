@@ -8,6 +8,7 @@ import type {
 	DiscussionThread,
 	DiscussionTopic,
 	InboxResponse,
+	LessonDiscussion,
 	OfficeContact,
 	ThreadResponse,
 	TodoResponse,
@@ -155,6 +156,37 @@ export function usePostReply() {
 			frappePost<{ reply: string }>('sibbcs.api.comms.post_reply', values),
 		onSuccess: (_result, values) => {
 			void queryClient.invalidateQueries({ queryKey: commsKeys.replies(values.topic) })
+		},
+	})
+}
+
+
+// --- a thread on one lesson ------------------------------------------------
+
+export const lessonDiscussionKey = (moduleItem: string) =>
+	['comms', 'lesson-discussion', moduleItem] as const
+
+export function useLessonDiscussion(moduleItem: string | null) {
+	return useQuery({
+		queryKey: lessonDiscussionKey(moduleItem ?? ''),
+		queryFn: () =>
+			frappeGet<LessonDiscussion>('sibbcs.api.comms.lesson_discussion', {
+				module_item: moduleItem,
+			}),
+		enabled: Boolean(moduleItem),
+	})
+}
+
+export function usePostLessonReply(moduleItem: string) {
+	const queryClient = useQueryClient()
+	return useMutation({
+		mutationFn: (reply: string) =>
+			frappePost<{ reply: string; topic: string }>('sibbcs.api.comms.post_lesson_reply', {
+				module_item: moduleItem,
+				reply,
+			}),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: lessonDiscussionKey(moduleItem) })
 		},
 	})
 }
