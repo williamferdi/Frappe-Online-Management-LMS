@@ -381,6 +381,77 @@ class TestSyllabusApi(FrappeTestCase):
 		self.assertEqual(result["ordered"], 1)
 		self.assertEqual(frappe.db.get_value("Course Module", theirs, "position"), 5)
 
+	def test_the_preview_shows_exactly_what_a_student_would_get(self):
+		"""It calls the same modules.outline the portal calls, so the preview
+		cannot drift from the thing it previews."""
+		from sibbcs.academic import modules as modules_module
+
+		module = syllabus.save_module(
+			self.offering, {"title": "Week One", "published": 1}
+		)["module"]
+		syllabus.save_item(module, {"item_type": "Sub-header", "title": "Read"})
+
+		preview = syllabus.preview(self.offering)["modules"]
+		student = modules_module.outline(self.offering, None)
+
+		self.assertEqual(
+			[(m["name"], m["state"]["open"]) for m in preview],
+			[(m["name"], m["state"]["open"]) for m in student],
+		)
+
+	def test_the_preview_hides_what_a_student_cannot_see(self):
+		"""An unpublished module is absent here exactly as it is absent there,
+		which is usually the answer to "why can't they see it?"."""
+		syllabus.save_module(self.offering, {"title": "Draft", "published": 0})
+
+		data = syllabus.preview(self.offering)
+
+		self.assertEqual(data["modules"], [])
+		self.assertEqual(data["unpublished_modules"], 1)
+
+	def test_the_preview_counts_what_it_is_not_showing(self):
+		"""A number beats spotting the difference between two screens."""
+		module = syllabus.save_module(
+			self.offering, {"title": "Week One", "published": 1}
+		)["module"]
+		syllabus.save_item(
+			module, {"item_type": "Sub-header", "title": "Hidden", "published": 0}
+		)
+
+		data = syllabus.preview(self.offering)
+
+		self.assertEqual(data["unpublished_items"], 1)
+		self.assertEqual(data["modules"][0]["items"], [])
+
+	def test_the_preview_can_be_taken_as_a_named_student(self):
+		"""So "why is it locked for her?" is answerable without asking her."""
+		module = syllabus.save_module(
+			self.offering, {"title": "Week One", "published": 1}
+		)["module"]
+
+		data = syllabus.preview(self.offering)
+		self.assertIsInstance(data["roster"], list)
+		self.assertTrue(module)
+
+	def test_the_preview_refuses_a_student_from_another_course(self):
+		other = make_offering(
+			make_course(f"TSY P{frappe.generate_hash(length=4)}").name,
+			self.term,
+			status="Published",
+		).name
+		student = make_student(f"Elsewhere {frappe.generate_hash(length=5)}").name
+		theirs = frappe.get_doc(
+			{
+				"doctype": "Course Registration",
+				"program_enrollment": make_enrollment(student).name,
+				"course_offering": other,
+				"status": "Registered",
+			}
+		).insert(ignore_permissions=True).name
+
+		with self.assertRaises(frappe.PermissionError):
+			syllabus.preview(self.offering, theirs)
+
 	def test_the_builder_offers_the_courses_own_lessons(self):
 		"""Read out of the LMS through its chapter tables, not guessed at."""
 		payload = syllabus.outline(self.offering)

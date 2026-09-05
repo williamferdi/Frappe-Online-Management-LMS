@@ -160,6 +160,47 @@ def _lessons_for(course):
 	return lessons
 
 
+@frappe.whitelist()
+def preview(course_offering, course_registration=None):
+	"""The course as a student sees it, for a teacher to check.
+
+	The same `modules.outline` the portal calls, so a preview cannot drift
+	from what it previews -- an unpublished module is absent here exactly as
+	it is absent there, which is usually the answer to "why can't they see
+	it?".
+
+	A registration is optional. With one, the locks and ticks are that
+	student's real ones; without, it is a student who has just arrived.
+	"""
+	_require_teaching()
+	academic_permissions.assert_may_teach(course_offering)
+
+	if course_registration:
+		theirs = frappe.db.get_value(
+			"Course Registration", course_registration, "course_offering"
+		)
+		if theirs != course_offering:
+			frappe.throw(_("That student is not on this course."), frappe.PermissionError)
+
+	return {
+		"modules": modules.outline(course_offering, course_registration),
+		"roster": frappe.get_all(
+			"Course Registration",
+			filters={"course_offering": course_offering},
+			fields=["name", "student_name"],
+			order_by="student_name asc",
+		),
+		# What a student would not see at all, so the difference is a number
+		# rather than something to spot by comparing two screens.
+		"unpublished_modules": frappe.db.count(
+			"Course Module", {"course_offering": course_offering, "published": 0}
+		),
+		"unpublished_items": frappe.db.count(
+			"Course Module Item", {"course_offering": course_offering, "published": 0}
+		),
+	}
+
+
 @frappe.whitelist(methods=["POST"])
 def save_module(course_offering, values, module=None):
 	_require_teaching()

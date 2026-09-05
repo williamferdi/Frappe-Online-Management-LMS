@@ -1279,6 +1279,16 @@ export interface CourseOutline {
 	modules: OutlineModule[]
 }
 
+/** The student's own outline, rendered for a teacher to check against. */
+export interface ModulePreview {
+	modules: OutlineModule[]
+	roster: { name: string; student_name: string | null }[]
+	/** What a student would not see at all, so the difference is a number
+	 *  rather than something to spot by comparing two screens. */
+	unpublished_modules: number
+	unpublished_items: number
+}
+
 export interface StaffOutline {
 	modules: OutlineModule[]
 	choices: {

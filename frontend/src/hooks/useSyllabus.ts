@@ -1,7 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { frappeGet, frappePost } from '@/lib/frappe'
-import type { CourseOutline, ReadItemResponse, StaffOutline } from '@/types'
+import type {
+	CourseOutline,
+	ModulePreview,
+	ReadItemResponse,
+	StaffOutline,
+} from '@/types'
 
 export const syllabusKeys = {
 	staff: (offering: string) => ['syllabus', 'staff', offering] as const,
@@ -168,5 +173,24 @@ export function useCreateContentSpace(offering: string) {
 			// The module builder lists the course's lessons, so it is stale too.
 			void queryClient.invalidateQueries({ queryKey: syllabusKeys.staff(offering) })
 		},
+	})
+}
+
+
+/**
+ * What a student sees, for a teacher to check.
+ *
+ * Keyed on the registration as well as the offering, so switching who it is
+ * previewed as refetches rather than showing the previous student's locks.
+ */
+export function useModulePreview(offering: string | null, registration: string | null) {
+	return useQuery({
+		queryKey: ['syllabus', 'preview', offering ?? '', registration ?? ''],
+		queryFn: () =>
+			frappeGet<ModulePreview>('sibbcs.api.syllabus.preview', {
+				course_offering: offering,
+				...(registration ? { course_registration: registration } : {}),
+			}),
+		enabled: Boolean(offering),
 	})
 }

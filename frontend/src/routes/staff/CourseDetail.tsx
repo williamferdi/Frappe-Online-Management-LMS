@@ -14,6 +14,7 @@ import { Content } from '@/routes/staff/Content'
 import { Gradebook } from '@/routes/staff/Gradebook'
 import { Groups } from '@/routes/staff/Groups'
 import { Modules } from '@/routes/staff/Modules'
+import { StudentView } from '@/routes/staff/StudentView'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -87,6 +88,7 @@ function Loaded({ data, offering }: { data: CourseDetailData; offering: string }
 					</TabsTrigger>
 					<TabsTrigger value="content">Content</TabsTrigger>
 					<TabsTrigger value="modules">Modules</TabsTrigger>
+					<TabsTrigger value="student-view">Student view</TabsTrigger>
 					<TabsTrigger value="gradebook">Gradebook</TabsTrigger>
 					<TabsTrigger value="groups">Groups</TabsTrigger>
 				</TabsList>
@@ -105,6 +107,10 @@ function Loaded({ data, offering }: { data: CourseDetailData; offering: string }
 
 				<TabsContent value="modules">
 					<Modules offering={offering} />
+				</TabsContent>
+
+				<TabsContent value="student-view">
+					<StudentView offering={offering} />
 				</TabsContent>
 
 				<TabsContent value="gradebook">
