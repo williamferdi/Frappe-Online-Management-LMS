@@ -1279,6 +1279,41 @@ export interface CourseOutline {
 	modules: OutlineModule[]
 }
 
+/** One item opened in the preview.
+ *
+ *  Its own type rather than the student's `ReadItemResponse`: the preview
+ *  shows an assignment, which a student reaches through the coursework page
+ *  rather than through the module reader, so that union has no room for it.
+ */
+export interface PreviewItemResponse {
+	item: {
+		name: string
+		item_type: string
+		title: string | null
+		lesson: string | null
+		assignment: string | null
+		page: string | null
+		file: string | null
+		url: string | null
+		completion_requirement: string
+		min_score: number | null
+	}
+	content:
+		| LessonContent
+		| { title: string; body: string | null }
+		| { title: string; file: string | null; description: string | null }
+		| {
+				title: string
+				description: string | null
+				points_possible: number
+				due_date: string | null
+				published: number
+		  }
+		| null
+	/** True when the thing it points at would not reach a student. */
+	unpublished?: boolean
+}
+
 /** The student's own outline, rendered for a teacher to check against. */
 export interface ModulePreview {
 	modules: OutlineModule[]

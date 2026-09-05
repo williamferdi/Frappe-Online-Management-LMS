@@ -201,6 +201,60 @@ def preview(course_offering, course_registration=None):
 	}
 
 
+@frappe.whitelist()
+def preview_item(course_offering, module_item):
+	"""One item's content, for a teacher checking the course.
+
+	Writes nothing. `read_item` is the student's call and records progress --
+	opening a "View it" item completes it -- so previewing through it would
+	tick boxes for whichever student was being previewed as.
+
+	Locks are ignored here on purpose: a teacher checking a module that opens
+	next week needs to see inside it. The preview still reports the lock
+	beside the item, so what a student would meet is not misrepresented.
+	"""
+	_require_teaching()
+	academic_permissions.assert_may_teach(course_offering)
+
+	item = frappe.db.get_value(
+		"Course Module Item",
+		module_item,
+		["name", "course_offering", "item_type", "title", "lesson", "assignment",
+		 "page", "file", "url", "completion_requirement", "min_score"],
+		as_dict=True,
+	)
+	if not item:
+		frappe.throw(_("Item not found."))
+	if item.course_offering != course_offering:
+		frappe.throw(_("That item is not on this course."), frappe.PermissionError)
+
+	payload = {"item": item, "content": None}
+
+	if item.item_type == "Lesson" and item.lesson:
+		payload["content"] = lesson_content.lesson_payload(item.lesson)
+	elif item.item_type == "Page" and item.page:
+		page_row = frappe.db.get_value(
+			"Course Page", item.page, ["title", "body", "published"], as_dict=True
+		)
+		if page_row:
+			payload["content"] = {"title": page_row.title, "body": page_row.body}
+			# A teacher should know an unpublished page reaches nobody.
+			payload["unpublished"] = not cint(page_row.published)
+	elif item.item_type == "File" and item.file:
+		payload["content"] = frappe.db.get_value(
+			"Course File", item.file, ["title", "file", "description"], as_dict=True
+		)
+	elif item.item_type == "Assignment" and item.assignment:
+		payload["content"] = frappe.db.get_value(
+			"Course Assignment",
+			item.assignment,
+			["title", "description", "points_possible", "due_date", "published"],
+			as_dict=True,
+		)
+
+	return payload
+
+
 @frappe.whitelist(methods=["POST"])
 def save_module(course_offering, values, module=None):
 	_require_teaching()

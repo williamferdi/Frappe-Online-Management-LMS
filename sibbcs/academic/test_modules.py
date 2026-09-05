@@ -452,6 +452,62 @@ class TestSyllabusApi(FrappeTestCase):
 		with self.assertRaises(frappe.PermissionError):
 			syllabus.preview(self.offering, theirs)
 
+	def test_previewing_an_item_records_nothing(self):
+		"""`read_item` is the student's call and completes a "View it" item.
+		Previewing through it would tick boxes for whichever student was being
+		previewed as -- quietly, from somebody else's session."""
+		module = syllabus.save_module(
+			self.offering, {"title": "Week One", "published": 1}
+		)["module"]
+		item = syllabus.save_item(
+			module,
+			{
+				"item_type": "Sub-header",
+				"title": "Read",
+				"completion_requirement": "View it",
+			},
+		)["item"]
+
+		before = frappe.db.count("Module Item Progress")
+		syllabus.preview_item(self.offering, item)
+
+		self.assertEqual(frappe.db.count("Module Item Progress"), before)
+
+	def test_a_locked_item_can_still_be_opened_in_the_preview(self):
+		"""A teacher checking a module that opens next week needs to see inside
+		it. The outline still reports the lock, so nothing is misrepresented."""
+		module = syllabus.save_module(
+			self.offering,
+			{
+				"title": "Later",
+				"published": 1,
+				"unlock_at": add_days(now_datetime(), 7),
+			},
+		)["module"]
+		item = syllabus.save_item(
+			module, {"item_type": "Sub-header", "title": "Locked"}
+		)["item"]
+
+		payload = syllabus.preview_item(self.offering, item)
+		self.assertEqual(payload["item"]["name"], item)
+
+		shown = syllabus.preview(self.offering)["modules"]
+		self.assertFalse(shown[0]["state"]["open"])
+
+	def test_an_item_from_another_course_cannot_be_previewed(self):
+		other = make_offering(
+			make_course(f"TSY Q{frappe.generate_hash(length=4)}").name,
+			self.term,
+			status="Published",
+		).name
+		theirs = syllabus.save_module(other, {"title": "Theirs", "published": 1})["module"]
+		item = syllabus.save_item(
+			theirs, {"item_type": "Sub-header", "title": "Not mine"}
+		)["item"]
+
+		with self.assertRaises(frappe.PermissionError):
+			syllabus.preview_item(self.offering, item)
+
 	def test_the_builder_offers_the_courses_own_lessons(self):
 		"""Read out of the LMS through its chapter tables, not guessed at."""
 		payload = syllabus.outline(self.offering)

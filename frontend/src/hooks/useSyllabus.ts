@@ -4,6 +4,7 @@ import { frappeGet, frappePost } from '@/lib/frappe'
 import type {
 	CourseOutline,
 	ModulePreview,
+	PreviewItemResponse,
 	ReadItemResponse,
 	StaffOutline,
 } from '@/types'
@@ -192,5 +193,25 @@ export function useModulePreview(offering: string | null, registration: string |
 				...(registration ? { course_registration: registration } : {}),
 			}),
 		enabled: Boolean(offering),
+	})
+}
+
+
+/**
+ * One item's content, for a teacher checking the course.
+ *
+ * A query rather than a mutation, unlike the student's `useReadItem`: this
+ * writes nothing, so caching it is right and reopening an item need not ask
+ * the server again.
+ */
+export function usePreviewItem(offering: string, moduleItem: string | null) {
+	return useQuery({
+		queryKey: ['syllabus', 'preview-item', offering, moduleItem ?? ''],
+		queryFn: () =>
+			frappeGet<PreviewItemResponse>('sibbcs.api.syllabus.preview_item', {
+				course_offering: offering,
+				module_item: moduleItem,
+			}),
+		enabled: Boolean(moduleItem),
 	})
 }
