@@ -4,6 +4,7 @@ import {
 	ChevronDown,
 	ChevronUp,
 	ExternalLink,
+	GripVertical,
 	LoaderCircle,
 	Plus,
 	Trash2,
@@ -26,7 +27,9 @@ import {
 	useSaveModule,
 	useStaffOutline,
 } from '@/hooks/useSyllabus'
+import { useDragOrder } from '@/hooks/useDragOrder'
 import { FrappeError } from '@/lib/frappe'
+import { cn } from '@/lib/utils'
 import type { OutlineItem, OutlineModule, StaffOutline } from '@/types'
 
 function message(error: unknown) {
@@ -58,13 +61,11 @@ function Builder({ data, offering }: { data: StaffOutline; offering: string }) {
 	const space = useContentSpace(offering)
 	const makeSpace = useCreateContentSpace(offering)
 
-	const move = (index: number, by: number) => {
-		const order = data.modules.map((module) => module.name)
-		const target = index + by
-		if (target < 0 || target >= order.length) return
-		;[order[index], order[target]] = [order[target], order[index]]
-		reorder.mutate({ order }, { onError: (error) => toast.error(message(error)) })
-	}
+	const drag = useDragOrder(
+		data.modules.map((module) => module.name),
+		(order) =>
+			reorder.mutate({ order }, { onError: (error) => toast.error(message(error)) }),
+	)
 
 	return (
 		<div className="space-y-4">
@@ -181,8 +182,7 @@ function Builder({ data, offering }: { data: StaffOutline; offering: string }) {
 						module={module}
 						data={data}
 						offering={offering}
-						onMoveUp={() => move(index, -1)}
-						onMoveDown={() => move(index, 1)}
+						drag={drag}
 						first={index === 0}
 						last={index === data.modules.length - 1}
 					/>
@@ -196,16 +196,14 @@ function ModuleCard({
 	module,
 	data,
 	offering,
-	onMoveUp,
-	onMoveDown,
+	drag,
 	first,
 	last,
 }: {
 	module: OutlineModule
 	data: StaffOutline
 	offering: string
-	onMoveUp: () => void
-	onMoveDown: () => void
+	drag: ReturnType<typeof useDragOrder>
 	first: boolean
 	last: boolean
 }) {
@@ -215,16 +213,28 @@ function ModuleCard({
 	const remove = useDeleteModule(offering)
 
 	return (
-		<Card>
+		<Card
+			{...drag.handlers(module.name)}
+			className={cn(
+				drag.dragging === module.name && 'opacity-50',
+				drag.over === module.name &&
+					drag.dragging !== module.name &&
+					'border-primary border-t-2',
+			)}
+		>
 			<CardContent className="p-0">
 				<div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+					<GripVertical
+						className="text-muted-foreground size-4 shrink-0 cursor-grab"
+						aria-hidden
+					/>
 					<div className="flex gap-0.5">
 						<Button
 							variant="ghost"
 							size="icon"
 							aria-label={`Move ${module.title} up`}
 							disabled={first}
-							onClick={onMoveUp}
+							onClick={() => drag.moveBy(module.name, -1)}
 						>
 							<ChevronUp className="size-4" />
 						</Button>
@@ -233,7 +243,7 @@ function ModuleCard({
 							size="icon"
 							aria-label={`Move ${module.title} down`}
 							disabled={last}
-							onClick={onMoveDown}
+							onClick={() => drag.moveBy(module.name, 1)}
 						>
 							<ChevronDown className="size-4" />
 						</Button>
@@ -291,11 +301,7 @@ function ModuleCard({
 					</div>
 				)}
 
-				<ul className="divide-y">
-					{module.items.map((item) => (
-						<ItemRow key={item.name} item={item} offering={offering} />
-					))}
-				</ul>
+				<ItemList module={module} offering={offering} />
 
 				<div className="px-4 py-3">
 					{adding ? (
@@ -443,11 +449,91 @@ function ModuleForm({
 	)
 }
 
-function ItemRow({ item, offering }: { item: OutlineItem; offering: string }) {
+/**
+ * The items of one module, in the order a student meets them.
+ *
+ * Their own list rather than rows inside the card, because reordering needs
+ * the whole set — a row cannot know what it is being dropped above.
+ */
+function ItemList({ module, offering }: { module: OutlineModule; offering: string }) {
+	const reorder = useReorder(offering)
+	const drag = useDragOrder(
+		module.items.map((item) => item.name),
+		(order) =>
+			reorder.mutate(
+				{ module: module.name, order },
+				{ onError: (error) => toast.error(message(error)) },
+			),
+	)
+
+	if (module.items.length === 0) return null
+
+	return (
+		<ul className="divide-y">
+			{module.items.map((item, index) => (
+				<ItemRow
+					key={item.name}
+					item={item}
+					offering={offering}
+					drag={drag}
+					first={index === 0}
+					last={index === module.items.length - 1}
+				/>
+			))}
+		</ul>
+	)
+}
+
+function ItemRow({
+	item,
+	offering,
+	drag,
+	first,
+	last,
+}: {
+	item: OutlineItem
+	offering: string
+	drag: ReturnType<typeof useDragOrder>
+	first: boolean
+	last: boolean
+}) {
 	const remove = useDeleteItem(offering)
 
 	return (
-		<li className="flex flex-wrap items-center gap-2 px-4 py-2 text-sm">
+		<li
+			{...drag.handlers(item.name)}
+			className={cn(
+				'flex flex-wrap items-center gap-2 px-4 py-2 text-sm',
+				drag.dragging === item.name && 'opacity-50',
+				drag.over === item.name &&
+					drag.dragging !== item.name &&
+					'border-primary border-t-2',
+			)}
+		>
+			<GripVertical
+				className="text-muted-foreground size-4 shrink-0 cursor-grab"
+				aria-hidden
+			/>
+			<div className="flex shrink-0 gap-0.5">
+				<Button
+					variant="ghost"
+					size="icon"
+					aria-label={`Move ${item.title || item.item_type} up`}
+					disabled={first}
+					onClick={() => drag.moveBy(item.name, -1)}
+				>
+					<ChevronUp className="size-4" />
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon"
+					aria-label={`Move ${item.title || item.item_type} down`}
+					disabled={last}
+					onClick={() => drag.moveBy(item.name, 1)}
+				>
+					<ChevronDown className="size-4" />
+				</Button>
+			</div>
 			<span className="text-muted-foreground w-20 shrink-0 text-xs">
 				{item.item_type}
 			</span>
