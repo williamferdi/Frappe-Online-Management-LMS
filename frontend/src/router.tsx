@@ -7,6 +7,8 @@ import { RequireAuth } from '@/routes/RequireAuth'
 import { Admissions } from '@/routes/staff/Admissions'
 import { ApplicationDetail } from '@/routes/staff/ApplicationDetail'
 import { Academic } from '@/routes/staff/Academic'
+import { CourseDetail } from '@/routes/staff/CourseDetail'
+import { Courses } from '@/routes/staff/Courses'
 import { Finance } from '@/routes/staff/Finance'
 import { GradeSheet } from '@/routes/staff/GradeSheet'
 import { RecordDetail } from '@/routes/staff/RecordDetail'
@@ -75,6 +77,8 @@ export const router = createBrowserRouter([
 					{ path: 'admissions', element: <Admissions /> },
 					{ path: 'admissions/:name', element: <ApplicationDetail /> },
 					{ path: 'academic', element: <Academic /> },
+					{ path: 'courses', element: <Courses /> },
+					{ path: 'courses/:name', element: <CourseDetail /> },
 					{ path: 'students', element: <Students /> },
 					{ path: 'students/:name', element: <StudentDetail /> },
 					// The roll used to be a tab inside Academic. Anything already

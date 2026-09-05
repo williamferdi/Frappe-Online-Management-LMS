@@ -1,0 +1,252 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-09-05 13:25:11.030648",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_what",
+  "naming_series",
+  "course_offering",
+  "course_title",
+  "title",
+  "cb_what",
+  "component",
+  "points_possible",
+  "grading_type",
+  "sb_brief",
+  "description",
+  "sb_when",
+  "available_from",
+  "due_date",
+  "cb_when",
+  "available_until",
+  "sb_how",
+  "submission_type",
+  "allowed_attempts",
+  "cb_how",
+  "late_policy",
+  "late_penalty_pct_per_day",
+  "sb_state",
+  "published"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_what",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "CA-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "CA-.#####",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "course_offering",
+   "fieldtype": "Link",
+   "label": "Course Offering",
+   "options": "Course Offering",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "course_offering.course_title",
+   "fieldname": "course_title",
+   "fieldtype": "Data",
+   "label": "Course",
+   "read_only": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb_what",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Which row of the grade scheme this score rolls into.",
+   "fieldname": "component",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Counts Towards",
+   "options": "Assignment\nDiscussion Forum\nAttendance\nFinal Paper\nQuiz\nExam\nParticipation\nProject\nReading",
+   "reqd": 1
+  },
+  {
+   "default": "100",
+   "fieldname": "points_possible",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Points Possible",
+   "reqd": 1
+  },
+  {
+   "default": "Points",
+   "fieldname": "grading_type",
+   "fieldtype": "Select",
+   "label": "Grading Type",
+   "options": "Points\nPercentage\nComplete/Incomplete"
+  },
+  {
+   "fieldname": "sb_brief",
+   "fieldtype": "Section Break",
+   "label": "Brief"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "fieldname": "sb_when",
+   "fieldtype": "Section Break",
+   "label": "Dates"
+  },
+  {
+   "fieldname": "available_from",
+   "fieldtype": "Datetime",
+   "label": "Available From"
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Due"
+  },
+  {
+   "fieldname": "cb_when",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "After this nothing is accepted, late policy or not.",
+   "fieldname": "available_until",
+   "fieldtype": "Datetime",
+   "label": "Closes"
+  },
+  {
+   "fieldname": "sb_how",
+   "fieldtype": "Section Break",
+   "label": "Submission"
+  },
+  {
+   "default": "Text Entry",
+   "fieldname": "submission_type",
+   "fieldtype": "Select",
+   "label": "Submission Type",
+   "options": "No Submission\nText Entry\nFile Upload\nURL\nOn Paper",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "description": "0 means no limit.",
+   "fieldname": "allowed_attempts",
+   "fieldtype": "Int",
+   "label": "Allowed Attempts"
+  },
+  {
+   "fieldname": "cb_how",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Accept with penalty",
+   "fieldname": "late_policy",
+   "fieldtype": "Select",
+   "label": "Late Policy",
+   "options": "Accept\nAccept with penalty\nRefuse"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.late_policy=='Accept with penalty'",
+   "fieldname": "late_penalty_pct_per_day",
+   "fieldtype": "Float",
+   "label": "Late Penalty % per Day"
+  },
+  {
+   "fieldname": "sb_state",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "description": "Unpublished work is invisible to students.",
+   "fieldname": "published",
+   "fieldtype": "Check",
+   "label": "Published"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-05 13:25:27.258942",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Course Assignment",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Faculty",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Facilitator"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title",
+ "track_changes": 1
+}

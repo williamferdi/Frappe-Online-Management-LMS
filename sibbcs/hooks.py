@@ -316,12 +316,16 @@ website_route_rules = [
 # permissions.assert_may_teach for itself.
 permission_query_conditions = {
 	"Course Registration": "sibbcs.academic.permissions.course_registration_query",
+	"Course Assignment": "sibbcs.academic.permissions.course_assignment_query",
+	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_query",
 	"Student": "sibbcs.academic.permissions.student_query",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_query",
 }
 
 has_permission = {
 	"Course Registration": "sibbcs.academic.permissions.course_registration_permission",
+	"Course Assignment": "sibbcs.academic.permissions.course_assignment_permission",
+	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_permission",
 	"Student": "sibbcs.academic.permissions.student_permission",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_permission",
 }

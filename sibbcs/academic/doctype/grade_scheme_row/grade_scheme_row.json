@@ -1,0 +1,63 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-05 13:25:10.062875",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "component",
+  "weight_pct",
+  "drop_lowest",
+  "posting_policy"
+ ],
+ "fields": [
+  {
+   "fieldname": "component",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Component",
+   "options": "Assignment\nDiscussion Forum\nAttendance\nFinal Paper\nQuiz\nExam\nParticipation\nProject\nReading",
+   "reqd": 1
+  },
+  {
+   "fieldname": "weight_pct",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Weight %",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "description": "Discard this many of the lowest scores in the group.",
+   "fieldname": "drop_lowest",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Drop Lowest"
+  },
+  {
+   "default": "Manual",
+   "description": "Manual holds a mark back until the marker posts it. It is the default because a mark a student sees before the marker meant them to cannot be taken back.",
+   "fieldname": "posting_policy",
+   "fieldtype": "Select",
+   "label": "Posting Policy",
+   "options": "Automatic\nManual"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-05 13:25:10.062875",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Grade Scheme Row",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

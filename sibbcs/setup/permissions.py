@@ -45,6 +45,21 @@ MATRIX = {
 		read(FACILITATOR), read(STUDENT),
 	],
 	"Instructor": [full(SM), full(COORDINATOR), read(REGISTRAR), read(FACULTY)],
+
+	# --- the gradebook ----------------------------------------------------
+	# Faculty build their own courses, which is the point of the phase; the
+	# row-level scoping in `academic.permissions` is what keeps "their own"
+	# meaning something. No Student row at all: an unpublished assignment is
+	# not yet an announcement, and the portal reads through endpoints that
+	# filter on `published` rather than through the DocType.
+	"Course Grade Scheme": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR),
+	],
+	"Course Assignment": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR),
+	],
 	"Grade Scale": [full(SM), edit(REGISTRAR), read(COORDINATOR), read(FACULTY)],
 	"Weekday": [full(SM), read(COORDINATOR), read(REGISTRAR)],
 
@@ -104,6 +119,8 @@ FORBIDDEN_CREATE = {
 	"Student": [STUDENT, FACULTY, FACILITATOR],
 	"Program Enrollment": [STUDENT, FACULTY, FACILITATOR],
 	"Course Registration": [STUDENT],
+	"Course Grade Scheme": [STUDENT],
+	"Course Assignment": [STUDENT],
 	"Fee Invoice": [STUDENT],
 	"Payment Entry": [STUDENT],
 	"Reading Manual": [STUDENT, FACULTY, FACILITATOR],

@@ -6,7 +6,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, flt, today
 
-from sibbcs.academic import lms_sync
+from sibbcs.academic import gradebook, lms_sync
 from sibbcs.academic.eligibility import evaluate, may_override
 
 
@@ -15,6 +15,10 @@ class CourseRegistration(Document):
 		self.set_defaults()
 		self.validate_override_authority()
 		self.run_eligibility()
+		# Before compute_grade, not after: a mark that is about to be thrown
+		# out should not first be folded into a total.
+		gradebook.refuse_hand_marks_on_automatic(self)
+		self.note_marks_entered()
 		self.compute_grade()
 
 	def before_insert(self):
@@ -81,6 +85,44 @@ class CourseRegistration(Document):
 
 	# -- grading -----------------------------------------------------------
 
+	def note_marks_entered(self):
+		"""Record that a component has been marked, whenever one just was.
+
+		`obtained_marks` is decimal NOT NULL DEFAULT 0, so it cannot hold the
+		difference between "unmarked" and "scored nothing" -- a blank comes
+		back as 0.0 and a half-marked course would then be graded as if the
+		rest scored zero. `marked` holds that difference, and this sets it
+		from the one thing the column cannot say for itself: the number is not
+		what it was a moment ago.
+
+		Writers that know their own mind -- `save_grades`, and the gradebook
+		roll-up -- set `marked` explicitly, including for a deliberate zero.
+		This is the safety net under everything else.
+		"""
+		if not self.grade_components:
+			return
+
+		stored = {}
+		if not self.is_new():
+			stored = {
+				row.component: row.obtained_marks
+				for row in frappe.get_all(
+					"Grade Component",
+					filters={"parent": self.name, "parenttype": "Course Registration"},
+					fields=["component", "obtained_marks"],
+				)
+			}
+
+		for component in self.grade_components:
+			if component.marked:
+				continue
+			if component.obtained_marks in (None, ""):
+				continue
+			was = stored.get(component.component)
+			if was is not None and flt(was) == flt(component.obtained_marks):
+				continue
+			component.marked = 1
+
 	def compute_grade(self):
 		"""Weighted total from the grade components, mapped onto the Grade Scale.
 
@@ -105,7 +147,10 @@ class CourseRegistration(Document):
 				flt(component.obtained_marks) / max_marks * flt(component.weight_pct), 2
 			)
 
-		if any(c.obtained_marks in (None, "") for c in self.grade_components):
+		# `marked`, not the number. obtained_marks is NOT NULL DEFAULT 0, so a
+		# component nobody has marked reads back as 0.0 -- and a course half
+		# marked then re-saved would award a grade computed from zeros.
+		if any(not cint(c.marked) for c in self.grade_components):
 			return
 
 		self.final_marks = flt(sum(flt(c.weighted_score) for c in self.grade_components), 2)

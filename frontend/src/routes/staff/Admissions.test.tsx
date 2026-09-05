@@ -44,8 +44,7 @@ const pipeline: PipelineResponse = {
 	],
 	states: ['Draft', 'In Review', 'Admitted'],
 	programs: ['MDIV'],
-	filters: { state: null, program: null, search: null },
-	truncated: false,
+	can_write: true,
 }
 
 async function renderList() {

@@ -10,7 +10,10 @@
   "weight_pct",
   "max_marks",
   "obtained_marks",
-  "weighted_score"
+  "weighted_score",
+  "marked",
+  "auto_computed",
+  "source_assignments"
  ],
  "fields": [
   {
@@ -19,7 +22,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Component",
-   "options": "Assignment\nDiscussion Forum\nAttendance\nFinal Paper",
+   "options": "Assignment\nDiscussion Forum\nAttendance\nFinal Paper\nQuiz\nExam\nParticipation\nProject\nReading",
    "reqd": 1
   },
   {
@@ -53,13 +56,36 @@
    "in_list_view": 1,
    "label": "Weighted",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Whether this component has been marked at all. Separate from the score because a student can be given a genuine zero, and because the score column cannot hold a blank -- it is NOT NULL DEFAULT 0, so an unmarked component reads as 0 the moment it is read back.",
+   "fieldname": "marked",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Marked"
+  },
+  {
+   "default": "0",
+   "description": "Set by the gradebook. A hand-typed mark on this row would be overwritten by the next roll-up.",
+   "fieldname": "auto_computed",
+   "fieldtype": "Check",
+   "label": "Computed from Assignments",
+   "read_only": 1
+  },
+  {
+   "description": "How many posted assignment scores produced this mark.",
+   "fieldname": "source_assignments",
+   "fieldtype": "Int",
+   "label": "Assignments Counted",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-08-08 19:38:26.575555",
+ "modified": "2026-09-05 13:25:09.297498",
  "modified_by": "Administrator",
  "module": "Academic",
  "name": "Grade Component",

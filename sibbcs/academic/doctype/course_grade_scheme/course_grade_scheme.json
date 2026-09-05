@@ -1,0 +1,137 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:{course_offering}",
+ "creation": "2026-09-05 13:25:10.425687",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_what",
+  "course_offering",
+  "course_title",
+  "cb_what",
+  "term",
+  "total_weight",
+  "sb_rows",
+  "rows"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_what",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "course_offering",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Course Offering",
+   "options": "Course Offering",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fetch_from": "course_offering.course_title",
+   "fieldname": "course_title",
+   "fieldtype": "Data",
+   "label": "Course",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_what",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "course_offering.term",
+   "fieldname": "term",
+   "fieldtype": "Data",
+   "label": "Term",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_weight",
+   "fieldtype": "Float",
+   "label": "Total Weight %",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_rows",
+   "fieldtype": "Section Break",
+   "label": "Components"
+  },
+  {
+   "fieldname": "rows",
+   "fieldtype": "Table",
+   "label": "Components",
+   "options": "Grade Scheme Row"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-05 13:25:26.546319",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Course Grade Scheme",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Faculty",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Facilitator"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "course_title",
+ "track_changes": 1
+}

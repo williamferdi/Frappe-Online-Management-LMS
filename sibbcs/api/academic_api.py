@@ -658,6 +658,9 @@ def save_grades(registration, components, status=None):
 					if row.get("obtained_marks") not in (None, "")
 					else None
 				),
+				# The blank itself cannot be stored -- the column is NOT NULL
+				# DEFAULT 0 -- so what "unmarked" means is recorded here.
+				"marked": int(row.get("obtained_marks") not in (None, "")),
 			},
 		)
 
@@ -683,7 +686,10 @@ def save_grades(registration, components, status=None):
 				"component": c.component,
 				"weight_pct": c.weight_pct,
 				"max_marks": c.max_marks,
-				"obtained_marks": c.obtained_marks,
+				# A screen that draws 0 where nobody has marked is the same lie
+				# the database tells; send the blank back as a blank.
+				"obtained_marks": c.obtained_marks if cint(c.marked) else None,
+				"marked": cint(c.marked),
 				"weighted_score": c.weighted_score,
 			}
 			for c in doc.grade_components

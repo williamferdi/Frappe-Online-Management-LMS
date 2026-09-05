@@ -207,6 +207,44 @@ def course_registration_permission(doc, ptype="read", user=None):
 	return True
 
 
+# --- Course Assignment and Course Grade Scheme ----------------------------
+# Both hang off an offering, so both scope the same way the roster does. A
+# teacher who may not see who is enrolled has no business editing what they
+# are set.
+
+
+def _offering_scoped_query(doctype, user):
+	if is_unrestricted(user):
+		return ""
+	if _teaches(user):
+		return _within(doctype, "course_offering", offerings_for(user))
+	return ""
+
+
+def _offering_scoped_permission(doc, user):
+	if not doc or is_unrestricted(user):
+		return True
+	if _teaches(user):
+		return doc.get("course_offering") in offerings_for(user)
+	return True
+
+
+def course_assignment_query(user=None):
+	return _offering_scoped_query("Course Assignment", user or frappe.session.user)
+
+
+def course_assignment_permission(doc, ptype="read", user=None):
+	return _offering_scoped_permission(doc, user or frappe.session.user)
+
+
+def course_grade_scheme_query(user=None):
+	return _offering_scoped_query("Course Grade Scheme", user or frappe.session.user)
+
+
+def course_grade_scheme_permission(doc, ptype="read", user=None):
+	return _offering_scoped_permission(doc, user or frappe.session.user)
+
+
 # --- Student and Program Enrollment ---------------------------------------
 # Both carry `read(STUDENT)`, which without a row filter is the student
 # directory and the cohort's levels handed to anyone holding the role.

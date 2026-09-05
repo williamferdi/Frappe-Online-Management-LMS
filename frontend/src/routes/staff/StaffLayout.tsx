@@ -1,6 +1,7 @@
 import {
 	BadgeIndianRupee,
 	BarChart3,
+	BookOpen,
 	Database,
 	GraduationCap,
 	LayoutDashboard,
@@ -21,6 +22,7 @@ const SECTIONS: NavSection[] = [
 			{ to: '/staff/admissions', label: 'Admissions', icon: UserRoundCheck },
 			{ to: '/staff/students', label: 'Students', icon: Users },
 			{ to: '/staff/academic', label: 'Academic', icon: GraduationCap },
+			{ to: '/staff/courses', label: 'Courses', icon: BookOpen },
 			{ to: '/staff/finance', label: 'Finance', icon: BadgeIndianRupee },
 			{ to: '/staff/users', label: 'Users', icon: UserCog },
 			{ to: '/staff/data', label: 'Records', icon: Database },

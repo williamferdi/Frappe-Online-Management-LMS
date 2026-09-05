@@ -996,3 +996,74 @@ export interface RoleCount {
 	role: string
 	count: number
 }
+
+// --- the course shell (Phase 1) ------------------------------------------
+
+export interface GradeSchemeRow {
+	component: string
+	weight_pct: number
+	drop_lowest: number
+	posting_policy: string
+}
+
+export interface CourseGradeScheme {
+	name: string
+	total_weight: number
+	rows: GradeSchemeRow[]
+}
+
+export interface CourseAssignment {
+	name: string
+	title: string
+	component: string
+	points_possible: number
+	submission_type: string
+	grading_type: string
+	due_date: string | null
+	available_from: string | null
+	available_until: string | null
+	late_policy: string
+	late_penalty_pct_per_day: number
+	allowed_attempts: number
+	published: number
+	description: string | null
+}
+
+/** Option lists read from the DocTypes, so a component added in Desk reaches
+ * the scheme editor rather than being invisible to it. */
+export interface CourseChoices {
+	components: string[]
+	submission_types: string[]
+	grading_types: string[]
+	late_policies: string[]
+	posting_policies: string[]
+}
+
+export interface CourseShelfRow {
+	name: string
+	course: string
+	course_title: string | null
+	term: string
+	status: string
+	format: string | null
+	instructor: string | null
+	facilitator: string | null
+	enrolled_count: number | null
+	credits: number
+	course_level: string | null
+	has_scheme: boolean
+	assignments: number
+	published_assignments: number
+}
+
+export interface CoursesResponse {
+	rows: CourseShelfRow[]
+	terms: { name: string; term_name: string; status: string }[]
+}
+
+export interface CourseDetail {
+	offering: OfferingRow
+	scheme: CourseGradeScheme | null
+	assignments: CourseAssignment[]
+	choices: CourseChoices
+}
