@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, LoaderCircle, Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -58,6 +58,13 @@ export function CourseDetail() {
 function Loaded({ data, offering }: { data: CourseDetailData; offering: string }) {
 	const course = data.offering
 
+	// The tab lives in the address, so "set one on the Assignments tab" can be
+	// a link to the Assignments tab rather than a description of where it is.
+	const [params, setParams] = useSearchParams()
+	const tab = params.get('tab') || 'scheme'
+	const setTab = (next: string) =>
+		setParams(next === 'scheme' ? {} : { tab: next }, { replace: true })
+
 	return (
 		<>
 			<PageHeader
@@ -72,7 +79,7 @@ function Loaded({ data, offering }: { data: CourseDetailData; offering: string }
 				}
 			/>
 
-			<Tabs defaultValue="scheme">
+			<Tabs value={tab} onValueChange={setTab} defaultValue="scheme">
 				<TabsList>
 					<TabsTrigger value="scheme">Grade scheme</TabsTrigger>
 					<TabsTrigger value="assignments">

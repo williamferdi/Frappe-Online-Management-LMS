@@ -92,7 +92,9 @@ export function TabsList({
 			role="tablist"
 			onKeyDown={onKeyDown}
 			className={cn(
-				'bg-muted text-muted-foreground inline-flex items-center gap-1 rounded-lg p-1',
+				// Wraps rather than running off the edge: a tab a narrow window
+				// cuts off is a tab nobody can find.
+				'bg-muted text-muted-foreground flex flex-wrap items-center gap-1 rounded-lg p-1',
 				className,
 			)}
 		>

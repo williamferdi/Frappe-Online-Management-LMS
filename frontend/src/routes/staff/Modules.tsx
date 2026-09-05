@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
 	ChevronDown,
 	ChevronUp,
@@ -209,6 +210,7 @@ function ModuleCard({
 	last: boolean
 }) {
 	const [adding, setAdding] = useState(false)
+	const [editing, setEditing] = useState(false)
 	const save = useSaveModule(offering)
 	const remove = useDeleteModule(offering)
 
@@ -243,6 +245,10 @@ function ModuleCard({
 						{module.published ? 'Published' : 'Draft'}
 					</Badge>
 
+					<Button variant="ghost" size="sm" onClick={() => setEditing(!editing)}>
+						Edit
+					</Button>
+
 					<Button
 						variant="ghost"
 						size="sm"
@@ -274,6 +280,17 @@ function ModuleCard({
 					</Button>
 				</div>
 
+				{editing && (
+					<div className="border-b px-4 py-3">
+						<ModuleForm
+							module={module}
+							data={data}
+							offering={offering}
+							onDone={() => setEditing(false)}
+						/>
+					</div>
+				)}
+
 				<ul className="divide-y">
 					{module.items.map((item) => (
 						<ItemRow key={item.name} item={item} offering={offering} />
@@ -296,6 +313,133 @@ function ModuleCard({
 				</div>
 			</CardContent>
 		</Card>
+	)
+}
+
+/**
+ * Renaming a module, and the three things that decide when it opens.
+ *
+ * `unlock_at` is a datetime-local: blanking it means "no date", which is not
+ * the same as leaving it alone, so the empty string is sent as null rather
+ * than skipped.
+ */
+function ModuleForm({
+	module,
+	data,
+	offering,
+	onDone,
+}: {
+	module: OutlineModule
+	data: StaffOutline
+	offering: string
+	onDone: () => void
+}) {
+	const [title, setTitle] = useState(module.title)
+	const [unlockAt, setUnlockAt] = useState((module.unlock_at ?? '').slice(0, 16))
+	const [sequential, setSequential] = useState(
+		Boolean(module.require_sequential_progress),
+	)
+	const [prerequisites, setPrerequisites] = useState<string[]>(module.prerequisites ?? [])
+	const save = useSaveModule(offering)
+
+	// A module cannot wait for itself, and the server drops it anyway.
+	const others = data.modules.filter((row) => row.name !== module.name)
+
+	return (
+		<div className="space-y-3">
+			<div className="grid gap-3 sm:grid-cols-2">
+				<label className="block">
+					<span className="text-xs font-medium">Title</span>
+					<Input
+						className="mt-1"
+						value={title}
+						onChange={(event) => setTitle(event.target.value)}
+					/>
+				</label>
+
+				<label className="block">
+					<span className="text-xs font-medium">Unlocks at</span>
+					<Input
+						type="datetime-local"
+						className="mt-1"
+						value={unlockAt}
+						onChange={(event) => setUnlockAt(event.target.value)}
+					/>
+					<span className="text-muted-foreground mt-1 block text-xs">
+						Leave blank to open as soon as it is published.
+					</span>
+				</label>
+			</div>
+
+			<label className="flex items-center gap-2 text-sm">
+				<input
+					type="checkbox"
+					checked={sequential}
+					onChange={(event) => setSequential(event.target.checked)}
+				/>
+				Items must be done in order
+			</label>
+
+			{others.length > 0 && (
+				<fieldset>
+					<legend className="text-xs font-medium">Requires first</legend>
+					<div className="mt-1 flex flex-wrap gap-2">
+						{others.map((row) => (
+							<label
+								key={row.name}
+								className="border-input hover:bg-muted flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1 text-sm"
+							>
+								<input
+									type="checkbox"
+									checked={prerequisites.includes(row.name)}
+									onChange={() =>
+										setPrerequisites(
+											prerequisites.includes(row.name)
+												? prerequisites.filter((value) => value !== row.name)
+												: [...prerequisites, row.name],
+										)
+									}
+								/>
+								{row.title}
+							</label>
+						))}
+					</div>
+				</fieldset>
+			)}
+
+			<div className="flex justify-end gap-2">
+				<Button variant="outline" size="sm" onClick={onDone}>
+					Cancel
+				</Button>
+				<Button
+					size="sm"
+					disabled={!title || save.isPending}
+					onClick={() =>
+						save.mutate(
+							{
+								values: {
+									title,
+									unlock_at: unlockAt || null,
+									require_sequential_progress: sequential ? 1 : 0,
+									prerequisites,
+								},
+								module: module.name,
+							},
+							{
+								onSuccess: () => {
+									toast.success('Module saved')
+									onDone()
+								},
+								onError: (error) => toast.error(message(error)),
+							},
+						)
+					}
+				>
+					{save.isPending ? <LoaderCircle className="animate-spin" /> : null}
+					Save module
+				</Button>
+			</div>
+		</div>
 	)
 }
 
@@ -330,12 +474,13 @@ function ItemRow({ item, offering }: { item: OutlineItem; offering: string }) {
 	)
 }
 
-/** What to say when a type has nothing to point at, and where to go. */
-const EMPTY: Record<string, string> = {
-	Lesson: 'No lessons written yet. Write them on the Content tab.',
-	Assignment: 'No assignments set yet. Set one on the Assignments tab.',
-	Page: 'No pages written yet. Write one on the Content tab.',
-	File: 'No files added yet. Add one on the Content tab.',
+/** What to say when a type has nothing to point at, and where to go.
+ *  The tab is a link, because naming a place is less use than going there. */
+const EMPTY: Record<string, { text: string; tab: string; label: string }> = {
+	Lesson: { text: 'No lessons written yet.', tab: 'content', label: 'Write one' },
+	Assignment: { text: 'No assignments set yet.', tab: 'assignments', label: 'Set one' },
+	Page: { text: 'No pages written yet.', tab: 'content', label: 'Write one' },
+	File: { text: 'No files added yet.', tab: 'content', label: 'Add one' },
 }
 
 function ItemForm({
@@ -427,7 +572,15 @@ function ItemForm({
 					<div className="sm:col-span-2">
 						<span className="text-xs font-medium">Which one</span>
 						<p className="text-muted-foreground mt-1 text-sm">
-							{EMPTY[type] ?? `No ${type.toLowerCase()}s on this course yet.`}
+							{EMPTY[type]?.text ?? `No ${type.toLowerCase()}s on this course yet.`}{' '}
+							{EMPTY[type] && (
+								<Link
+									to={`/staff/courses/${encodeURIComponent(offering)}?tab=${EMPTY[type].tab}`}
+									className="text-primary underline underline-offset-2"
+								>
+									{EMPTY[type].label}
+								</Link>
+							)}
 						</p>
 					</div>
 				)}
