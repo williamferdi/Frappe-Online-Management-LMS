@@ -122,6 +122,33 @@ MATRIX = {
 		level(SM, 1), level(COORDINATOR, 1), level(FACULTY, 1),
 		level(REGISTRAR, 1, write=0), level(FACILITATOR, 1, write=0),
 	],
+	# A group a student is in and a discussion prompt are the shape of the
+	# course, so Student reads them.
+	"Course Group Set": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR), read(STUDENT),
+	],
+	"Course Group": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR), read(STUDENT),
+	],
+	"Course Discussion": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR), read(STUDENT),
+	],
+	# No Student row: a list of everyone's extensions is nobody's business,
+	# and a student's own payload already carries the dates that apply to them.
+	"Assignment Override": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR),
+	],
+	# No Student row: a peer's suggested mark is a mark.
+	"Peer Review": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR),
+		level(SM, 1), level(COORDINATOR, 1), level(FACULTY, 1),
+		level(REGISTRAR, 1, write=0), level(FACILITATOR, 1, write=0),
+	],
 	"Rubric Criterion": [
 		full(SM), full(COORDINATOR), full(FACULTY),
 		read(REGISTRAR), read(FACILITATOR),
@@ -198,6 +225,11 @@ FORBIDDEN_CREATE = {
 	"Bank Question": [STUDENT, FACILITATOR],
 	"Course Quiz": [STUDENT, FACILITATOR],
 	"Quiz Attempt": [STUDENT, FACILITATOR],
+	"Course Group Set": [STUDENT, FACILITATOR],
+	"Course Group": [STUDENT, FACILITATOR],
+	"Course Discussion": [STUDENT, FACILITATOR],
+	"Assignment Override": [STUDENT, FACILITATOR],
+	"Peer Review": [STUDENT, FACILITATOR],
 	"Rubric Criterion": [STUDENT, FACILITATOR],
 	"Fee Invoice": [STUDENT],
 	"Payment Entry": [STUDENT],

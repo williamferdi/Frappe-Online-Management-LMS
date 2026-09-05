@@ -78,14 +78,31 @@ def _cache():
 	return store
 
 
-def clear_scope_cache(doc=None, method=None):
-	"""Forget the memo when the records it is derived from change.
+# The only fields the scoping answer is derived from. A Course Offering whose
+# enrolled_count moved says nothing about who teaches it.
+SCOPE_FIELDS = {
+	"Instructor": ("user",),
+	"Course Offering": ("instructor", "facilitator"),
+}
 
-	Wired to Instructor and Course Offering in hooks.py. Cheap, because it
-	only ever drops a dict that is rebuilt on the next question.
+
+def clear_scope_cache(doc=None, method=None):
+	"""Forget the memo, but only when the answer could have changed.
+
+	Wired to Instructor and Course Offering in hooks.py. Hooked to every update
+	it was useless: `Course Registration.refresh_offering_count` writes to the
+	offering on every registration save, so the memo was dropped before it
+	could ever answer a second question.
 	"""
-	if getattr(frappe.local, "sibbcs_scope_cache", None) is not None:
-		frappe.local.sibbcs_scope_cache = {}
+	if getattr(frappe.local, "sibbcs_scope_cache", None) is None:
+		return
+
+	watched = SCOPE_FIELDS.get(getattr(doc, "doctype", None))
+	if doc is not None and watched and not doc.is_new():
+		if not any(doc.has_value_changed(field) for field in watched):
+			return
+
+	frappe.local.sibbcs_scope_cache = {}
 
 
 def _memo(key, build):
@@ -311,6 +328,46 @@ def course_module_item_query(user=None):
 
 
 def course_module_item_permission(doc, ptype="read", user=None):
+	return _offering_scoped_permission(doc, user or frappe.session.user)
+
+
+def course_group_query(user=None):
+	return _offering_scoped_query("Course Group", user or frappe.session.user)
+
+
+def course_group_permission(doc, ptype="read", user=None):
+	return _offering_scoped_permission(doc, user or frappe.session.user)
+
+
+def course_group_set_query(user=None):
+	return _offering_scoped_query("Course Group Set", user or frappe.session.user)
+
+
+def course_group_set_permission(doc, ptype="read", user=None):
+	return _offering_scoped_permission(doc, user or frappe.session.user)
+
+
+def course_discussion_query(user=None):
+	return _offering_scoped_query("Course Discussion", user or frappe.session.user)
+
+
+def course_discussion_permission(doc, ptype="read", user=None):
+	return _offering_scoped_permission(doc, user or frappe.session.user)
+
+
+def assignment_override_query(user=None):
+	return _offering_scoped_query("Assignment Override", user or frappe.session.user)
+
+
+def assignment_override_permission(doc, ptype="read", user=None):
+	return _offering_scoped_permission(doc, user or frappe.session.user)
+
+
+def peer_review_query(user=None):
+	return _offering_scoped_query("Peer Review", user or frappe.session.user)
+
+
+def peer_review_permission(doc, ptype="read", user=None):
 	return _offering_scoped_permission(doc, user or frappe.session.user)
 
 

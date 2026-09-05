@@ -20,7 +20,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, now_datetime, get_datetime
 
-from sibbcs.academic import gradebook
+from sibbcs.academic import gradebook, overrides
 from sibbcs.academic.portal import get_student
 
 ASSIGNMENT_FIELDS = (
@@ -119,6 +119,10 @@ def coursework(course_registration):
 	rows = []
 	for assignment in assignments:
 		submission = mine.get(assignment.name)
+		# An extension moves the dates before anything is decided from them,
+		# so "open" and "late" are answered against the dates that actually
+		# apply to this student.
+		overrides.apply_to(assignment, course_registration)
 		rows.append(
 			{
 				"assignment": assignment,
@@ -193,6 +197,7 @@ def submit(course_registration, assignment, body=None, url=None):
 	if row.course_offering != registration.course_offering:
 		frappe.throw(_("That assignment is not on this course."), frappe.PermissionError)
 
+	overrides.apply_to(row, course_registration)
 	state = _is_open(row)
 	if not state["open"]:
 		frappe.throw(state["reason"] or _("This is not open."))

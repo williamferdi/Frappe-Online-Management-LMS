@@ -8,7 +8,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, flt, get_datetime, now_datetime
 
-from sibbcs.academic import gradebook
+from sibbcs.academic import gradebook, overrides
 
 
 class AssignmentSubmission(Document):
@@ -96,7 +96,10 @@ class AssignmentSubmission(Document):
 			self.late_days = 0
 			return
 
-		due = frappe.db.get_value("Course Assignment", self.assignment, "due_date")
+		# The due date this student was actually given. Without this an
+		# extension would still be marked late, and the penalty would be
+		# applied to work that was handed in on time.
+		due = overrides.due_for(self.assignment, self.course_registration)
 		if not due:
 			self.late_days = 0
 			return

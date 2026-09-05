@@ -18,7 +18,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_to_date, cint, flt, get_datetime, now_datetime
 
-from sibbcs.academic import quizzes
+from sibbcs.academic import overrides, quizzes
 from sibbcs.academic import permissions as academic_permissions
 from sibbcs.academic.portal import get_student
 from sibbcs.api.academic_api import ACADEMIC_ROLES
@@ -103,6 +103,9 @@ def start(course_registration, assignment):
 	registration = _my_registration(course_registration)
 	row = _assignment_for(assignment, registration)
 	quiz = frappe.get_doc("Course Quiz", row.course_quiz)
+
+	# A quiz window is an assignment window, so an extension moves it too.
+	overrides.apply_to(row, registration.name)
 
 	now = now_datetime()
 	if row.available_from and now < get_datetime(row.available_from):

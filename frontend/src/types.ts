@@ -1360,3 +1360,55 @@ export interface QuizResult {
 		correct: number[]
 	}[]
 }
+
+// --- groups, overrides and discussions (Phase 5) --------------------------
+
+export interface GroupMember {
+	course_registration: string
+	student_name: string | null
+}
+
+export interface CourseGroup {
+	name: string
+	title: string
+	position: number
+	members: GroupMember[]
+}
+
+export interface GroupSet {
+	name: string
+	title: string
+	self_signup: number
+	group_limit: number
+	groups: CourseGroup[]
+}
+
+export interface GroupSetsResponse {
+	sets: GroupSet[]
+	roster: { name: string; student_name: string | null }[]
+}
+
+export interface OverrideRow {
+	name: string
+	course_registration: string | null
+	course_group: string | null
+	available_from: string | null
+	due_date: string | null
+	available_until: string | null
+	reason: string | null
+}
+
+export interface CourseDiscussionRow {
+	name: string
+	title: string
+	assignment: string | null
+	published: number
+	min_posts: number
+	min_replies_to_peers: number
+	discussion_topic: string | null
+	prompt: string | null
+}
+
+export interface MyDiscussionsResponse {
+	rows: (CourseDiscussionRow & { my_posts: number; enough: boolean })[]
+}

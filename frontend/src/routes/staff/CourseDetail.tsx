@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Gradebook } from '@/routes/staff/Gradebook'
+import { Groups } from '@/routes/staff/Groups'
 import { Modules } from '@/routes/staff/Modules'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
@@ -78,6 +79,7 @@ function Loaded({ data, offering }: { data: CourseDetailData; offering: string }
 					</TabsTrigger>
 					<TabsTrigger value="modules">Modules</TabsTrigger>
 					<TabsTrigger value="gradebook">Gradebook</TabsTrigger>
+					<TabsTrigger value="groups">Groups</TabsTrigger>
 				</TabsList>
 
 				<TabsContent value="scheme">
@@ -94,6 +96,10 @@ function Loaded({ data, offering }: { data: CourseDetailData; offering: string }
 
 				<TabsContent value="gradebook">
 					<Gradebook offering={offering} />
+				</TabsContent>
+
+				<TabsContent value="groups">
+					<Groups offering={offering} />
 				</TabsContent>
 			</Tabs>
 		</>
