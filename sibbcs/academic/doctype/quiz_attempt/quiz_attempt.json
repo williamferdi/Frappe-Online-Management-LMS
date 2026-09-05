@@ -1,0 +1,275 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-09-05 17:29:13.598225",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_what",
+  "naming_series",
+  "assignment",
+  "course_offering",
+  "quiz",
+  "cb_what",
+  "course_registration",
+  "student_name",
+  "attempt",
+  "sb_timing",
+  "started_at",
+  "expires_at",
+  "cb_timing",
+  "submitted_at",
+  "status",
+  "auto_submitted",
+  "sb_paper",
+  "question_order",
+  "answers",
+  "sb_result",
+  "score",
+  "cb_result",
+  "points_possible"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_what",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "QAT-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "QAT-.#####",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "assignment",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Assignment",
+   "options": "Course Assignment",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "assignment.course_offering",
+   "fieldname": "course_offering",
+   "fieldtype": "Data",
+   "label": "Course Offering",
+   "read_only": 1
+  },
+  {
+   "fieldname": "quiz",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Quiz",
+   "options": "Course Quiz",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb_what",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "course_registration",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Registration",
+   "options": "Course Registration",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "course_registration.student_name",
+   "fieldname": "student_name",
+   "fieldtype": "Data",
+   "label": "Student",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "attempt",
+   "fieldtype": "Int",
+   "label": "Attempt"
+  },
+  {
+   "fieldname": "sb_timing",
+   "fieldtype": "Section Break",
+   "label": "Timing"
+  },
+  {
+   "fieldname": "started_at",
+   "fieldtype": "Datetime",
+   "label": "Started",
+   "read_only": 1
+  },
+  {
+   "fieldname": "expires_at",
+   "fieldtype": "Datetime",
+   "label": "Expires",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_timing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "submitted_at",
+   "fieldtype": "Datetime",
+   "label": "Submitted",
+   "read_only": 1
+  },
+  {
+   "default": "In progress",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "In progress\nSubmitted\nExpired",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "auto_submitted",
+   "fieldtype": "Check",
+   "label": "Closed by the clock",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_paper",
+   "fieldtype": "Section Break",
+   "label": "The paper"
+  },
+  {
+   "fieldname": "question_order",
+   "fieldtype": "Long Text",
+   "label": "Question Order",
+   "read_only": 1
+  },
+  {
+   "fieldname": "answers",
+   "fieldtype": "Table",
+   "label": "Answers",
+   "options": "Quiz Attempt Answer"
+  },
+  {
+   "fieldname": "sb_result",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "score",
+   "fieldtype": "Float",
+   "label": "Score",
+   "permlevel": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_result",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "points_possible",
+   "fieldtype": "Float",
+   "label": "Out of",
+   "permlevel": 1,
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-05 17:43:18.531662",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Quiz Attempt",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Faculty",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Facilitator"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Academic Coordinator",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Faculty",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Registrar"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Facilitator"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "student_name",
+ "track_changes": 1
+}

@@ -1,0 +1,66 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-05 17:37:59.377889",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "question",
+  "answer",
+  "cb_marking",
+  "is_correct",
+  "points_awarded"
+ ],
+ "fields": [
+  {
+   "fieldname": "question",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Question",
+   "options": "Bank Question",
+   "reqd": 1
+  },
+  {
+   "description": "JSON: chosen option indexes, or typed text.",
+   "fieldname": "answer",
+   "fieldtype": "Long Text",
+   "label": "Answer"
+  },
+  {
+   "fieldname": "cb_marking",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_correct",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Correct",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "points_awarded",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Points",
+   "permlevel": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-05 17:37:59.377889",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Quiz Attempt Answer",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

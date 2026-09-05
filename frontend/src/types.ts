@@ -1309,3 +1309,54 @@ export interface ReadItemResponse {
 		| { title: string; file: string | null; description: string | null }
 		| null
 }
+
+// --- quizzes (Phase 4) ----------------------------------------------------
+
+export interface QuizOption {
+	idx: number
+	text: string
+	/** Deliberately absent: the server never sends which option is correct
+	 * while an attempt is open. */
+}
+
+export interface QuizQuestion {
+	name: string
+	question: string
+	question_type: string
+	points: number
+	options: QuizOption[]
+	given: unknown
+}
+
+export interface QuizAttempt {
+	attempt: string
+	status: string
+	started_at: string | null
+	/** The server's deadline. The countdown drawn from it is decoration --
+	 * the server refuses a late answer whatever the page believes. */
+	expires_at: string | null
+	seconds_remaining: number | null
+	one_question_at_a_time: number
+	title: string
+	description: string | null
+	questions: QuizQuestion[]
+}
+
+export interface QuizResult {
+	attempt: string
+	status: string
+	auto_submitted: number
+	submitted_at: string | null
+	score: number
+	points_possible: number
+	/** Present only when the quiz's reveal policy allows it. */
+	questions?: {
+		name: string
+		question: string | null
+		explanation: string | null
+		given: unknown
+		is_correct: number
+		points_awarded: number
+		correct: number[]
+	}[]
+}

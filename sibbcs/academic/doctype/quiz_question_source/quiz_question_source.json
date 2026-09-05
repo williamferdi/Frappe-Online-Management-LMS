@@ -1,0 +1,47 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-05 17:37:58.411210",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "bank",
+  "pick"
+ ],
+ "fields": [
+  {
+   "fieldname": "bank",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Bank",
+   "options": "Question Bank",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "description": "How many questions to draw at random from this bank.",
+   "fieldname": "pick",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Draw",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-05 17:37:58.411210",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Quiz Question Source",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

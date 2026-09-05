@@ -314,6 +314,15 @@ def course_module_item_permission(doc, ptype="read", user=None):
 	return _offering_scoped_permission(doc, user or frappe.session.user)
 
 
+def quiz_attempt_query(user=None):
+	"""A teacher sees attempts on their own courses; nobody else sees any."""
+	return _offering_scoped_query("Quiz Attempt", user or frappe.session.user)
+
+
+def quiz_attempt_permission(doc, ptype="read", user=None):
+	return _offering_scoped_permission(doc, user or frappe.session.user)
+
+
 def module_item_progress_query(user=None):
 	"""A teacher sees progress on their own courses; a student sees their own.
 

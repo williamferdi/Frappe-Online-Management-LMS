@@ -253,6 +253,14 @@ before_tests = "sibbcs.install.before_tests"
 # ---------------------------------------------------------------------------
 
 scheduler_events = {
+	# Every few minutes, because a quiz timer that is enforced an hour late is
+	# not enforced. The sweep only closes attempts already past their own
+	# stored expiry, so running it often costs a query and nothing else.
+	"cron": {
+		"*/5 * * * *": [
+			"sibbcs.academic.quizzes.close_expired",
+		],
+	},
 	"hourly": [
 		# Registered-but-not-in-LMS is exactly the state a student reports as
 		# "I can't see my course", so retry it rather than wait for a ticket.
@@ -333,6 +341,7 @@ permission_query_conditions = {
 	"Course Module": "sibbcs.academic.permissions.course_module_query",
 	"Course Module Item": "sibbcs.academic.permissions.course_module_item_query",
 	"Module Item Progress": "sibbcs.academic.permissions.module_item_progress_query",
+	"Quiz Attempt": "sibbcs.academic.permissions.quiz_attempt_query",
 	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_query",
 	"Student": "sibbcs.academic.permissions.student_query",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_query",
@@ -345,6 +354,7 @@ has_permission = {
 	"Course Module": "sibbcs.academic.permissions.course_module_permission",
 	"Course Module Item": "sibbcs.academic.permissions.course_module_item_permission",
 	"Module Item Progress": "sibbcs.academic.permissions.module_item_progress_permission",
+	"Quiz Attempt": "sibbcs.academic.permissions.quiz_attempt_permission",
 	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_permission",
 	"Student": "sibbcs.academic.permissions.student_permission",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_permission",

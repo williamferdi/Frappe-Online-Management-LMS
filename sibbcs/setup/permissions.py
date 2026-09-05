@@ -101,6 +101,27 @@ MATRIX = {
 		full(SM), full(COORDINATOR), full(FACULTY),
 		read(REGISTRAR), read(FACILITATOR),
 	],
+	# No Student row on any of these. A student reaches a question only
+	# through `api.quiz`, which strips which answer is correct; a bank readable
+	# through /api/resource would be the answer key.
+	"Question Bank": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR),
+	],
+	"Bank Question": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR),
+	],
+	"Course Quiz": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR),
+	],
+	"Quiz Attempt": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR),
+		level(SM, 1), level(COORDINATOR, 1), level(FACULTY, 1),
+		level(REGISTRAR, 1, write=0), level(FACILITATOR, 1, write=0),
+	],
 	"Rubric Criterion": [
 		full(SM), full(COORDINATOR), full(FACULTY),
 		read(REGISTRAR), read(FACILITATOR),
@@ -173,6 +194,10 @@ FORBIDDEN_CREATE = {
 	"Course Page": [STUDENT, FACILITATOR],
 	"Course File": [STUDENT, FACILITATOR],
 	"Module Item Progress": [STUDENT, FACILITATOR],
+	"Question Bank": [STUDENT, FACILITATOR],
+	"Bank Question": [STUDENT, FACILITATOR],
+	"Course Quiz": [STUDENT, FACILITATOR],
+	"Quiz Attempt": [STUDENT, FACILITATOR],
 	"Rubric Criterion": [STUDENT, FACILITATOR],
 	"Fee Invoice": [STUDENT],
 	"Payment Entry": [STUDENT],

@@ -1,0 +1,212 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-09-05 17:29:12.592779",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_what",
+  "naming_series",
+  "course",
+  "title",
+  "cb_what",
+  "total_points",
+  "sb_timing",
+  "time_limit_minutes",
+  "cb_timing",
+  "allowed_attempts",
+  "sb_behaviour",
+  "shuffle_questions",
+  "shuffle_options",
+  "cb_behaviour",
+  "reveal_answers",
+  "one_question_at_a_time",
+  "sb_questions",
+  "sources",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_what",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "CQZ-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "CQZ-.#####",
+   "print_hide": 1
+  },
+  {
+   "description": "Questions are content, so a quiz survives into next term.",
+   "fieldname": "course",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Course",
+   "options": "Course",
+   "reqd": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb_what",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_points",
+   "fieldtype": "Float",
+   "label": "Total Points",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_timing",
+   "fieldtype": "Section Break",
+   "label": "Timing"
+  },
+  {
+   "default": "0",
+   "description": "0 means no limit.",
+   "fieldname": "time_limit_minutes",
+   "fieldtype": "Int",
+   "label": "Time Limit (minutes)"
+  },
+  {
+   "fieldname": "cb_timing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "0 means no limit.",
+   "fieldname": "allowed_attempts",
+   "fieldtype": "Int",
+   "label": "Allowed Attempts"
+  },
+  {
+   "fieldname": "sb_behaviour",
+   "fieldtype": "Section Break",
+   "label": "Behaviour"
+  },
+  {
+   "default": "0",
+   "fieldname": "shuffle_questions",
+   "fieldtype": "Check",
+   "label": "Shuffle questions"
+  },
+  {
+   "default": "0",
+   "fieldname": "shuffle_options",
+   "fieldtype": "Check",
+   "label": "Shuffle options"
+  },
+  {
+   "fieldname": "cb_behaviour",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Never",
+   "fieldname": "reveal_answers",
+   "fieldtype": "Select",
+   "label": "Show correct answers",
+   "options": "Never\nAfter the attempt\nAfter the due date"
+  },
+  {
+   "default": "0",
+   "fieldname": "one_question_at_a_time",
+   "fieldtype": "Check",
+   "label": "One question at a time"
+  },
+  {
+   "fieldname": "sb_questions",
+   "fieldtype": "Section Break",
+   "label": "Where the questions come from"
+  },
+  {
+   "fieldname": "sources",
+   "fieldtype": "Table",
+   "label": "Draw from banks",
+   "options": "Quiz Question Source"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Instructions"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-05 17:43:18.021075",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Course Quiz",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Faculty",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Facilitator"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title",
+ "track_changes": 1
+}

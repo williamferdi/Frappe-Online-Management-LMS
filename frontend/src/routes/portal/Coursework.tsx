@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { CircleCheck, Clock, LoaderCircle, Send } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -134,7 +134,19 @@ function Piece({ row, registration }: { row: CourseworkRow; registration: string
 					</p>
 				)}
 
-				{!submission && row.open.open && (
+				{/* A quiz is sat, not typed into a box. The assignment still
+				    holds the due date and the points; the quiz holds the clock. */}
+				{!submission && row.open.open && row.assignment.submission_type === 'Quiz' && (
+					<Button size="sm" asChild>
+						<Link
+							to={`/portal/courses/${encodeURIComponent(registration)}/quiz/${encodeURIComponent(row.assignment.name)}`}
+						>
+							Start quiz
+						</Link>
+					</Button>
+				)}
+
+				{!submission && row.open.open && row.assignment.submission_type !== 'Quiz' && (
 					<>
 						{open ? (
 							<div className="space-y-3">
