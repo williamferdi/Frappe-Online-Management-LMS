@@ -245,6 +245,20 @@ def course_grade_scheme_permission(doc, ptype="read", user=None):
 	return _offering_scoped_permission(doc, user or frappe.session.user)
 
 
+
+def assignment_submission_query(user=None):
+	"""Scoped on the offering the submission carries.
+
+	`course_offering` is fetched onto the submission rather than looked up
+	through the assignment, so this filters without a join on every list.
+	"""
+	return _offering_scoped_query("Assignment Submission", user or frappe.session.user)
+
+
+def assignment_submission_permission(doc, ptype="read", user=None):
+	return _offering_scoped_permission(doc, user or frappe.session.user)
+
+
 # --- Student and Program Enrollment ---------------------------------------
 # Both carry `read(STUDENT)`, which without a row filter is the student
 # directory and the cohort's levels handed to anyone holding the role.

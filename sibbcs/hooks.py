@@ -317,6 +317,7 @@ website_route_rules = [
 permission_query_conditions = {
 	"Course Registration": "sibbcs.academic.permissions.course_registration_query",
 	"Course Assignment": "sibbcs.academic.permissions.course_assignment_query",
+	"Assignment Submission": "sibbcs.academic.permissions.assignment_submission_query",
 	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_query",
 	"Student": "sibbcs.academic.permissions.student_query",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_query",
@@ -325,6 +326,7 @@ permission_query_conditions = {
 has_permission = {
 	"Course Registration": "sibbcs.academic.permissions.course_registration_permission",
 	"Course Assignment": "sibbcs.academic.permissions.course_assignment_permission",
+	"Assignment Submission": "sibbcs.academic.permissions.assignment_submission_permission",
 	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_permission",
 	"Student": "sibbcs.academic.permissions.student_permission",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_permission",

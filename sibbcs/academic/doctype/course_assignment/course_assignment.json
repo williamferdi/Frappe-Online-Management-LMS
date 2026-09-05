@@ -2,7 +2,7 @@
  "actions": [],
  "allow_rename": 1,
  "autoname": "naming_series:",
- "creation": "2026-09-05 13:25:11.030648",
+ "creation": "2026-09-05 12:54:12.147134",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
@@ -30,7 +30,8 @@
   "late_policy",
   "late_penalty_pct_per_day",
   "sb_state",
-  "published"
+  "published",
+  "rubric"
  ],
  "fields": [
   {
@@ -179,12 +180,19 @@
    "fieldname": "published",
    "fieldtype": "Check",
    "label": "Published"
+  },
+  {
+   "description": "Optional. A rubric gives the marker criteria to score against.",
+   "fieldname": "rubric",
+   "fieldtype": "Link",
+   "label": "Rubric",
+   "options": "Course Rubric"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-05 13:25:27.258942",
+ "modified": "2026-09-05 14:33:03.222110",
  "modified_by": "Administrator",
  "module": "Academic",
  "name": "Course Assignment",

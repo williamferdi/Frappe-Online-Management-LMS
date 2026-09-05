@@ -28,7 +28,7 @@ set here but the mark itself is not.
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import cint, flt
 
 DEFAULT_MAX_MARKS = 100
 
@@ -212,3 +212,181 @@ def refuse_hand_marks_on_automatic(registration):
 			).format(row.component),
 			title=_("Computed Component"),
 		)
+
+
+# ---------------------------------------------------------------------------
+# the roll-up
+# ---------------------------------------------------------------------------
+
+
+def effective_score(submission, assignment=None):
+	"""What a submission is worth after its late penalty.
+
+	The penalty is applied here rather than written into `score`, so it can
+	only ever be applied once: `score` stays the mark the marker gave, and
+	re-saving, re-posting or re-rolling cannot compound the deduction.
+
+	Excused work has no score at all -- it is left out of the total rather
+	than counted as zero, which is the difference between "did not have to"
+	and "did not".
+	"""
+	if submission.get("excused"):
+		return None
+	# `scored`, not the number: the column is NOT NULL DEFAULT 0, so an
+	# unmarked submission reads back as a zero somebody could be given.
+	if not submission.get("scored"):
+		return None
+	if submission.get("score") in (None, ""):
+		return None
+
+	score = flt(submission.get("score"))
+	days = cint(submission.get("late_days"))
+	if days <= 0:
+		return score
+
+	assignment = assignment or frappe.db.get_value(
+		"Course Assignment",
+		submission.get("assignment"),
+		["late_policy", "late_penalty_pct_per_day"],
+		as_dict=True,
+	)
+	if not assignment or assignment.get("late_policy") != "Accept with penalty":
+		return score
+
+	penalty = flt(assignment.get("late_penalty_pct_per_day")) * days
+	# A penalty cannot take a mark below zero, and cannot turn into a bonus.
+	return max(score * (1 - min(penalty, 100) / 100.0), 0.0)
+
+
+def _posted_scores(course_offering, registration):
+	"""Every posted score for one registration, grouped by component.
+
+	Only posted. An unposted mark is one the marker has not stood behind yet,
+	and rolling it into a total would show the student the number the posting
+	policy exists to withhold.
+	"""
+	assignments = {
+		row.name: row
+		for row in frappe.get_all(
+			"Course Assignment",
+			filters={"course_offering": course_offering},
+			fields=[
+				"name", "component", "points_possible",
+				"late_policy", "late_penalty_pct_per_day",
+			],
+		)
+	}
+	if not assignments:
+		return {}
+
+	by_component = {}
+	for submission in frappe.get_all(
+		"Assignment Submission",
+		filters={
+			"course_registration": registration,
+			"assignment": ("in", list(assignments)),
+			"posted": 1,
+		},
+		fields=[
+			"name", "assignment", "score", "scored", "late_days", "excused",
+		],
+	):
+		assignment = assignments[submission.assignment]
+		earned = effective_score(submission, assignment)
+		if earned is None:
+			continue
+		by_component.setdefault(assignment.component, []).append(
+			(earned, flt(assignment.points_possible))
+		)
+
+	return by_component
+
+
+def _bucket_percentage(pairs, drop_lowest=0):
+	"""Earned over possible, as a percentage, dropping the worst few.
+
+	Dropped by ratio rather than by raw score: a 4/5 is a better piece of work
+	than a 40/100, and dropping the larger number because it is larger would
+	be arithmetic pretending to be judgement.
+	"""
+	usable = [(earned, possible) for earned, possible in pairs if possible > 0]
+	if not usable:
+		return None
+
+	if drop_lowest > 0 and len(usable) > drop_lowest:
+		usable.sort(key=lambda pair: pair[0] / pair[1])
+		usable = usable[drop_lowest:]
+
+	possible = sum(pair[1] for pair in usable)
+	if possible <= 0:
+		return None
+	return flt(sum(pair[0] for pair in usable) / possible * 100, 2)
+
+
+def roll_up(registration):
+	"""Turn posted submission scores into this registration's component marks.
+
+	Mutates and saves the document. Sets `flags.gradebook_roll_up` so the
+	guard against hand-typed marks on computed buckets does not refuse the
+	gradebook's own writing.
+
+	A bucket with no posted score is left **unmarked** rather than zero, so
+	`compute_grade` goes on holding the letter back until the course is
+	actually finished. That is the whole reason `marked` exists.
+	"""
+	if isinstance(registration, str):
+		registration = frappe.get_doc("Course Registration", registration)
+
+	scheme = scheme_for(registration.course_offering)
+	if not scheme:
+		return False
+
+	sync_components(registration)
+
+	scored = _posted_scores(registration.course_offering, registration.name)
+	drops = {row.component: cint(row.drop_lowest) for row in scheme.rows}
+	automatic = auto_components(registration.course_offering)
+
+	for row in registration.grade_components:
+		if row.component not in automatic:
+			# Hand-marked buckets -- attendance, an offline paper -- are not
+			# the gradebook's to touch.
+			continue
+
+		pairs = scored.get(row.component, [])
+		percentage = _bucket_percentage(pairs, drops.get(row.component, 0))
+
+		row.source_assignments = len(pairs)
+		if percentage is None:
+			row.obtained_marks = None
+			row.marked = 0
+		else:
+			row.max_marks = row.max_marks or DEFAULT_MAX_MARKS
+			row.obtained_marks = flt(percentage * flt(row.max_marks) / 100, 2)
+			row.marked = 1
+
+	registration.flags.gradebook_roll_up = True
+	registration.save(ignore_permissions=True)
+	return True
+
+
+def roll_up_for_assignment(assignment):
+	"""Re-roll every registration touched by one assignment.
+
+	Called when a score is posted or withdrawn.
+	"""
+	offering = frappe.db.get_value("Course Assignment", assignment, "course_offering")
+	if not offering or not is_scheme_driven(offering):
+		return 0
+
+	names = frappe.get_all(
+		"Assignment Submission",
+		filters={"assignment": assignment},
+		pluck="course_registration",
+	)
+
+	rolled = 0
+	for name in set(names):
+		if roll_up(name):
+			rolled += 1
+	return rolled

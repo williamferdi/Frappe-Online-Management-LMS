@@ -1,0 +1,152 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-09-05 14:04:54.694855",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "rubric",
+  "title",
+  "cb_head",
+  "position",
+  "points_possible",
+  "sb_about",
+  "description",
+  "sb_ratings",
+  "ratings"
+ ],
+ "fields": [
+  {
+   "default": "RCR-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "RCR-.#####",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "rubric",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Rubric",
+   "options": "Course Rubric",
+   "reqd": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Criterion",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "position",
+   "fieldtype": "Int",
+   "label": "Position"
+  },
+  {
+   "fieldname": "points_possible",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Points",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sb_about",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "sb_ratings",
+   "fieldtype": "Section Break",
+   "label": "Ratings"
+  },
+  {
+   "fieldname": "ratings",
+   "fieldtype": "Table",
+   "label": "Ratings",
+   "options": "Rubric Rating"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-05 14:33:05.377719",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Rubric Criterion",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Faculty",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Facilitator"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title",
+ "track_changes": 1
+}

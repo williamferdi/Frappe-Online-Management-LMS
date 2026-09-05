@@ -1067,3 +1067,150 @@ export interface CourseDetail {
 	assignments: CourseAssignment[]
 	choices: CourseChoices
 }
+
+// --- marking (Phase 2) ----------------------------------------------------
+
+export interface SubmissionSummary {
+	name: string
+	course_registration: string
+	student: string | null
+	student_name: string | null
+	attempt: number
+	status: string
+	submitted_on: string | null
+	late_days: number
+	excused: number
+	score: number | null
+	scored: number
+	posted: number
+	feedback: string | null
+	graded_by: string | null
+	graded_on: string | null
+	body: string | null
+	url: string | null
+}
+
+export interface RubricRating {
+	title: string
+	points: number
+	description: string | null
+}
+
+export interface RubricCriterion {
+	name: string
+	title: string
+	description: string | null
+	points_possible: number
+	position: number
+	ratings: RubricRating[]
+}
+
+export interface RubricDetail {
+	name: string
+	title: string
+	course?: string | null
+	total_points?: number
+	description?: string | null
+	criteria?: RubricCriterion[]
+}
+
+export interface MarkingRow {
+	course_registration: string
+	student: string | null
+	student_name: string | null
+	submission: SubmissionSummary | null
+	effective_score: number | null
+}
+
+export interface MarkingQueue {
+	assignment: {
+		name: string
+		title: string
+		course_offering: string
+		component: string
+		points_possible: number
+		due_date: string | null
+		late_policy: string
+		late_penalty_pct_per_day: number
+		submission_type: string
+		published: number
+		rubric: string | null
+		description: string | null
+	}
+	rubric: RubricDetail | null
+	rows: MarkingRow[]
+	ungraded: number
+	unposted: number
+	missing: number
+}
+
+export interface GradebookGrid {
+	assignments: {
+		name: string
+		title: string
+		component: string
+		points_possible: number
+		due_date: string | null
+		published: number
+	}[]
+	rows: {
+		course_registration: string
+		student_name: string | null
+		final_marks: number | null
+		/** False while any component is still unmarked, when `final_marks`
+		 * carries the column default rather than a total. */
+		marks_complete: boolean
+		grade: string | null
+		passed: number
+		cells: Record<string, SubmissionSummary | null>
+	}[]
+	scheme: { component: string; weight_pct: number; posting_policy: string }[] | null
+}
+
+// --- a student's own coursework -------------------------------------------
+
+export interface StudentSubmission {
+	name: string
+	attempt: number
+	status: string
+	submitted_on: string | null
+	late_days: number
+	excused: number
+	body: string | null
+	url: string | null
+	posted: number
+	/** Absent, not null, until the mark is posted. */
+	score?: number | null
+	effective_score?: number | null
+	feedback?: string | null
+}
+
+export interface CourseworkRow {
+	assignment: {
+		name: string
+		title: string
+		description: string | null
+		component: string
+		points_possible: number
+		grading_type: string
+		submission_type: string
+		due_date: string | null
+		available_from: string | null
+		available_until: string | null
+		late_policy: string
+		late_penalty_pct_per_day: number
+		allowed_attempts: number
+	}
+	submission: StudentSubmission | null
+	open: { open: boolean; reason: string | null }
+}
+
+export interface CourseworkResponse {
+	registration: {
+		name: string
+		course_title: string | null
+		course_offering: string
+		status: string
+	}
+	rows: CourseworkRow[]
+}

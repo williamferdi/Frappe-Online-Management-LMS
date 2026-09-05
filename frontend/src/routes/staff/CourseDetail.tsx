@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Gradebook } from '@/routes/staff/Gradebook'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -74,6 +75,7 @@ function Loaded({ data, offering }: { data: CourseDetailData; offering: string }
 					<TabsTrigger value="assignments">
 						Assignments{data.assignments.length ? ` (${data.assignments.length})` : ''}
 					</TabsTrigger>
+					<TabsTrigger value="gradebook">Gradebook</TabsTrigger>
 				</TabsList>
 
 				<TabsContent value="scheme">
@@ -82,6 +84,10 @@ function Loaded({ data, offering }: { data: CourseDetailData; offering: string }
 
 				<TabsContent value="assignments">
 					<Assignments data={data} offering={offering} />
+				</TabsContent>
+
+				<TabsContent value="gradebook">
+					<Gradebook offering={offering} />
 				</TabsContent>
 			</Tabs>
 		</>
@@ -369,6 +375,13 @@ function AssignmentRow({
 					>
 						{row.published ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
 						{row.published ? 'Unpublish' : 'Publish'}
+					</Button>
+					<Button variant="ghost" size="sm" asChild>
+						<Link
+							to={`/staff/courses/${encodeURIComponent(offering)}/grade/${encodeURIComponent(row.name)}`}
+						>
+							Mark
+						</Link>
 					</Button>
 					<Button variant="ghost" size="sm" onClick={onEdit}>
 						Edit

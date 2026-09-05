@@ -1,0 +1,342 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-09-05 14:04:55.901985",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_what",
+  "naming_series",
+  "assignment",
+  "assignment_title",
+  "course_offering",
+  "component",
+  "points_possible",
+  "cb_what",
+  "course_registration",
+  "student",
+  "student_name",
+  "attempt",
+  "sb_state",
+  "status",
+  "submitted_on",
+  "cb_state",
+  "late_days",
+  "excused",
+  "sb_work",
+  "body",
+  "url",
+  "attachments",
+  "sb_marking",
+  "score",
+  "posted",
+  "cb_marking",
+  "graded_by",
+  "graded_on",
+  "sb_feedback",
+  "feedback",
+  "rubric_assessment",
+  "scored"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_what",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "SUB-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "SUB-.#####",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "assignment",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Assignment",
+   "options": "Course Assignment",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "assignment.title",
+   "fieldname": "assignment_title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "assignment.course_offering",
+   "fieldname": "course_offering",
+   "fieldtype": "Data",
+   "label": "Course Offering",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "assignment.component",
+   "fieldname": "component",
+   "fieldtype": "Data",
+   "label": "Counts Towards",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "assignment.points_possible",
+   "fieldname": "points_possible",
+   "fieldtype": "Float",
+   "label": "Out of",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_what",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "course_registration",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Registration",
+   "options": "Course Registration",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "course_registration.student",
+   "fieldname": "student",
+   "fieldtype": "Data",
+   "label": "Student",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "course_registration.student_name",
+   "fieldname": "student_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "attempt",
+   "fieldtype": "Int",
+   "label": "Attempt"
+  },
+  {
+   "fieldname": "sb_state",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Draft\nSubmitted\nGraded\nReturned\nMissing\nExcused",
+   "reqd": 1
+  },
+  {
+   "fieldname": "submitted_on",
+   "fieldtype": "Datetime",
+   "label": "Handed In"
+  },
+  {
+   "fieldname": "cb_state",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "late_days",
+   "fieldtype": "Int",
+   "label": "Days Late",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Excused work is left out of the total rather than scored zero.",
+   "fieldname": "excused",
+   "fieldtype": "Check",
+   "label": "Excused"
+  },
+  {
+   "fieldname": "sb_work",
+   "fieldtype": "Section Break",
+   "label": "The work"
+  },
+  {
+   "fieldname": "body",
+   "fieldtype": "Text Editor",
+   "label": "Text"
+  },
+  {
+   "fieldname": "url",
+   "fieldtype": "Data",
+   "label": "Link"
+  },
+  {
+   "fieldname": "attachments",
+   "fieldtype": "Table",
+   "label": "Files",
+   "options": "Submission Attachment"
+  },
+  {
+   "fieldname": "sb_marking",
+   "fieldtype": "Section Break",
+   "label": "Marking"
+  },
+  {
+   "fieldname": "score",
+   "fieldtype": "Float",
+   "label": "Score",
+   "permlevel": 1
+  },
+  {
+   "default": "0",
+   "description": "Until this is set the student cannot see the score.",
+   "fieldname": "posted",
+   "fieldtype": "Check",
+   "label": "Posted",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "cb_marking",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "graded_by",
+   "fieldtype": "Link",
+   "label": "Marked By",
+   "options": "User",
+   "permlevel": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "graded_on",
+   "fieldtype": "Datetime",
+   "label": "Marked On",
+   "permlevel": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_feedback",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "feedback",
+   "fieldtype": "Text Editor",
+   "label": "Feedback",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "rubric_assessment",
+   "fieldtype": "Table",
+   "label": "Rubric",
+   "options": "Rubric Assessment Row",
+   "permlevel": 1
+  },
+  {
+   "default": "0",
+   "description": "Whether this has been marked at all. Separate from the score because the score column is NOT NULL DEFAULT 0, so an untouched submission is indistinguishable from one marked zero.",
+   "fieldname": "scored",
+   "fieldtype": "Check",
+   "label": "Scored",
+   "permlevel": 1,
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-05 14:33:03.907357",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Assignment Submission",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Faculty",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Facilitator"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Academic Coordinator",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Faculty",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Registrar"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Facilitator"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "student_name",
+ "track_changes": 1
+}

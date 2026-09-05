@@ -16,6 +16,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt
 
+from sibbcs.academic import gradebook
 from sibbcs.academic import permissions as academic_permissions
 from sibbcs.admissions import checklist
 from sibbcs.api.paging import fetch_capped
@@ -640,6 +641,26 @@ def save_grades(registration, components, status=None):
 
 	doc = frappe.get_doc("Course Registration", registration)
 	doc.check_permission("write")
+
+	# Where a scheme exists this merges rather than replaces. A payload naming
+	# only the hand-marked buckets -- which is what a screen showing only the
+	# rows it can edit would send -- would otherwise wipe every bucket the
+	# gradebook computes, and with it the marks behind them.
+	incoming = {
+		row["component"]: row for row in components if (row or {}).get("component")
+	}
+	if gradebook.is_scheme_driven(doc.course_offering):
+		for existing in doc.grade_components:
+			if existing.component not in incoming:
+				incoming[existing.component] = {
+					"component": existing.component,
+					"weight_pct": existing.weight_pct,
+					"max_marks": existing.max_marks,
+					"obtained_marks": (
+						existing.obtained_marks if existing.marked else None
+					),
+				}
+		components = list(incoming.values())
 
 	doc.set("grade_components", [])
 	for row in components:

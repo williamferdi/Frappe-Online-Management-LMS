@@ -60,6 +60,24 @@ MATRIX = {
 		full(SM), full(COORDINATOR), full(FACULTY),
 		read(REGISTRAR), read(FACILITATOR),
 	],
+	# No Student row on Assignment Submission, deliberately. Permlevel cannot
+	# say "your own score, once it is posted" -- Student holds level-1 read on
+	# Course Registration and would inherit it here. The portal reads through
+	# session-scoped endpoints that filter on `posted` instead.
+	"Assignment Submission": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR),
+		level(SM, 1), level(COORDINATOR, 1), level(FACULTY, 1),
+		level(REGISTRAR, 1, write=0), level(FACILITATOR, 1, write=0),
+	],
+	"Course Rubric": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR),
+	],
+	"Rubric Criterion": [
+		full(SM), full(COORDINATOR), full(FACULTY),
+		read(REGISTRAR), read(FACILITATOR),
+	],
 	"Grade Scale": [full(SM), edit(REGISTRAR), read(COORDINATOR), read(FACULTY)],
 	"Weekday": [full(SM), read(COORDINATOR), read(REGISTRAR)],
 
@@ -121,6 +139,9 @@ FORBIDDEN_CREATE = {
 	"Course Registration": [STUDENT],
 	"Course Grade Scheme": [STUDENT],
 	"Course Assignment": [STUDENT],
+	"Assignment Submission": [STUDENT],
+	"Course Rubric": [STUDENT, FACILITATOR],
+	"Rubric Criterion": [STUDENT, FACILITATOR],
 	"Fee Invoice": [STUDENT],
 	"Payment Entry": [STUDENT],
 	"Reading Manual": [STUDENT, FACULTY, FACILITATOR],
