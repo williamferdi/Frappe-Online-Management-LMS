@@ -271,6 +271,18 @@ doc_events = {
 	"Course Registration": {
 		"on_update": "sibbcs.finance.hooks_handlers.course_registration_on_update",
 	},
+	# The scoping memo in academic.permissions is derived from these two, so
+	# it is dropped whenever either changes.
+	"Instructor": {
+		"on_update": "sibbcs.academic.permissions.clear_scope_cache",
+		"after_insert": "sibbcs.academic.permissions.clear_scope_cache",
+		"on_trash": "sibbcs.academic.permissions.clear_scope_cache",
+	},
+	"Course Offering": {
+		"on_update": "sibbcs.academic.permissions.clear_scope_cache",
+		"after_insert": "sibbcs.academic.permissions.clear_scope_cache",
+		"on_trash": "sibbcs.academic.permissions.clear_scope_cache",
+	},
 	"Fee Invoice": {
 		"on_update": "sibbcs.finance.hooks_handlers.open_course_when_fee_settled",
 	},
@@ -318,6 +330,9 @@ permission_query_conditions = {
 	"Course Registration": "sibbcs.academic.permissions.course_registration_query",
 	"Course Assignment": "sibbcs.academic.permissions.course_assignment_query",
 	"Assignment Submission": "sibbcs.academic.permissions.assignment_submission_query",
+	"Course Module": "sibbcs.academic.permissions.course_module_query",
+	"Course Module Item": "sibbcs.academic.permissions.course_module_item_query",
+	"Module Item Progress": "sibbcs.academic.permissions.module_item_progress_query",
 	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_query",
 	"Student": "sibbcs.academic.permissions.student_query",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_query",
@@ -327,6 +342,9 @@ has_permission = {
 	"Course Registration": "sibbcs.academic.permissions.course_registration_permission",
 	"Course Assignment": "sibbcs.academic.permissions.course_assignment_permission",
 	"Assignment Submission": "sibbcs.academic.permissions.assignment_submission_permission",
+	"Course Module": "sibbcs.academic.permissions.course_module_permission",
+	"Course Module Item": "sibbcs.academic.permissions.course_module_item_permission",
+	"Module Item Progress": "sibbcs.academic.permissions.module_item_progress_permission",
 	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_permission",
 	"Student": "sibbcs.academic.permissions.student_permission",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_permission",

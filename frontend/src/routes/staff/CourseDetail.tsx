@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Gradebook } from '@/routes/staff/Gradebook'
+import { Modules } from '@/routes/staff/Modules'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -75,6 +76,7 @@ function Loaded({ data, offering }: { data: CourseDetailData; offering: string }
 					<TabsTrigger value="assignments">
 						Assignments{data.assignments.length ? ` (${data.assignments.length})` : ''}
 					</TabsTrigger>
+					<TabsTrigger value="modules">Modules</TabsTrigger>
 					<TabsTrigger value="gradebook">Gradebook</TabsTrigger>
 				</TabsList>
 
@@ -84,6 +86,10 @@ function Loaded({ data, offering }: { data: CourseDetailData; offering: string }
 
 				<TabsContent value="assignments">
 					<Assignments data={data} offering={offering} />
+				</TabsContent>
+
+				<TabsContent value="modules">
+					<Modules offering={offering} />
 				</TabsContent>
 
 				<TabsContent value="gradebook">

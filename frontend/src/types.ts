@@ -1214,3 +1214,98 @@ export interface CourseworkResponse {
 	}
 	rows: CourseworkRow[]
 }
+
+// --- modules and the course outline (Phase 3) -----------------------------
+
+export interface OutlineItemProgress {
+	name: string
+	module_item: string
+	status: string
+	completed_on: string | null
+	score: number | null
+}
+
+export interface OutlineItem {
+	name: string
+	module: string
+	item_type: string
+	title: string | null
+	position: number
+	indent: number
+	published: number
+	lesson: string | null
+	assignment: string | null
+	page: string | null
+	file: string | null
+	url: string | null
+	completion_requirement: string
+	min_score: number | null
+	progress: OutlineItemProgress | null
+	complete: boolean
+	locked: boolean
+	lock_reason: string | null
+}
+
+export interface OutlineModule {
+	name: string
+	title: string
+	position: number
+	published: number
+	unlock_at: string | null
+	require_sequential_progress: number
+	prerequisites: string[]
+	state: { open: boolean; reason: string | null }
+	complete: boolean
+	items: OutlineItem[]
+}
+
+export interface CourseOutline {
+	registration: {
+		name: string
+		course_title: string | null
+		course_offering: string
+		status: string
+	}
+	modules: OutlineModule[]
+}
+
+export interface StaffOutline {
+	modules: OutlineModule[]
+	choices: {
+		lessons: { name: string; title: string; chapter: string }[]
+		assignments: { name: string; title: string }[]
+		pages: { name: string; title: string; published: number }[]
+		files: { name: string; title: string }[]
+		item_types: string[]
+		completion_rules: string[]
+	}
+}
+
+/** Lesson content, already stripped of its interactive blocks server-side. */
+export interface LessonContent {
+	name: string
+	title: string
+	blocks: { type: string; data?: Record<string, unknown> }[]
+	removed: string[]
+	lms_url: string | null
+}
+
+export interface ReadItemResponse {
+	item: {
+		name: string
+		item_type: string
+		title: string | null
+		lesson: string | null
+		assignment: string | null
+		page: string | null
+		file: string | null
+		url: string | null
+		completion_requirement: string
+		min_score: number | null
+	}
+	content:
+		| LessonContent
+		| { title: string; body: string | null }
+		| { title: string; file: string | null; description: string | null }
+		| null
+}

@@ -1,0 +1,434 @@
+import { useState } from 'react'
+import { ChevronDown, ChevronUp, LoaderCircle, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { QueryState } from '@/components/QueryState'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+	useDeleteItem,
+	useDeleteModule,
+	useReorder,
+	useSaveItem,
+	useSaveModule,
+	useStaffOutline,
+} from '@/hooks/useSyllabus'
+import { FrappeError } from '@/lib/frappe'
+import type { OutlineItem, OutlineModule, StaffOutline } from '@/types'
+
+function message(error: unknown) {
+	return error instanceof FrappeError ? error.message : 'Something went wrong.'
+}
+
+/**
+ * The module builder.
+ *
+ * Ordering is done with move controls rather than drag and drop: the bundle is
+ * committed to git so a drag-and-drop library is a permanent addition, and
+ * buttons are reorderable from a keyboard without any extra work.
+ */
+export function Modules({ offering }: { offering: string }) {
+	const query = useStaffOutline(offering)
+
+	return (
+		<QueryState query={query} title="Modules">
+			{(data) => <Builder data={data} offering={offering} />}
+		</QueryState>
+	)
+}
+
+function Builder({ data, offering }: { data: StaffOutline; offering: string }) {
+	const [adding, setAdding] = useState(false)
+	const [title, setTitle] = useState('')
+	const save = useSaveModule(offering)
+	const reorder = useReorder(offering)
+
+	const move = (index: number, by: number) => {
+		const order = data.modules.map((module) => module.name)
+		const target = index + by
+		if (target < 0 || target >= order.length) return
+		;[order[index], order[target]] = [order[target], order[index]]
+		reorder.mutate({ order }, { onError: (error) => toast.error(message(error)) })
+	}
+
+	return (
+		<div className="space-y-4">
+			<div className="flex flex-wrap items-end justify-between gap-2">
+				{adding ? (
+					<div className="flex flex-wrap items-end gap-2">
+						<div>
+							<Label htmlFor="module-title">Module title</Label>
+							<Input
+								id="module-title"
+								className="mt-1 w-64"
+								value={title}
+								onChange={(event) => setTitle(event.target.value)}
+							/>
+						</div>
+						<Button
+							size="sm"
+							disabled={!title || save.isPending}
+							onClick={() =>
+								save.mutate(
+									{ values: { title, published: 0 } },
+									{
+										onSuccess: () => {
+											toast.success('Module added')
+											setTitle('')
+											setAdding(false)
+										},
+										onError: (error) => toast.error(message(error)),
+									},
+								)
+							}
+						>
+							{save.isPending ? <LoaderCircle className="animate-spin" /> : null}
+							Add
+						</Button>
+						<Button variant="outline" size="sm" onClick={() => setAdding(false)}>
+							Cancel
+						</Button>
+					</div>
+				) : (
+					<Button size="sm" onClick={() => setAdding(true)}>
+						<Plus /> New module
+					</Button>
+				)}
+			</div>
+
+			{data.modules.length === 0 ? (
+				<Card>
+					<CardContent className="py-14 text-center">
+						<div className="font-medium">No modules yet</div>
+						<p className="text-muted-foreground mx-auto mt-1 max-w-md text-sm">
+							A module is a group of things in the order you want them done — a
+							lesson, a piece of work, a page, a file.
+						</p>
+					</CardContent>
+				</Card>
+			) : (
+				data.modules.map((module, index) => (
+					<ModuleCard
+						key={module.name}
+						module={module}
+						data={data}
+						offering={offering}
+						onMoveUp={() => move(index, -1)}
+						onMoveDown={() => move(index, 1)}
+						first={index === 0}
+						last={index === data.modules.length - 1}
+					/>
+				))
+			)}
+		</div>
+	)
+}
+
+function ModuleCard({
+	module,
+	data,
+	offering,
+	onMoveUp,
+	onMoveDown,
+	first,
+	last,
+}: {
+	module: OutlineModule
+	data: StaffOutline
+	offering: string
+	onMoveUp: () => void
+	onMoveDown: () => void
+	first: boolean
+	last: boolean
+}) {
+	const [adding, setAdding] = useState(false)
+	const save = useSaveModule(offering)
+	const remove = useDeleteModule(offering)
+
+	return (
+		<Card>
+			<CardContent className="p-0">
+				<div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+					<div className="flex gap-0.5">
+						<Button
+							variant="ghost"
+							size="icon"
+							aria-label={`Move ${module.title} up`}
+							disabled={first}
+							onClick={onMoveUp}
+						>
+							<ChevronUp className="size-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							aria-label={`Move ${module.title} down`}
+							disabled={last}
+							onClick={onMoveDown}
+						>
+							<ChevronDown className="size-4" />
+						</Button>
+					</div>
+
+					<span className="min-w-0 flex-1 truncate font-medium">{module.title}</span>
+
+					<Badge variant={module.published ? 'default' : 'secondary'}>
+						{module.published ? 'Published' : 'Draft'}
+					</Badge>
+
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={() =>
+							save.mutate(
+								{
+									values: { published: module.published ? 0 : 1 },
+									module: module.name,
+								},
+								{ onError: (error) => toast.error(message(error)) },
+							)
+						}
+					>
+						{module.published ? 'Unpublish' : 'Publish'}
+					</Button>
+
+					<Button
+						variant="ghost"
+						size="icon"
+						aria-label={`Delete ${module.title}`}
+						onClick={() =>
+							remove.mutate(module.name, {
+								onSuccess: () => toast.success('Module deleted'),
+								onError: (error) => toast.error(message(error)),
+							})
+						}
+					>
+						<Trash2 className="size-4" />
+					</Button>
+				</div>
+
+				<ul className="divide-y">
+					{module.items.map((item) => (
+						<ItemRow key={item.name} item={item} offering={offering} />
+					))}
+				</ul>
+
+				<div className="px-4 py-3">
+					{adding ? (
+						<ItemForm
+							module={module.name}
+							data={data}
+							offering={offering}
+							onDone={() => setAdding(false)}
+						/>
+					) : (
+						<Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+							<Plus /> Add item
+						</Button>
+					)}
+				</div>
+			</CardContent>
+		</Card>
+	)
+}
+
+function ItemRow({ item, offering }: { item: OutlineItem; offering: string }) {
+	const remove = useDeleteItem(offering)
+
+	return (
+		<li className="flex flex-wrap items-center gap-2 px-4 py-2 text-sm">
+			<span className="text-muted-foreground w-20 shrink-0 text-xs">
+				{item.item_type}
+			</span>
+			<span className="min-w-0 flex-1 truncate">{item.title || '(untitled)'}</span>
+			{item.completion_requirement !== 'Nothing' && (
+				<span className="text-muted-foreground text-xs">
+					{item.completion_requirement}
+					{item.completion_requirement === 'Score at least' && ` ${item.min_score}`}
+				</span>
+			)}
+			<Button
+				variant="ghost"
+				size="icon"
+				aria-label={`Delete ${item.title || item.item_type}`}
+				onClick={() =>
+					remove.mutate(item.name, {
+						onError: (error) => toast.error(message(error)),
+					})
+				}
+			>
+				<Trash2 className="size-4" />
+			</Button>
+		</li>
+	)
+}
+
+function ItemForm({
+	module,
+	data,
+	offering,
+	onDone,
+}: {
+	module: string
+	data: StaffOutline
+	offering: string
+	onDone: () => void
+}) {
+	const [type, setType] = useState('Lesson')
+	const [target, setTarget] = useState('')
+	const [title, setTitle] = useState('')
+	const [requirement, setRequirement] = useState('Nothing')
+	const [minScore, setMinScore] = useState('')
+	const save = useSaveItem(offering)
+
+	// The field the chosen type points at, so a lesson item cannot be saved
+	// carrying an assignment.
+	const targetField: Record<string, string> = {
+		Lesson: 'lesson',
+		Assignment: 'assignment',
+		Page: 'page',
+		File: 'file',
+		URL: 'url',
+	}
+
+	const options =
+		type === 'Lesson'
+			? data.choices.lessons.map((row) => ({ value: row.name, label: row.title }))
+			: type === 'Assignment'
+				? data.choices.assignments.map((row) => ({ value: row.name, label: row.title }))
+				: type === 'Page'
+					? data.choices.pages.map((row) => ({ value: row.name, label: row.title }))
+					: type === 'File'
+						? data.choices.files.map((row) => ({ value: row.name, label: row.title }))
+						: []
+
+	return (
+		<div className="space-y-3">
+			<div className="grid gap-3 sm:grid-cols-3">
+				<label className="block">
+					<span className="text-xs font-medium">Type</span>
+					<select
+						className="border-input bg-background mt-1 h-9 w-full rounded-md border px-3 text-sm"
+						value={type}
+						onChange={(event) => {
+							setType(event.target.value)
+							setTarget('')
+						}}
+					>
+						{data.choices.item_types.map((option) => (
+							<option key={option} value={option}>
+								{option}
+							</option>
+						))}
+					</select>
+				</label>
+
+				{options.length > 0 && (
+					<label className="block">
+						<span className="text-xs font-medium">Which one</span>
+						<select
+							className="border-input bg-background mt-1 h-9 w-full rounded-md border px-3 text-sm"
+							value={target}
+							onChange={(event) => setTarget(event.target.value)}
+						>
+							<option value="">Choose…</option>
+							{options.map((option) => (
+								<option key={option.value} value={option.value}>
+									{option.label}
+								</option>
+							))}
+						</select>
+					</label>
+				)}
+
+				{type === 'URL' && (
+					<label className="block">
+						<span className="text-xs font-medium">Link</span>
+						<Input
+							className="mt-1"
+							value={target}
+							onChange={(event) => setTarget(event.target.value)}
+						/>
+					</label>
+				)}
+
+				<label className="block">
+					<span className="text-xs font-medium">Title</span>
+					<Input
+						className="mt-1"
+						placeholder="Optional"
+						value={title}
+						onChange={(event) => setTitle(event.target.value)}
+					/>
+				</label>
+			</div>
+
+			<div className="grid gap-3 sm:grid-cols-3">
+				<label className="block">
+					<span className="text-xs font-medium">What counts as done</span>
+					<select
+						className="border-input bg-background mt-1 h-9 w-full rounded-md border px-3 text-sm"
+						value={requirement}
+						onChange={(event) => setRequirement(event.target.value)}
+					>
+						{data.choices.completion_rules.map((option) => (
+							<option key={option} value={option}>
+								{option}
+							</option>
+						))}
+					</select>
+				</label>
+
+				{requirement === 'Score at least' && (
+					<label className="block">
+						<span className="text-xs font-medium">Minimum score</span>
+						<Input
+							type="number"
+							className="mt-1"
+							value={minScore}
+							onChange={(event) => setMinScore(event.target.value)}
+						/>
+					</label>
+				)}
+			</div>
+
+			<div className="flex justify-end gap-2">
+				<Button variant="outline" size="sm" onClick={onDone}>
+					Cancel
+				</Button>
+				<Button
+					size="sm"
+					disabled={save.isPending || (type !== 'Sub-header' && !target)}
+					onClick={() =>
+						save.mutate(
+							{
+								module,
+								values: {
+									item_type: type,
+									title,
+									completion_requirement: requirement,
+									...(requirement === 'Score at least'
+										? { min_score: Number(minScore) || 0 }
+										: {}),
+									...(targetField[type] ? { [targetField[type]]: target } : {}),
+								},
+							},
+							{
+								onSuccess: () => {
+									toast.success('Item added')
+									onDone()
+								},
+								onError: (error) => toast.error(message(error)),
+							},
+						)
+					}
+				>
+					Add
+				</Button>
+			</div>
+		</div>
+	)
+}

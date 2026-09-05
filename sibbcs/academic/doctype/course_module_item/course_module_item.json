@@ -1,0 +1,238 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-09-05 17:19:05.585527",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_what",
+  "naming_series",
+  "module",
+  "course_offering",
+  "item_type",
+  "title",
+  "cb_what",
+  "position",
+  "indent",
+  "published",
+  "sb_target",
+  "lesson",
+  "assignment",
+  "page",
+  "cb_target",
+  "file",
+  "url",
+  "sb_done",
+  "completion_requirement",
+  "cb_done",
+  "min_score"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_what",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "CMI-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "CMI-.#####",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "module",
+   "fieldtype": "Link",
+   "label": "Module",
+   "options": "Course Module",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "module.course_offering",
+   "fieldname": "course_offering",
+   "fieldtype": "Data",
+   "label": "Course Offering",
+   "read_only": 1
+  },
+  {
+   "fieldname": "item_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Type",
+   "options": "Lesson\nAssignment\nPage\nFile\nURL\nSub-header",
+   "reqd": 1
+  },
+  {
+   "description": "Leave blank to use the name of the thing it points at.",
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title"
+  },
+  {
+   "fieldname": "cb_what",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "position",
+   "fieldtype": "Int",
+   "label": "Position"
+  },
+  {
+   "default": "0",
+   "fieldname": "indent",
+   "fieldtype": "Int",
+   "label": "Indent"
+  },
+  {
+   "default": "1",
+   "fieldname": "published",
+   "fieldtype": "Check",
+   "label": "Published"
+  },
+  {
+   "fieldname": "sb_target",
+   "fieldtype": "Section Break",
+   "label": "What it points at"
+  },
+  {
+   "depends_on": "eval:doc.item_type=='Lesson'",
+   "fieldname": "lesson",
+   "fieldtype": "Link",
+   "label": "Lesson",
+   "options": "Course Lesson"
+  },
+  {
+   "depends_on": "eval:doc.item_type=='Assignment'",
+   "fieldname": "assignment",
+   "fieldtype": "Link",
+   "label": "Assignment",
+   "options": "Course Assignment"
+  },
+  {
+   "depends_on": "eval:doc.item_type=='Page'",
+   "fieldname": "page",
+   "fieldtype": "Link",
+   "label": "Page",
+   "options": "Course Page"
+  },
+  {
+   "fieldname": "cb_target",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.item_type=='File'",
+   "fieldname": "file",
+   "fieldtype": "Link",
+   "label": "File",
+   "options": "Course File"
+  },
+  {
+   "depends_on": "eval:doc.item_type=='URL'",
+   "fieldname": "url",
+   "fieldtype": "Data",
+   "label": "Link"
+  },
+  {
+   "fieldname": "sb_done",
+   "fieldtype": "Section Break",
+   "label": "What counts as done"
+  },
+  {
+   "default": "Nothing",
+   "fieldname": "completion_requirement",
+   "fieldtype": "Select",
+   "label": "Requirement",
+   "options": "Nothing\nView it\nMark it done\nHand it in\nScore at least"
+  },
+  {
+   "fieldname": "cb_done",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.completion_requirement=='Score at least'",
+   "fieldname": "min_score",
+   "fieldtype": "Float",
+   "label": "Minimum Score"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-05 17:19:28.276448",
+ "modified_by": "Administrator",
+ "module": "Academic",
+ "name": "Course Module Item",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Academic Coordinator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Faculty",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Registrar"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Facilitator"
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Student"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title",
+ "track_changes": 1
+}

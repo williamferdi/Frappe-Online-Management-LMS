@@ -208,8 +208,17 @@ function CourseRow({
 							</>
 						) : (
 							<>
-								{/* Coursework lives in this app; lessons are still in the
-								    LMS until Phase 3 moves them, so both are offered. */}
+								{/* The course itself is now in this app: modules, lessons
+								    and locks. Coursework keeps its own entrance because it
+								    is what a student checks most often, and the LMS link
+								    stays as the fallback for content we cannot render. */}
+								<Button size="sm" asChild>
+									<Link
+										to={`/portal/courses/${encodeURIComponent(registration.name)}/modules`}
+									>
+										Open course
+									</Link>
+								</Button>
 								<Button size="sm" variant="outline" asChild>
 									<Link
 										to={`/portal/courses/${encodeURIComponent(registration.name)}/work`}
@@ -217,16 +226,12 @@ function CourseRow({
 										Coursework
 									</Link>
 								</Button>
-								{registration.lms_url ? (
-									<Button size="sm" variant="outline" asChild>
+								{registration.lms_url && (
+									<Button size="sm" variant="ghost" asChild>
 										<a href={registration.lms_url}>
-											Lessons <ArrowUpRight />
+											In the LMS <ArrowUpRight />
 										</a>
 									</Button>
-								) : (
-									<span className="text-muted-foreground text-xs">
-										Lessons not yet opened
-									</span>
 								)}
 							</>
 						)}

@@ -102,24 +102,29 @@ describe('My Courses', () => {
 		expect(screen.getByText('3.40')).toBeInTheDocument()
 	})
 
-	it('opens lessons in the LMS rather than rendering the player itself', async () => {
-		// The portal deliberately does not reimplement the course player. That
-		// is what Phase 3 changes; until then this is the boundary.
+	it('opens the course in this app, not in the LMS', async () => {
+		// Phase 3 moved the boundary: modules, lessons and locks are read
+		// here. This is the assertion that used to say the opposite.
 		await renderScreen({ enrollment, registrations: [paid] })
 
-		const link = await screen.findByRole('link', { name: /lessons/i })
+		const link = await screen.findByRole('link', { name: /open course/i })
+		expect(link.getAttribute('href')).toContain('/modules')
+	})
+
+	it('keeps the LMS as a fallback rather than dropping it', async () => {
+		// Lesson content still lives there, and a block this app cannot
+		// render has to stay reachable.
+		await renderScreen({ enrollment, registrations: [paid] })
+
+		const link = await screen.findByRole('link', { name: /in the lms/i })
 		expect(link).toHaveAttribute('href', '/lms/courses/intro-to-ot')
 	})
 
-	it('offers coursework inside the app, because this app owns it', async () => {
-		// Assignments, marks and feedback are ours; lessons are not, yet.
+	it('offers coursework separately, because it is what a student checks most', async () => {
 		await renderScreen({ enrollment, registrations: [paid] })
 
 		const link = await screen.findByRole('link', { name: /coursework/i })
-		expect(link).toHaveAttribute(
-			'href',
-			expect.stringContaining('/work'),
-		)
+		expect(link.getAttribute('href')).toContain('/work')
 	})
 
 	it('asks for payment instead of a course link when the fee is outstanding', async () => {
@@ -133,8 +138,9 @@ describe('My Courses', () => {
 		)
 		// Neither half is offered while the fee is outstanding: the course is
 		// closed, not half open.
-		expect(screen.queryByRole('link', { name: /lessons/i })).not.toBeInTheDocument()
+		expect(screen.queryByRole('link', { name: /open course/i })).not.toBeInTheDocument()
 		expect(screen.queryByRole('link', { name: /coursework/i })).not.toBeInTheDocument()
+		expect(screen.queryByRole('link', { name: /in the lms/i })).not.toBeInTheDocument()
 	})
 
 	it('totals what is outstanding across registrations', async () => {

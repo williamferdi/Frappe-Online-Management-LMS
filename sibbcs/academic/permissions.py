@@ -65,8 +65,38 @@ TEACHING_ROLES = ("Faculty", "Facilitator")
 NOTHING = "1 = 0"
 
 
+def _cache():
+	"""Per-request memo for the scoping lookups.
+
+	`frappe.local` is request-scoped, so this is emptied for us between
+	requests and between background jobs.
+	"""
+	store = getattr(frappe.local, "sibbcs_scope_cache", None)
+	if store is None:
+		store = {}
+		frappe.local.sibbcs_scope_cache = store
+	return store
+
+
+def clear_scope_cache(doc=None, method=None):
+	"""Forget the memo when the records it is derived from change.
+
+	Wired to Instructor and Course Offering in hooks.py. Cheap, because it
+	only ever drops a dict that is rebuilt on the next question.
+	"""
+	if getattr(frappe.local, "sibbcs_scope_cache", None) is not None:
+		frappe.local.sibbcs_scope_cache = {}
+
+
+def _memo(key, build):
+	store = _cache()
+	if key not in store:
+		store[key] = build()
+	return store[key]
+
+
 def _roles(user):
-	return set(frappe.get_roles(user))
+	return _memo(("roles", user), lambda: set(frappe.get_roles(user)))
 
 
 def is_unrestricted(user=None):
@@ -108,7 +138,10 @@ def instructors_for(user=None):
 	user = user or frappe.session.user
 	if not user or user == "Guest":
 		return []
-	return frappe.get_all("Instructor", filters={"user": user}, pluck="name")
+	return _memo(
+		("instructors", user),
+		lambda: frappe.get_all("Instructor", filters={"user": user}, pluck="name"),
+	)
 
 
 def offerings_for(user=None):
@@ -121,13 +154,16 @@ def offerings_for(user=None):
 	instructors = instructors_for(user)
 	if not instructors:
 		return []
-	return frappe.get_all(
-		"Course Offering",
-		or_filters=[
-			["instructor", "in", instructors],
-			["facilitator", "in", instructors],
-		],
-		pluck="name",
+	return _memo(
+		("offerings", user),
+		lambda: frappe.get_all(
+			"Course Offering",
+			or_filters=[
+				["instructor", "in", instructors],
+				["facilitator", "in", instructors],
+			],
+			pluck="name",
+		),
 	)
 
 
@@ -136,7 +172,10 @@ def student_for(user=None):
 	user = user or frappe.session.user
 	if not user or user == "Guest":
 		return None
-	return frappe.db.get_value("Student", {"user": user}, "name")
+	return _memo(
+		("student", user),
+		lambda: frappe.db.get_value("Student", {"user": user}, "name"),
+	)
 
 
 # --- the /staff API -------------------------------------------------------
@@ -257,6 +296,66 @@ def assignment_submission_query(user=None):
 
 def assignment_submission_permission(doc, ptype="read", user=None):
 	return _offering_scoped_permission(doc, user or frappe.session.user)
+
+
+def course_module_query(user=None):
+	return _offering_scoped_query("Course Module", user or frappe.session.user)
+
+
+def course_module_permission(doc, ptype="read", user=None):
+	return _offering_scoped_permission(doc, user or frappe.session.user)
+
+
+def course_module_item_query(user=None):
+	return _offering_scoped_query("Course Module Item", user or frappe.session.user)
+
+
+def course_module_item_permission(doc, ptype="read", user=None):
+	return _offering_scoped_permission(doc, user or frappe.session.user)
+
+
+def module_item_progress_query(user=None):
+	"""A teacher sees progress on their own courses; a student sees their own.
+
+	Progress is the one Phase 3 record that is about a person rather than
+	about the course, so it is scoped both ways.
+	"""
+	user = user or frappe.session.user
+	if is_unrestricted(user):
+		return ""
+
+	if _teaches(user):
+		return _within("Module Item Progress", "course_offering", offerings_for(user))
+
+	if _only_a_student(user):
+		student = student_for(user)
+		registrations = (
+			frappe.get_all(
+				"Course Registration", filters={"student": student}, pluck="name"
+			)
+			if student
+			else []
+		)
+		return _within("Module Item Progress", "course_registration", registrations)
+
+	return ""
+
+
+def module_item_progress_permission(doc, ptype="read", user=None):
+	user = user or frappe.session.user
+	if not doc or is_unrestricted(user):
+		return True
+
+	if _teaches(user):
+		return doc.get("course_offering") in offerings_for(user)
+
+	if _only_a_student(user):
+		student = student_for(user)
+		return bool(student) and frappe.db.get_value(
+			"Course Registration", doc.get("course_registration"), "student"
+		) == student
+
+	return True
 
 
 # --- Student and Program Enrollment ---------------------------------------

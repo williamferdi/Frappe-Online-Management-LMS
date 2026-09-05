@@ -10,11 +10,23 @@ import { cn } from '@/lib/utils'
  * these, but a compromised staff account should not become script running in
  * every student's browser.
  */
-export function RichText({ html, className }: { html: string; className?: string }) {
+export function RichText({
+	html,
+	className,
+	inline = false,
+}: {
+	html: string
+	className?: string
+	/** Render a <span> rather than a <div>, for use inside a heading or a
+	 * list item where a block element would be invalid markup. */
+	inline?: boolean
+}) {
+	const Tag = inline ? 'span' : 'div'
+
 	return (
-		<div
+		<Tag
 			className={cn(
-				'text-sm leading-relaxed',
+				!inline && 'text-sm leading-relaxed',
 				'[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2',
 				'[&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5',
 				'[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5',
