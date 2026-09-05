@@ -19,7 +19,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt
 
-from sibbcs.academic import gradebook
+from sibbcs.academic import gradebook, lms_sync
 from sibbcs.academic import permissions as academic_permissions
 from sibbcs.api.academic_api import ACADEMIC_ROLES
 
@@ -346,3 +346,65 @@ def set_published(assignment, published):
 	frappe.db.commit()
 
 	return {"assignment": assignment, "published": cint(doc.published)}
+
+
+@frappe.whitelist(methods=["POST"])
+def create_content_space(course_offering):
+	"""Make sure this course has an LMS course to write lessons into.
+
+	Calls the same `ensure_lms_course` that registration calls, so there is one
+	definition of what an LMS course for a Course looks like and doing it early
+	only means registration finds it already made.
+
+	Idempotent, and returns the address to write at either way.
+	"""
+	_require_teaching()
+	academic_permissions.assert_may_teach(course_offering)
+
+	course = frappe.db.get_value("Course Offering", course_offering, "course")
+	if not course:
+		frappe.throw(_("Course Offering not found."))
+
+	lms_course = lms_sync.ensure_lms_course(course)
+	frappe.db.commit()
+
+	return {
+		"course": course,
+		"lms_course": lms_course,
+		# Where a Course Creator actually writes the lessons. The authoring UI
+		# is the LMS's own; this app renders what it holds.
+		"authoring_url": f"/lms/courses/{lms_course}/edit",
+	}
+
+
+@frappe.whitelist()
+def content_space(course_offering):
+	"""Whether this course has anywhere to write lessons yet, and where."""
+	_require_teaching()
+	academic_permissions.assert_may_teach(course_offering)
+
+	course = frappe.db.get_value("Course Offering", course_offering, "course")
+	lms_course = frappe.db.get_value("Course", course, "lms_course") if course else None
+
+	if lms_course and not frappe.db.exists("LMS Course", lms_course):
+		# The link outlived what it pointed at -- a restored backup, or a
+		# course removed in the LMS. Say so rather than linking into nothing.
+		lms_course = None
+
+	lessons = 0
+	if lms_course:
+		for chapter in frappe.get_all(
+			"Chapter Reference",
+			filters={"parent": lms_course, "parenttype": "LMS Course"},
+			pluck="chapter",
+		):
+			lessons += frappe.db.count(
+				"Lesson Reference", {"parent": chapter, "parenttype": "Course Chapter"}
+			)
+
+	return {
+		"course": course,
+		"lms_course": lms_course,
+		"lessons": lessons,
+		"authoring_url": f"/lms/courses/{lms_course}/edit" if lms_course else None,
+	}

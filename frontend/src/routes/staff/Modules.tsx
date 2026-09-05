@@ -1,5 +1,12 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, LoaderCircle, Plus, Trash2 } from 'lucide-react'
+import {
+	ChevronDown,
+	ChevronUp,
+	ExternalLink,
+	LoaderCircle,
+	Plus,
+	Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { QueryState } from '@/components/QueryState'
@@ -9,6 +16,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+	useContentSpace,
+	useCreateContentSpace,
 	useDeleteItem,
 	useDeleteModule,
 	useReorder,
@@ -45,6 +54,8 @@ function Builder({ data, offering }: { data: StaffOutline; offering: string }) {
 	const [title, setTitle] = useState('')
 	const save = useSaveModule(offering)
 	const reorder = useReorder(offering)
+	const space = useContentSpace(offering)
+	const makeSpace = useCreateContentSpace(offering)
 
 	const move = (index: number, by: number) => {
 		const order = data.modules.map((module) => module.name)
@@ -56,6 +67,59 @@ function Builder({ data, offering }: { data: StaffOutline; offering: string }) {
 
 	return (
 		<div className="space-y-4">
+			{/* Lessons live in the LMS, and a course has nowhere to write them
+			    until somebody makes the space. This is where a teacher finds
+			    that out, so this is where the answer belongs. */}
+			{space.data && data.choices.lessons.length === 0 && (
+				<Card>
+					<CardContent className="flex flex-wrap items-center gap-3 p-4">
+						<div className="min-w-0 flex-1">
+							<div className="text-sm font-medium">
+								{space.data.lms_course
+									? 'No lessons written yet'
+									: 'This course has nowhere to write lessons yet'}
+							</div>
+							<p className="text-muted-foreground mt-0.5 text-sm">
+								{space.data.lms_course
+									? 'Write them in the LMS and they appear here as items you can add to a module.'
+									: 'Lessons are written in the LMS and read here. Create the space once, then write them.'}
+							</p>
+						</div>
+
+						{space.data.lms_course ? (
+							<Button variant="outline" size="sm" asChild>
+								<a
+									href={space.data.authoring_url ?? '#'}
+									target="_blank"
+									rel="noreferrer noopener"
+								>
+									Write lessons <ExternalLink className="size-3.5" />
+								</a>
+							</Button>
+						) : (
+							<Button
+								size="sm"
+								disabled={makeSpace.isPending}
+								onClick={() =>
+									makeSpace.mutate(undefined, {
+										onSuccess: (result) => {
+											toast.success('Ready for lessons')
+											window.open(result.authoring_url, '_blank', 'noopener')
+										},
+										onError: (error) => toast.error(message(error)),
+									})
+								}
+							>
+								{makeSpace.isPending ? (
+									<LoaderCircle className="animate-spin" />
+								) : null}
+								Set up lessons
+							</Button>
+						)}
+					</CardContent>
+				</Card>
+			)}
+
 			<div className="flex flex-wrap items-end justify-between gap-2">
 				{adding ? (
 					<div className="flex flex-wrap items-end gap-2">

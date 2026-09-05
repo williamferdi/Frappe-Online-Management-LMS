@@ -137,3 +137,36 @@ export function useReorder(offering: string) {
 			}),
 	)
 }
+
+
+// --- somewhere to write lessons -------------------------------------------
+
+export function useContentSpace(offering: string | null) {
+	return useQuery({
+		queryKey: ['syllabus', 'content-space', offering ?? ''],
+		queryFn: () =>
+			frappeGet<{
+				course: string
+				lms_course: string | null
+				lessons: number
+				authoring_url: string | null
+			}>('sibbcs.api.course.content_space', { course_offering: offering }),
+		enabled: Boolean(offering),
+	})
+}
+
+export function useCreateContentSpace(offering: string) {
+	const queryClient = useQueryClient()
+	return useMutation({
+		mutationFn: () =>
+			frappePost<{ lms_course: string; authoring_url: string }>(
+				'sibbcs.api.course.create_content_space',
+				{ course_offering: offering },
+			),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: ['syllabus', 'content-space'] })
+			// The module builder lists the course's lessons, so it is stale too.
+			void queryClient.invalidateQueries({ queryKey: syllabusKeys.staff(offering) })
+		},
+	})
+}
