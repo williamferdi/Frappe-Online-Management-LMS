@@ -26,6 +26,8 @@ export interface Registration {
 	lms_course: string | null
 	lms_url: string | null
 	progress: number
+	/** Why the course will or will not open, decided by the server. */
+	access?: CourseAccess
 }
 
 export interface EnrollmentHeader {
@@ -852,6 +854,14 @@ export interface RosterResponse {
 	components: string[]
 	statuses: string[]
 	can_grade: boolean
+}
+
+/** Why a course will or will not open, decided by the server -- whether the
+ *  fee gates access at all is a site setting the browser cannot see. */
+export interface CourseAccess {
+	open: boolean
+	state: 'open' | 'fee' | 'preparing'
+	reason: string | null
 }
 
 export interface SaveGradesResult {

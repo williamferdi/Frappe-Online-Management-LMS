@@ -10,6 +10,9 @@ import frappe
 from frappe import _
 from frappe.utils import today
 
+from sibbcs.academic.doctype.course_registration.course_registration import (
+	require_fee_before_lms,
+)
 from sibbcs.academic.eligibility import explain
 
 
@@ -98,12 +101,44 @@ def my_registrations(enrollment=None):
 		order_by="registration_date desc",
 	)
 
-	# The course opens on payment, so "why can I not see my course?" is
-	# answered on this page rather than by email.
+	# "Why can I not see my course?" is answered on this page rather than by
+	# email -- and answered by the side that knows whether the fee is what is
+	# holding it, rather than by the browser guessing from the balance.
+	gated = require_fee_before_lms()
 	for row in rows:
 		row["fee"] = _fee_state(row.get("registration_fee_invoice"))
+		row["access"] = _access_state(row, gated)
 
 	return rows
+
+
+def _access_state(row, fee_gates_access):
+	"""Whether the course can be opened, and why not.
+
+	Three answers, and they are not interchangeable:
+
+      open        the course is there
+      fee         the fee gates access and has not been settled
+      preparing   the fee is not the problem; the LMS enrolment has not been
+                  written yet. `lms_sync.sync_pending` retries hourly, so this
+                  resolves itself and the student needs telling that, not
+                  telling to pay.
+	"""
+	if row.get("lms_enrollment_created"):
+		return {"open": True, "state": "open", "reason": None}
+
+	if fee_gates_access and not (row.get("fee") or {}).get("settled"):
+		return {
+			"open": False,
+			"state": "fee",
+			"reason": _("Your course opens when the registration fee is settled."),
+		}
+
+	return {
+		"open": False,
+		"state": "preparing",
+		"reason": _("This course is still being set up. It usually takes a few minutes."),
+	}
 
 
 def _fee_state(invoice):

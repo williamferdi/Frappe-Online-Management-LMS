@@ -151,7 +151,12 @@ function CourseRow({
 	onWithdraw: () => void
 }) {
 	const fee = registration.fee
-	const locked = !fee?.settled && !registration.lms_enrollment_created
+	// The server decides this: whether the fee gates access at all is a site
+	// setting the browser cannot see, so working it out here showed a student
+	// a bill for a fee that was gating nothing.
+	const access = registration.access
+	const locked = access ? !access.open : !fee?.settled && !registration.lms_enrollment_created
+	const blockedByFee = access ? access.state === 'fee' : locked
 
 	return (
 		<li>
@@ -194,7 +199,7 @@ function CourseRow({
 								Withdraw
 							</Button>
 						)}
-						{locked ? (
+						{locked && blockedByFee ? (
 							<>
 								<span className="text-warning-foreground flex items-center gap-1.5 text-xs font-medium">
 									<CreditCard className="size-3.5" />
@@ -206,6 +211,12 @@ function CourseRow({
 									</Button>
 								)}
 							</>
+						) : locked ? (
+							/* Not a money problem. Saying so beats a balance the
+							   student can do nothing useful about. */
+							<span className="text-muted-foreground text-xs">
+								{access?.reason ?? 'This course is still being set up.'}
+							</span>
 						) : (
 							<>
 								{/* The course itself is now in this app: modules, lessons
