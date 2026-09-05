@@ -1412,3 +1412,35 @@ export interface CourseDiscussionRow {
 export interface MyDiscussionsResponse {
 	rows: (CourseDiscussionRow & { my_posts: number; enough: boolean })[]
 }
+
+// --- authoring course content ---------------------------------------------
+
+export interface ContentChapter {
+	name: string
+	title: string
+	lessons: { name: string; title: string }[]
+}
+
+export interface ContentOutline {
+	course: string
+	lms_course: string | null
+	chapters: ContentChapter[]
+	pages: { name: string; title: string; published: number; modified: string }[]
+	files: {
+		name: string
+		title: string
+		file: string | null
+		is_folder: number
+		description: string | null
+	}[]
+	/** The block types the reader can draw, so the editor cannot offer one it
+	 * would meet as "unrecognised". */
+	block_types: string[]
+}
+
+export interface LessonDraft {
+	name: string
+	title: string
+	chapter: string
+	blocks: { type: string; data?: Record<string, unknown> }[]
+}

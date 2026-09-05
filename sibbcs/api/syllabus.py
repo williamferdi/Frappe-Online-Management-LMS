@@ -116,28 +116,44 @@ def _lessons_for(course):
 	if not lms_course:
 		return []
 
-	chapters = frappe.get_all(
-		"Chapter Reference",
-		filters={"parent": lms_course, "parenttype": "LMS Course"},
-		fields=["chapter", "idx"],
-		order_by="idx asc",
+	# Reference rows carry the order, but a chapter created by a script may
+	# have none -- `lms_copy` documents the same thing. Falling back to the
+	# documents means a lesson that exists is never invisible to the builder.
+	chapter_names = [
+		row.chapter
+		for row in frappe.get_all(
+			"Chapter Reference",
+			filters={"parent": lms_course, "parenttype": "LMS Course"},
+			fields=["chapter"],
+			order_by="idx asc",
+		)
+	] or frappe.get_all(
+		"Course Chapter", filters={"course": lms_course}, pluck="name", order_by="creation asc"
 	)
-	if not chapters:
+
+	if not chapter_names:
 		return []
 
 	lessons = []
-	for chapter in chapters:
-		title = frappe.db.get_value("Course Chapter", chapter.chapter, "title")
-		for reference in frappe.get_all(
-			"Lesson Reference",
-			filters={"parent": chapter.chapter, "parenttype": "Course Chapter"},
-			fields=["lesson", "idx"],
-			order_by="idx asc",
-		):
+	for chapter in chapter_names:
+		title = frappe.db.get_value("Course Chapter", chapter, "title")
+		lesson_names = [
+			row.lesson
+			for row in frappe.get_all(
+				"Lesson Reference",
+				filters={"parent": chapter, "parenttype": "Course Chapter"},
+				fields=["lesson"],
+				order_by="idx asc",
+			)
+		] or frappe.get_all(
+			"Course Lesson", filters={"chapter": chapter}, pluck="name", order_by="creation asc"
+		)
+
+		for lesson in lesson_names:
 			lessons.append(
 				{
-					"name": reference.lesson,
-					"title": frappe.db.get_value("Course Lesson", reference.lesson, "title"),
+					"name": lesson,
+					"title": frappe.db.get_value("Course Lesson", lesson, "title"),
 					"chapter": title,
 				}
 			)

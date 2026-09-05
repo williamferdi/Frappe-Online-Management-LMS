@@ -330,6 +330,14 @@ function ItemRow({ item, offering }: { item: OutlineItem; offering: string }) {
 	)
 }
 
+/** What to say when a type has nothing to point at, and where to go. */
+const EMPTY: Record<string, string> = {
+	Lesson: 'No lessons written yet. Write them on the Content tab.',
+	Assignment: 'No assignments set yet. Set one on the Assignments tab.',
+	Page: 'No pages written yet. Write one on the Content tab.',
+	File: 'No files added yet. Add one on the Content tab.',
+}
+
 function ItemForm({
 	module,
 	data,
@@ -357,6 +365,10 @@ function ItemForm({
 		File: 'file',
 		URL: 'url',
 	}
+
+	// Which types point at something that has to exist first. URL is typed in
+	// and Sub-header points at nothing at all.
+	const needsTarget = ['Lesson', 'Assignment', 'Page', 'File'].includes(type)
 
 	const options =
 		type === 'Lesson'
@@ -390,7 +402,7 @@ function ItemForm({
 					</select>
 				</label>
 
-				{options.length > 0 && (
+				{needsTarget && options.length > 0 && (
 					<label className="block">
 						<span className="text-xs font-medium">Which one</span>
 						<select
@@ -406,6 +418,18 @@ function ItemForm({
 							))}
 						</select>
 					</label>
+				)}
+
+				{/* Rendering nothing here left a dead Add button with no reason
+				    for it. There is always something to say: what is missing,
+				    and where to make one. */}
+				{needsTarget && options.length === 0 && (
+					<div className="sm:col-span-2">
+						<span className="text-xs font-medium">Which one</span>
+						<p className="text-muted-foreground mt-1 text-sm">
+							{EMPTY[type] ?? `No ${type.toLowerCase()}s on this course yet.`}
+						</p>
+					</div>
 				)}
 
 				{type === 'URL' && (
@@ -466,6 +490,13 @@ function ItemForm({
 				<Button
 					size="sm"
 					disabled={save.isPending || (type !== 'Sub-header' && !target)}
+					title={
+						type !== 'Sub-header' && !target
+							? needsTarget && options.length === 0
+								? `There are no ${type.toLowerCase()}s to add yet`
+								: `Choose which ${type.toLowerCase()} to add`
+							: undefined
+					}
 					onClick={() =>
 						save.mutate(
 							{
