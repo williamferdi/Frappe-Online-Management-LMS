@@ -1499,3 +1499,46 @@ export interface LessonDraft {
 	chapter: string
 	blocks: { type: string; data?: Record<string, unknown> }[]
 }
+
+// --- the course player ----------------------------------------------------
+
+export interface PlayerProgress {
+	done: number
+	total: number
+	/** Null when the course asks for nothing, rather than a permanent 100%. */
+	percent: number | null
+}
+
+export interface PlayerCourse {
+	registration: { name: string; course_title: string | null; course_offering: string }
+	modules: (OutlineModule & {
+		items: (OutlineItem & { bookmarked?: boolean; has_note?: boolean })[]
+	})[]
+	progress: PlayerProgress
+	/** The order the Previous/Next buttons walk, flattened by the server so
+	 *  the sidebar, the buttons and the percentage cannot disagree. */
+	sequence: string[]
+}
+
+export interface PlayerItem {
+	item: OutlineItem
+	module: string
+	previous: string | null
+	next: string | null
+	position: { index: number; total: number }
+	content:
+		| LessonContent
+		| { title: string; body: string | null }
+		| { title: string; file: string | null; description: string | null }
+		| {
+				name: string
+				title: string
+				description: string | null
+				points_possible: number
+				due_date: string | null
+				submission_type: string
+		  }
+		| null
+	resources: { item: string; title: string; url: string; description: string | null }[]
+	note: { body: string | null; bookmarked: number } | null
+}

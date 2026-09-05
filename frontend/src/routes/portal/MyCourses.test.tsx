@@ -102,13 +102,14 @@ describe('My Courses', () => {
 		expect(screen.getByText('3.40')).toBeInTheDocument()
 	})
 
-	it('opens the course in this app, not in the LMS', async () => {
+	it('opens the course in the player, not in the LMS', async () => {
 		// Phase 3 moved the boundary: modules, lessons and locks are read
-		// here. This is the assertion that used to say the opposite.
+		// here. The player then became the way in, and it resumes where the
+		// student left off rather than starting at the top.
 		await renderScreen({ enrollment, registrations: [paid] })
 
 		const link = await screen.findByRole('link', { name: /open course/i })
-		expect(link.getAttribute('href')).toContain('/modules')
+		expect(link.getAttribute('href')).toContain('/learn')
 	})
 
 	it('keeps the LMS as a fallback rather than dropping it', async () => {

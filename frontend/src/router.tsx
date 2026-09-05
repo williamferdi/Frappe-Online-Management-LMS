@@ -23,6 +23,7 @@ import { Users } from '@/routes/staff/Users'
 import { StaffLayout } from '@/routes/staff/StaffLayout'
 import { Dashboard } from '@/routes/portal/Dashboard'
 import { Coursework } from '@/routes/portal/Coursework'
+import { CoursePlayer } from '@/routes/portal/CoursePlayer'
 import { MyCourse } from '@/routes/portal/MyCourse'
 import { QuizPlayer } from '@/routes/portal/QuizPlayer'
 import { Grades } from '@/routes/portal/Grades'
@@ -60,6 +61,8 @@ export const router = createBrowserRouter([
 					{ path: 'courses/register', element: <Register /> },
 					{ path: 'courses/:name/work', element: <Coursework /> },
 					{ path: 'courses/:name/modules', element: <MyCourse /> },
+					{ path: 'courses/:name/learn', element: <CoursePlayer /> },
+					{ path: 'courses/:name/learn/:item', element: <CoursePlayer /> },
 					{
 						path: 'courses/:name/quiz/:assignment',
 						element: <QuizPlayer />,

@@ -22,7 +22,7 @@ import {
 	useSavePage,
 } from '@/hooks/useContent'
 import { useCreateContentSpace } from '@/hooks/useSyllabus'
-import { FrappeError } from '@/lib/frappe'
+import { FrappeError, frappeUpload } from '@/lib/frappe'
 import type { ContentOutline } from '@/types'
 
 function message(error: unknown) {
@@ -427,6 +427,7 @@ function Files({ data, offering }: { data: ContentOutline; offering: string }) {
 	const [adding, setAdding] = useState(false)
 	const [title, setTitle] = useState('')
 	const [url, setUrl] = useState('')
+	const [uploading, setUploading] = useState(false)
 	const save = useSaveFile(offering)
 	const remove = useDeleteFile(offering)
 
@@ -453,19 +454,41 @@ function Files({ data, offering }: { data: ContentOutline; offering: string }) {
 								onChange={(event) => setTitle(event.target.value)}
 							/>
 						</div>
+
 						<div className="min-w-64 flex-1">
-							<Label htmlFor="file-url">Address</Label>
+							<Label htmlFor="file-upload">File</Label>
 							<Input
-								id="file-url"
+								id="file-upload"
+								type="file"
 								className="mt-1"
-								placeholder="/files/reading-list.pdf"
-								value={url}
-								onChange={(event) => setUrl(event.target.value)}
+								disabled={uploading}
+								onChange={async (event) => {
+									const chosen = event.target.files?.[0]
+									if (!chosen) return
+									setUploading(true)
+									try {
+										const stored = await frappeUpload(chosen)
+										setUrl(stored.file_url)
+										// The file's own name is the obvious title, and
+										// retyping it is work nobody asked for.
+										if (!title) setTitle(chosen.name)
+									} catch (error) {
+										toast.error(message(error))
+									} finally {
+										setUploading(false)
+									}
+								}}
 							/>
+							{url && (
+								<p className="text-muted-foreground mt-1 truncate text-xs">
+									{uploading ? 'Uploading…' : `Stored at ${url}`}
+								</p>
+							)}
 						</div>
+
 						<Button
 							size="sm"
-							disabled={!title || save.isPending}
+							disabled={!title || !url || uploading || save.isPending}
 							onClick={() =>
 								save.mutate(
 									{ title, file: url },
@@ -494,8 +517,8 @@ function Files({ data, offering }: { data: ContentOutline; offering: string }) {
 				<Card>
 					<CardContent className="py-8 text-center">
 						<p className="text-muted-foreground text-sm">
-							Upload a file anywhere in Desk, then record its address here so it can
-							be added to a module.
+							A reading, a handout, a slide deck. Upload one here and it can be
+							added to a module, and offered beside the lesson it belongs to.
 						</p>
 					</CardContent>
 				</Card>

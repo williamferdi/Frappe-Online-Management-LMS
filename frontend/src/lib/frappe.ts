@@ -197,6 +197,53 @@ export const frappeGet = <T>(path: string, args?: Record<string, unknown>) =>
 export const frappePost = <T>(path: string, args?: Record<string, unknown>) =>
 	frappeCall<T>(path, { method: 'POST', args })
 
+/**
+ * Upload a file and get back the address Frappe stored it at.
+ *
+ * Its own function rather than a `frappeCall` option: this sends FormData, so
+ * the browser must set the Content-Type itself — including the multipart
+ * boundary, which is why the JSON header the rest of the API sets would break
+ * it.
+ */
+export async function frappeUpload(
+	file: File,
+	options: { private?: boolean } = {},
+): Promise<{ file_url: string; file_name: string }> {
+	const form = new FormData()
+	form.append('file', file, file.name)
+	form.append('is_private', options.private === false ? '0' : '1')
+
+	const headers: Record<string, string> = { Accept: 'application/json' }
+	if (boot.csrf_token) headers['X-Frappe-CSRF-Token'] = boot.csrf_token
+
+	const response = await fetch('/api/method/upload_file', {
+		method: 'POST',
+		headers,
+		body: form,
+		credentials: 'same-origin',
+	})
+
+	const text = await response.text()
+	let payload: Record<string, unknown> = {}
+	try {
+		payload = text ? (JSON.parse(text) as Record<string, unknown>) : {}
+	} catch {
+		throw new FrappeError(`${response.status} ${response.statusText}`, response.status)
+	}
+
+	if (!response.ok) {
+		const messages = serverMessages(payload)
+		throw new FrappeError(
+			messages[0] || `${response.status} ${response.statusText}`,
+			response.status,
+			typeof payload.exc_type === 'string' ? payload.exc_type : '',
+			messages,
+		)
+	}
+
+	return payload.message as { file_url: string; file_name: string }
+}
+
 /** Where a session belongs. `/` is Frappe's own website home, not this app. */
 export const STUDENT_HOME = '/portal'
 export const STAFF_HOME = '/staff'

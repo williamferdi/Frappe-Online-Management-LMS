@@ -219,13 +219,14 @@ function CourseRow({
 							</span>
 						) : (
 							<>
-								{/* The course itself is now in this app: modules, lessons
-								    and locks. Coursework keeps its own entrance because it
-								    is what a student checks most often, and the LMS link
-								    stays as the fallback for content we cannot render. */}
+								{/* Open course goes to the player, which resumes where the
+								    student left off rather than at the top. Coursework keeps
+								    its own entrance because it is what a student checks most
+								    often, and the LMS link stays as the fallback for content
+								    we cannot render. */}
 								<Button size="sm" asChild>
 									<Link
-										to={`/portal/courses/${encodeURIComponent(registration.name)}/modules`}
+										to={`/portal/courses/${encodeURIComponent(registration.name)}/learn`}
 									>
 										Open course
 									</Link>
