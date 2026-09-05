@@ -102,12 +102,24 @@ describe('My Courses', () => {
 		expect(screen.getByText('3.40')).toBeInTheDocument()
 	})
 
-	it('opens a paid course in the LMS rather than rendering the lesson itself', async () => {
-		// The portal deliberately does not reimplement the course player.
+	it('opens lessons in the LMS rather than rendering the player itself', async () => {
+		// The portal deliberately does not reimplement the course player. That
+		// is what Phase 3 changes; until then this is the boundary.
 		await renderScreen({ enrollment, registrations: [paid] })
 
-		const link = await screen.findByRole('link', { name: /open course/i })
+		const link = await screen.findByRole('link', { name: /lessons/i })
 		expect(link).toHaveAttribute('href', '/lms/courses/intro-to-ot')
+	})
+
+	it('offers coursework inside the app, because this app owns it', async () => {
+		// Assignments, marks and feedback are ours; lessons are not, yet.
+		await renderScreen({ enrollment, registrations: [paid] })
+
+		const link = await screen.findByRole('link', { name: /coursework/i })
+		expect(link).toHaveAttribute(
+			'href',
+			expect.stringContaining('/work'),
+		)
 	})
 
 	it('asks for payment instead of a course link when the fee is outstanding', async () => {
@@ -119,7 +131,10 @@ describe('My Courses', () => {
 			'href',
 			'https://pay.example/abc',
 		)
-		expect(screen.queryByRole('link', { name: /open course/i })).not.toBeInTheDocument()
+		// Neither half is offered while the fee is outstanding: the course is
+		// closed, not half open.
+		expect(screen.queryByRole('link', { name: /lessons/i })).not.toBeInTheDocument()
+		expect(screen.queryByRole('link', { name: /coursework/i })).not.toBeInTheDocument()
 	})
 
 	it('totals what is outstanding across registrations', async () => {

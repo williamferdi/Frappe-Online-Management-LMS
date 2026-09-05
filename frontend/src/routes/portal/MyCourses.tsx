@@ -206,14 +206,29 @@ function CourseRow({
 									</Button>
 								)}
 							</>
-						) : registration.lms_url ? (
-							<Button size="sm" variant="outline" asChild>
-								<a href={registration.lms_url}>
-									Open course <ArrowUpRight />
-								</a>
-							</Button>
 						) : (
-							<span className="text-muted-foreground text-xs">Not yet opened</span>
+							<>
+								{/* Coursework lives in this app; lessons are still in the
+								    LMS until Phase 3 moves them, so both are offered. */}
+								<Button size="sm" variant="outline" asChild>
+									<Link
+										to={`/portal/courses/${encodeURIComponent(registration.name)}/work`}
+									>
+										Coursework
+									</Link>
+								</Button>
+								{registration.lms_url ? (
+									<Button size="sm" variant="outline" asChild>
+										<a href={registration.lms_url}>
+											Lessons <ArrowUpRight />
+										</a>
+									</Button>
+								) : (
+									<span className="text-muted-foreground text-xs">
+										Lessons not yet opened
+									</span>
+								)}
+							</>
 						)}
 					</div>
 				</CardContent>
