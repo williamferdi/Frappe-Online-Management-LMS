@@ -8,14 +8,22 @@ import { cn } from '@/lib/utils'
  * Deliberately hand-written rather than `@radix-ui/react-tabs`: the bundle is
  * committed to git, so every dependency is a permanent addition to what the
  * portal ships, and what this needs -- roving focus, the right roles, and
- * arrow keys -- is about sixty lines. If tabs ever grow orientation,
- * animation or lazy panels, swap in Radix and delete this.
+ * arrow keys -- is about sixty lines.
+ *
+ * This used to say "if tabs ever grow orientation, swap in Radix and delete
+ * this". Orientation arrived with the course workspace and cost about ten
+ * lines, so the tripwire was in the wrong place rather than the decision. What
+ * would still justify the swap is animation or lazily-mounted panels, neither
+ * of which is worth hand-writing.
  */
+
+type Orientation = 'horizontal' | 'vertical'
 
 type TabsContext = {
 	value: string
 	setValue: (value: string) => void
 	baseId: string
+	orientation: Orientation
 }
 
 const Ctx = createContext<TabsContext | null>(null)
@@ -30,12 +38,14 @@ export function Tabs({
 	defaultValue,
 	value: controlled,
 	onValueChange,
+	orientation = 'horizontal',
 	className,
 	children,
 }: {
 	defaultValue: string
 	value?: string
 	onValueChange?: (value: string) => void
+	orientation?: Orientation
 	className?: string
 	children: React.ReactNode
 }) {
@@ -49,7 +59,7 @@ export function Tabs({
 	}
 
 	return (
-		<Ctx.Provider value={{ value, setValue, baseId }}>
+		<Ctx.Provider value={{ value, setValue, baseId, orientation }}>
 			<div className={className}>{children}</div>
 		</Ctx.Provider>
 	)
@@ -57,17 +67,26 @@ export function Tabs({
 
 export function TabsList({
 	className,
+	label,
 	children,
 }: {
 	className?: string
+	/** Names the set for a screen reader, which matters more when the list is
+	 *  a course's navigation than when it is two tabs over one card. */
+	label?: string
 	children: React.ReactNode
 }) {
+	const { orientation } = useTabs('TabsList')
 	const list = useRef<HTMLDivElement>(null)
 
-	/** Left and right move between tabs, which is what a tablist owes a keyboard. */
+	/** The arrows that move between tabs are the ones that point along the
+	 *  list: left and right across a strip, up and down beside a panel. */
 	const onKeyDown = (event: React.KeyboardEvent) => {
-		const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End']
-		if (!keys.includes(event.key)) return
+		const [back, forward] =
+			orientation === 'vertical'
+				? ['ArrowUp', 'ArrowDown']
+				: ['ArrowLeft', 'ArrowRight']
+		if (![back, forward, 'Home', 'End'].includes(event.key)) return
 
 		const tabs = Array.from(
 			list.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [],
@@ -81,7 +100,7 @@ export function TabsList({
 				? 0
 				: event.key === 'End'
 					? tabs.length - 1
-					: (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+					: (current + (event.key === forward ? 1 : -1) + tabs.length) % tabs.length
 		tabs[next]?.focus()
 		tabs[next]?.click()
 	}
@@ -90,11 +109,17 @@ export function TabsList({
 		<div
 			ref={list}
 			role="tablist"
+			aria-label={label}
+			aria-orientation={orientation}
 			onKeyDown={onKeyDown}
 			className={cn(
-				// Wraps rather than running off the edge: a tab a narrow window
-				// cuts off is a tab nobody can find.
-				'bg-muted text-muted-foreground flex flex-wrap items-center gap-1 rounded-lg p-1',
+				orientation === 'vertical'
+					? // A course nav below `lg` has nowhere to be a column, so it
+						// lies down and scrolls rather than eating the screen.
+						'flex gap-0.5 overflow-x-auto pb-1 lg:flex-col lg:overflow-x-visible lg:pb-0'
+					: // Wraps rather than running off the edge: a tab a narrow window
+						// cuts off is a tab nobody can find.
+						'bg-muted text-muted-foreground flex flex-wrap items-center gap-1 rounded-lg p-1',
 				className,
 			)}
 		>
@@ -112,7 +137,7 @@ export function TabsTrigger({
 	className?: string
 	children: React.ReactNode
 }) {
-	const { value: active, setValue, baseId } = useTabs('TabsTrigger')
+	const { value: active, setValue, baseId, orientation } = useTabs('TabsTrigger')
 	const selected = active === value
 
 	return (
@@ -125,10 +150,23 @@ export function TabsTrigger({
 			tabIndex={selected ? 0 : -1}
 			onClick={() => setValue(value)}
 			className={cn(
-				'ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
-				selected
-					? 'bg-background text-foreground shadow-sm'
-					: 'hover:text-foreground cursor-pointer',
+				'ring-offset-background focus-visible:ring-ring inline-flex items-center gap-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
+				orientation === 'vertical'
+					? cn(
+							// The rule marks the current page down the side of a column
+							// and along the bottom of a strip -- the edge the list runs
+							// against in each case.
+							'shrink-0 justify-start rounded-md border-b-2 px-3 py-2 lg:w-full lg:border-b-0 lg:border-l-2',
+							selected
+								? 'bg-accent text-accent-foreground border-primary'
+								: 'text-muted-foreground hover:text-foreground hover:bg-muted/60 cursor-pointer border-transparent',
+						)
+					: cn(
+							'justify-center rounded-md px-3 py-1.5',
+							selected
+								? 'bg-background text-foreground shadow-sm'
+								: 'hover:text-foreground cursor-pointer',
+						),
 				className,
 			)}
 		>
@@ -146,7 +184,7 @@ export function TabsContent({
 	className?: string
 	children: React.ReactNode
 }) {
-	const { value: active, baseId } = useTabs('TabsContent')
+	const { value: active, baseId, orientation } = useTabs('TabsContent')
 	if (active !== value) return null
 
 	return (
@@ -155,7 +193,12 @@ export function TabsContent({
 			id={`${baseId}-panel-${value}`}
 			aria-labelledby={`${baseId}-tab-${value}`}
 			tabIndex={0}
-			className={cn('mt-4 focus-visible:outline-none', className)}
+			className={cn(
+				// Beside a column the panel is already separated by the gap; the
+				// gap under a strip is this margin.
+				orientation === 'vertical' ? 'focus-visible:outline-none' : 'mt-4 focus-visible:outline-none',
+				className,
+			)}
 		>
 			{children}
 		</div>

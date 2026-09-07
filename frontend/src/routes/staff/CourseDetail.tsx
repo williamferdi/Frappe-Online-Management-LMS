@@ -1,6 +1,20 @@
 import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Eye, EyeOff, LoaderCircle, Plus, Save, Trash2 } from 'lucide-react'
+import {
+	ArrowLeft,
+	ClipboardList,
+	Eye,
+	EyeOff,
+	FileText,
+	Layers,
+	LoaderCircle,
+	Percent,
+	Plus,
+	Save,
+	Table2,
+	Trash2,
+	Users,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/PageHeader'
@@ -15,7 +29,8 @@ import { Gradebook } from '@/routes/staff/Gradebook'
 import { Groups } from '@/routes/staff/Groups'
 import { Modules } from '@/routes/staff/Modules'
 import { StudentView } from '@/routes/staff/StudentView'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TabsContent } from '@/components/ui/tabs'
+import { CourseWorkspace, type CourseSection } from '@/routes/staff/CourseWorkspace'
 import { Textarea } from '@/components/ui/textarea'
 import {
 	useCourse,
@@ -32,6 +47,20 @@ import type {
 	CourseDetail as CourseDetailData,
 	GradeSchemeRow,
 } from '@/types'
+
+/** The sections of a course, in the order somebody builds one.
+ *
+ *  Only sections that exist. A nav row that goes nowhere is worse than no row:
+ *  it reads as a feature somebody has not found yet. */
+const SECTIONS: CourseSection[] = [
+	{ value: 'scheme', label: 'Grade scheme', icon: Percent },
+	{ value: 'assignments', label: 'Assignments', icon: ClipboardList },
+	{ value: 'content', label: 'Content', icon: FileText },
+	{ value: 'modules', label: 'Modules', icon: Layers },
+	{ value: 'student-view', label: 'Student view', icon: Eye },
+	{ value: 'gradebook', label: 'Gradebook', icon: Table2 },
+	{ value: 'groups', label: 'Groups', icon: Users },
+]
 
 /** What a course is weighted by before anyone has said otherwise. */
 const STARTER: GradeSchemeRow[] = [
@@ -80,18 +109,15 @@ function Loaded({ data, offering }: { data: CourseDetailData; offering: string }
 				}
 			/>
 
-			<Tabs value={tab} onValueChange={setTab} defaultValue="scheme">
-				<TabsList>
-					<TabsTrigger value="scheme">Grade scheme</TabsTrigger>
-					<TabsTrigger value="assignments">
-						Assignments{data.assignments.length ? ` (${data.assignments.length})` : ''}
-					</TabsTrigger>
-					<TabsTrigger value="content">Content</TabsTrigger>
-					<TabsTrigger value="modules">Modules</TabsTrigger>
-					<TabsTrigger value="student-view">Student view</TabsTrigger>
-					<TabsTrigger value="gradebook">Gradebook</TabsTrigger>
-					<TabsTrigger value="groups">Groups</TabsTrigger>
-				</TabsList>
+			<CourseWorkspace
+				sections={SECTIONS.map((section) =>
+					section.value === 'assignments'
+						? { ...section, count: data.assignments.length }
+						: section,
+				)}
+				value={tab}
+				onValueChange={setTab}
+			>
 
 				<TabsContent value="scheme">
 					<SchemeEditor data={data} offering={offering} />
@@ -120,7 +146,7 @@ function Loaded({ data, offering }: { data: CourseDetailData; offering: string }
 				<TabsContent value="groups">
 					<Groups offering={offering} />
 				</TabsContent>
-			</Tabs>
+			</CourseWorkspace>
 		</>
 	)
 }

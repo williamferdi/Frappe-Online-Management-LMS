@@ -2,12 +2,20 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
 	ChevronDown,
-	ChevronUp,
+	ChevronRight,
+	CircleCheck,
+	CircleSlash,
+	ClipboardList,
+	EllipsisVertical,
 	ExternalLink,
+	FileText,
+	FileType,
 	GripVertical,
+	Link2,
 	LoaderCircle,
+	Paperclip,
 	Plus,
-	Trash2,
+	type LucideIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -15,6 +23,13 @@ import { QueryState } from '@/components/QueryState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -39,9 +54,12 @@ function message(error: unknown) {
 /**
  * The module builder.
  *
- * Ordering is done with move controls rather than drag and drop: the bundle is
- * committed to git so a drag-and-drop library is a permanent addition, and
- * buttons are reorderable from a keyboard without any extra work.
+ * A module is a bar with rows under it, the shape Canvas uses and the reason
+ * a long course stays readable: the bars are the weeks, and everything else
+ * is detail you can fold away.
+ *
+ * Ordering is by dragging, with the same move controls kept in each row's
+ * menu -- native drag and drop cannot be driven from a keyboard at all.
  */
 export function Modules({ offering }: { offering: string }) {
 	const query = useStaffOutline(offering)
@@ -53,9 +71,49 @@ export function Modules({ offering }: { offering: string }) {
 	)
 }
 
+/**
+ * Published or not, as one control.
+ *
+ * A tick or a slash rather than the word, because an eye finds a shape down a
+ * column of twenty rows faster than it reads "Published" twenty times. The
+ * state is in the button's name as well as its colour, so it survives being
+ * read aloud or seen by somebody who does not separate red from green.
+ */
+function PublishToggle({
+	published,
+	what,
+	pending,
+	onChange,
+}: {
+	published: boolean
+	what: string
+	pending: boolean
+	onChange: (next: boolean) => void
+}) {
+	return (
+		<Button
+			variant="ghost"
+			size="icon"
+			className="size-7 shrink-0"
+			disabled={pending}
+			aria-label={`${published ? 'Unpublish' : 'Publish'} ${what}`}
+			onClick={() => onChange(!published)}
+		>
+			{published ? (
+				<CircleCheck className="text-success size-4" />
+			) : (
+				<CircleSlash className="text-muted-foreground size-4" />
+			)}
+		</Button>
+	)
+}
+
 function Builder({ data, offering }: { data: StaffOutline; offering: string }) {
 	const [adding, setAdding] = useState(false)
 	const [title, setTitle] = useState('')
+	// Which modules are folded shut. Deliberately not remembered between
+	// visits: where somebody had scrolled to is not worth a storage key.
+	const [shut, setShut] = useState<Set<string>>(new Set())
 	const save = useSaveModule(offering)
 	const reorder = useReorder(offering)
 	const space = useContentSpace(offering)
@@ -66,6 +124,16 @@ function Builder({ data, offering }: { data: StaffOutline; offering: string }) {
 		(order) =>
 			reorder.mutate({ order }, { onError: (error) => toast.error(message(error)) }),
 	)
+
+	const allShut = data.modules.length > 0 && shut.size === data.modules.length
+
+	const setShutFor = (name: string, next: boolean) =>
+		setShut((current) => {
+			const updated = new Set(current)
+			if (next) updated.add(name)
+			else updated.delete(name)
+			return updated
+		})
 
 	return (
 		<div className="space-y-4">
@@ -159,9 +227,26 @@ function Builder({ data, offering }: { data: StaffOutline; offering: string }) {
 						</Button>
 					</div>
 				) : (
-					<Button size="sm" onClick={() => setAdding(true)}>
-						<Plus /> New module
-					</Button>
+					<div className="ml-auto flex gap-2">
+						{data.modules.length > 0 && (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() =>
+									setShut(
+										allShut
+											? new Set()
+											: new Set(data.modules.map((module) => module.name)),
+									)
+								}
+							>
+								{allShut ? 'Expand all' : 'Collapse all'}
+							</Button>
+						)}
+						<Button size="sm" onClick={() => setAdding(true)}>
+							<Plus /> Module
+						</Button>
+					</div>
 				)}
 			</div>
 
@@ -185,6 +270,8 @@ function Builder({ data, offering }: { data: StaffOutline; offering: string }) {
 						drag={drag}
 						first={index === 0}
 						last={index === data.modules.length - 1}
+						shut={shut.has(module.name)}
+						onShut={(next) => setShutFor(module.name, next)}
 					/>
 				))
 			)}
@@ -199,6 +286,8 @@ function ModuleCard({
 	drag,
 	first,
 	last,
+	shut,
+	onShut,
 }: {
 	module: OutlineModule
 	data: StaffOutline
@@ -206,119 +295,188 @@ function ModuleCard({
 	drag: ReturnType<typeof useDragOrder>
 	first: boolean
 	last: boolean
+	shut: boolean
+	onShut: (next: boolean) => void
 }) {
 	const [adding, setAdding] = useState(false)
 	const [editing, setEditing] = useState(false)
 	const save = useSaveModule(offering)
 	const remove = useDeleteModule(offering)
 
+	// Prerequisites arrive as module names; they were chosen by title, so they
+	// are shown by title. A name that no longer resolves is dropped rather
+	// than printed raw.
+	const waitsFor = module.prerequisites
+		.map((name) => data.modules.find((row) => row.name === name)?.title)
+		.filter((value): value is string => Boolean(value))
+
+	const open = () => onShut(false)
+
 	return (
-		<Card
+		<div
 			{...drag.handlers(module.name)}
 			className={cn(
+				'bg-card overflow-hidden rounded-lg border border-l-2',
+				// The rule down the edge answers the question a teacher actually
+				// has on this screen: which of these can a student see? A draft
+				// keeps the border it inherits rather than a transparent one,
+				// which would read as a card missing its left side.
+				module.published && 'border-l-primary',
 				drag.dragging === module.name && 'opacity-50',
 				drag.over === module.name &&
 					drag.dragging !== module.name &&
-					'border-primary border-t-2',
+					'border-t-primary border-t-2',
 			)}
 		>
-			<CardContent className="p-0">
-				<div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-					<GripVertical
-						className="text-muted-foreground size-4 shrink-0 cursor-grab"
-						aria-hidden
-					/>
-					<div className="flex gap-0.5">
-						<Button
-							variant="ghost"
-							size="icon"
-							aria-label={`Move ${module.title} up`}
-							disabled={first}
-							onClick={() => drag.moveBy(module.name, -1)}
-						>
-							<ChevronUp className="size-4" />
-						</Button>
-						<Button
-							variant="ghost"
-							size="icon"
-							aria-label={`Move ${module.title} down`}
-							disabled={last}
-							onClick={() => drag.moveBy(module.name, 1)}
-						>
-							<ChevronDown className="size-4" />
-						</Button>
-					</div>
+			<div className="bg-muted flex flex-wrap items-center gap-1.5 border-b px-3 py-2">
+				<GripVertical
+					className="text-muted-foreground size-4 shrink-0 cursor-grab"
+					aria-hidden
+				/>
 
-					<span className="min-w-0 flex-1 truncate font-medium">{module.title}</span>
+				<Button
+					variant="ghost"
+					size="icon"
+					className="size-7 shrink-0"
+					aria-label={`${shut ? 'Expand' : 'Collapse'} ${module.title}`}
+					aria-expanded={!shut}
+					onClick={() => onShut(!shut)}
+				>
+					{shut ? (
+						<ChevronRight className="size-4" />
+					) : (
+						<ChevronDown className="size-4" />
+					)}
+				</Button>
 
-					<Badge variant={module.published ? 'default' : 'secondary'}>
-						{module.published ? 'Published' : 'Draft'}
+				<span className="min-w-0 flex-1 truncate font-semibold">{module.title}</span>
+
+				{waitsFor.length > 0 && (
+					<Badge variant="outline" className="font-normal">
+						After {waitsFor.join(', ')}
 					</Badge>
-
-					<Button variant="ghost" size="sm" onClick={() => setEditing(!editing)}>
-						Edit
-					</Button>
-
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={() =>
-							save.mutate(
-								{
-									values: { published: module.published ? 0 : 1 },
-									module: module.name,
-								},
-								{ onError: (error) => toast.error(message(error)) },
-							)
-						}
-					>
-						{module.published ? 'Unpublish' : 'Publish'}
-					</Button>
-
-					<Button
-						variant="ghost"
-						size="icon"
-						aria-label={`Delete ${module.title}`}
-						onClick={() =>
-							remove.mutate(module.name, {
-								onSuccess: () => toast.success('Module deleted'),
-								onError: (error) => toast.error(message(error)),
-							})
-						}
-					>
-						<Trash2 className="size-4" />
-					</Button>
-				</div>
-
-				{editing && (
-					<div className="border-b px-4 py-3">
-						<ModuleForm
-							module={module}
-							data={data}
-							offering={offering}
-							onDone={() => setEditing(false)}
-						/>
-					</div>
+				)}
+				{module.require_sequential_progress ? (
+					<Badge variant="outline" className="font-normal">
+						In order
+					</Badge>
+				) : null}
+				{module.unlock_at && (
+					<Badge variant="outline" className="font-normal">
+						Unlocks {module.unlock_at.slice(0, 16).replace('T', ' ')}
+					</Badge>
 				)}
 
-				<ItemList module={module} offering={offering} />
+				<PublishToggle
+					published={Boolean(module.published)}
+					what={`module ${module.title}`}
+					pending={save.isPending}
+					onChange={(next) =>
+						save.mutate(
+							{ values: { published: next ? 1 : 0 }, module: module.name },
+							{ onError: (error) => toast.error(message(error)) },
+						)
+					}
+				/>
 
-				<div className="px-4 py-3">
-					{adding ? (
-						<ItemForm
-							module={module.name}
-							data={data}
-							offering={offering}
-							onDone={() => setAdding(false)}
-						/>
-					) : (
-						<Button variant="outline" size="sm" onClick={() => setAdding(true)}>
-							<Plus /> Add item
+				<Button
+					variant="ghost"
+					size="icon"
+					className="size-7 shrink-0"
+					aria-label={`Add an item to ${module.title}`}
+					onClick={() => {
+						open()
+						setAdding(true)
+					}}
+				>
+					<Plus className="size-4" />
+				</Button>
+
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="size-7 shrink-0"
+							aria-label={`More for ${module.title}`}
+						>
+							<EllipsisVertical className="size-4" />
 						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem
+							onSelect={() => {
+								open()
+								setEditing(true)
+							}}
+						>
+							Edit
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							disabled={first}
+							onSelect={() => drag.moveBy(module.name, -1)}
+						>
+							Move up
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							disabled={last}
+							onSelect={() => drag.moveBy(module.name, 1)}
+						>
+							Move down
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							variant="destructive"
+							onSelect={() =>
+								remove.mutate(module.name, {
+									onSuccess: () => toast.success('Module deleted'),
+									onError: (error) => toast.error(message(error)),
+								})
+							}
+						>
+							Delete
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</div>
+
+			{!shut && (
+				<>
+					{editing && (
+						<div className="border-b px-3 py-3">
+							<ModuleForm
+								module={module}
+								data={data}
+								offering={offering}
+								onDone={() => setEditing(false)}
+							/>
+						</div>
 					)}
-				</div>
-			</CardContent>
-		</Card>
+
+					<ItemList module={module} offering={offering} />
+
+					<div className="px-3 py-2">
+						{adding ? (
+							<ItemForm
+								module={module.name}
+								data={data}
+								offering={offering}
+								onDone={() => setAdding(false)}
+							/>
+						) : (
+							<Button
+								variant="ghost"
+								size="sm"
+								className="text-muted-foreground"
+								onClick={() => setAdding(true)}
+							>
+								<Plus className="size-4" /> Add item
+							</Button>
+						)}
+					</div>
+				</>
+			)}
+		</div>
 	)
 }
 
@@ -466,7 +624,13 @@ function ItemList({ module, offering }: { module: OutlineModule; offering: strin
 			),
 	)
 
-	if (module.items.length === 0) return null
+	if (module.items.length === 0) {
+		return (
+			<p className="text-muted-foreground px-3 py-4 text-sm">
+				Nothing in this module yet.
+			</p>
+		)
+	}
 
 	return (
 		<ul className="divide-y">
@@ -484,6 +648,22 @@ function ItemList({ module, offering }: { module: OutlineModule; offering: strin
 	)
 }
 
+/** What kind of thing a row points at, at a glance. */
+const ITEM_ICON: Record<string, LucideIcon> = {
+	Lesson: FileText,
+	Assignment: ClipboardList,
+	Page: FileType,
+	File: Paperclip,
+	URL: Link2,
+}
+
+/** How far one step of indent moves a row, in rem, and how many steps are
+ *  allowed. Indent is presentation only: nothing about ordering, access or
+ *  completion reads it, so the cap is about the row staying readable rather
+ *  than about meaning running out. */
+const INDENT_STEP = 1.5
+const MAX_INDENT = 3
+
 function ItemRow({
 	item,
 	offering,
@@ -497,65 +677,115 @@ function ItemRow({
 	first: boolean
 	last: boolean
 }) {
+	const save = useSaveItem(offering)
 	const remove = useDeleteItem(offering)
+
+	const label = item.title || '(untitled)'
+	const indent = Math.min(Math.max(item.indent ?? 0, 0), MAX_INDENT)
+
+	// A sub-header names the rows under it and points at nothing, so it gets
+	// no type icon and no second line -- which also leaves it sitting a little
+	// to the left of what it groups, and reading as the heading it is.
+	const heading = item.item_type === 'Sub-header'
+	const Icon = ITEM_ICON[item.item_type]
+
+	const set = (values: Record<string, unknown>) =>
+		save.mutate(
+			{ module: item.module, values, item: item.name },
+			{ onError: (error) => toast.error(message(error)) },
+		)
 
 	return (
 		<li
 			{...drag.handlers(item.name)}
 			className={cn(
-				'flex flex-wrap items-center gap-2 px-4 py-2 text-sm',
+				'flex items-center gap-2 py-2 pr-3 text-sm',
 				drag.dragging === item.name && 'opacity-50',
 				drag.over === item.name &&
 					drag.dragging !== item.name &&
 					'border-primary border-t-2',
 			)}
+			style={{ paddingLeft: `${0.75 + indent * INDENT_STEP}rem` }}
 		>
 			<GripVertical
 				className="text-muted-foreground size-4 shrink-0 cursor-grab"
 				aria-hidden
 			/>
-			<div className="flex shrink-0 gap-0.5">
-				<Button
-					variant="ghost"
-					size="icon"
-					aria-label={`Move ${item.title || item.item_type} up`}
-					disabled={first}
-					onClick={() => drag.moveBy(item.name, -1)}
-				>
-					<ChevronUp className="size-4" />
-				</Button>
-				<Button
-					variant="ghost"
-					size="icon"
-					aria-label={`Move ${item.title || item.item_type} down`}
-					disabled={last}
-					onClick={() => drag.moveBy(item.name, 1)}
-				>
-					<ChevronDown className="size-4" />
-				</Button>
-			</div>
-			<span className="text-muted-foreground w-20 shrink-0 text-xs">
-				{item.item_type}
-			</span>
-			<span className="min-w-0 flex-1 truncate">{item.title || '(untitled)'}</span>
-			{item.completion_requirement !== 'Nothing' && (
-				<span className="text-muted-foreground text-xs">
-					{item.completion_requirement}
-					{item.completion_requirement === 'Score at least' && ` ${item.min_score}`}
-				</span>
+
+			{heading ? null : Icon ? (
+				<Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
+			) : (
+				<span className="size-4 shrink-0" />
 			)}
-			<Button
-				variant="ghost"
-				size="icon"
-				aria-label={`Delete ${item.title || item.item_type}`}
-				onClick={() =>
-					remove.mutate(item.name, {
-						onError: (error) => toast.error(message(error)),
-					})
-				}
-			>
-				<Trash2 className="size-4" />
-			</Button>
+
+			<div className="min-w-0 flex-1">
+				<span className={cn('block truncate', heading && 'font-semibold')}>
+					{label}
+				</span>
+				{!heading && (
+					<span className="text-muted-foreground block text-xs">
+						{item.item_type}
+						{item.completion_requirement !== 'Nothing' &&
+							` · ${item.completion_requirement}`}
+						{item.completion_requirement === 'Score at least' && ` ${item.min_score}`}
+					</span>
+				)}
+			</div>
+
+			<PublishToggle
+				published={Boolean(item.published)}
+				what={label}
+				pending={save.isPending}
+				onChange={(next) => set({ published: next ? 1 : 0 })}
+			/>
+
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="size-7 shrink-0"
+						aria-label={`More for ${label}`}
+					>
+						<EllipsisVertical className="size-4" />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end">
+					<DropdownMenuItem
+						disabled={first}
+						onSelect={() => drag.moveBy(item.name, -1)}
+					>
+						Move up
+					</DropdownMenuItem>
+					<DropdownMenuItem disabled={last} onSelect={() => drag.moveBy(item.name, 1)}>
+						Move down
+					</DropdownMenuItem>
+					<DropdownMenuSeparator />
+					<DropdownMenuItem
+						disabled={indent >= MAX_INDENT}
+						onSelect={() => set({ indent: indent + 1 })}
+					>
+						Indent
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						disabled={indent <= 0}
+						onSelect={() => set({ indent: indent - 1 })}
+					>
+						Outdent
+					</DropdownMenuItem>
+					<DropdownMenuSeparator />
+					<DropdownMenuItem
+						variant="destructive"
+						onSelect={() =>
+							remove.mutate(item.name, {
+								onError: (error) => toast.error(message(error)),
+							})
+						}
+					>
+						Delete
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
 		</li>
 	)
 }

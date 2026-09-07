@@ -71,7 +71,7 @@ const withScheme: CourseDetailData = {
 // tuple, which is what a bare `vi.fn(async () => ...)` infers.
 const post = vi.fn(async (_path: string, _args?: Record<string, unknown>) => ({}))
 
-async function renderCourse(data: CourseDetailData) {
+async function renderCourse(data: CourseDetailData, at = '') {
 	vi.resetModules()
 	Object.assign(window, { user: 'faculty@x.com', roles: ['Faculty'], csrf_token: 't' })
 
@@ -85,7 +85,7 @@ async function renderCourse(data: CourseDetailData) {
 
 	render(
 		<QueryClientProvider client={client}>
-			<MemoryRouter initialEntries={[`/staff/courses/${OFFERING}`]}>
+			<MemoryRouter initialEntries={[`/staff/courses/${OFFERING}${at}`]}>
 				<Routes>
 					<Route path="/staff/courses/:name" element={<CourseDetail />} />
 				</Routes>
@@ -132,6 +132,19 @@ describe('building a course', () => {
 		const [path, args] = post.mock.calls[0]
 		expect(path).toBe('sibbcs.api.course.save_scheme')
 		expect(args?.course_offering).toBe(OFFERING)
+	})
+
+	it('opens the section the address names', async () => {
+		// The sections are a column now rather than a strip, but they are still
+		// addressed by `?tab=` -- and "No assignments set yet, *set one*" is a
+		// link to this one.
+		await renderCourse(withScheme, '?tab=assignments')
+
+		expect(screen.getByRole('tab', { name: /Assignments/ })).toHaveAttribute(
+			'aria-selected',
+			'true',
+		)
+		expect(screen.getByText('Essay One')).toBeInTheDocument()
 	})
 
 	it('asks for a grade scheme before it will take an assignment', async () => {
