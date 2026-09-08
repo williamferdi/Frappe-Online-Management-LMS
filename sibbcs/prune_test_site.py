@@ -47,9 +47,16 @@ ORDER = (
 # Every prefix the suite names its fixtures with. Anything else was seeded or
 # made by hand, and is not ours to delete -- the seeded 2026 terms and the
 # programmes are what several tests assert against.
+#
+# Adding to this list is not a guess. Find the helper that makes the name,
+# then check what the widened filter would still spare: if that is anything
+# other than the seeded terms and the programmes, the prefix is too broad.
 TEST_PREFIXES = (
 	"TST", "TSC", "TGB", "TCA", "TMD", "TSY", "TMK", "TCW", "TQZ", "TCO",
 	"PNL", "SCOPE", "TQB", "TCQ",
+	# Found by reading the helpers that make them, after the site reached 479
+	# terms with the list above in place. `GRD` alone was 227 of them.
+	"GRD", "GEN", "TPL", "TCN", "TIM", "TAP",
 )
 
 
