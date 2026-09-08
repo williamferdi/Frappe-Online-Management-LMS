@@ -20,3 +20,7 @@ frontend/.vite/
 frontend/dist/
 sibbcs/public/portal/**/*.map
 frontend/tsconfig.tsbuildinfo
+
+# A scratch harness for looking at a screen without a session; built by
+# hand when needed and never part of what ships.
+frontend/.preview/
