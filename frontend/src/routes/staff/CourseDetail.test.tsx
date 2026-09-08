@@ -77,7 +77,22 @@ async function renderCourse(data: CourseDetailData, at = '') {
 
 	vi.doMock('@/lib/frappe', async () => {
 		const actual = await vi.importActual<typeof import('@/lib/frappe')>('@/lib/frappe')
-		return { ...actual, frappeGet: vi.fn(async () => data), frappePost: post }
+		return {
+			...actual,
+			frappeGet: vi.fn(async (path: string) =>
+				path.includes('coursework.preview')
+					? {
+							row: {
+								assignment: data.assignments[0],
+								submission: null,
+								open: { open: true, reason: null },
+							},
+							roster: [{ name: 'REG-1', student_name: 'Beula Patricia' }],
+						}
+					: data,
+			),
+			frappePost: post,
+		}
 	})
 
 	const { CourseDetail } = await import('./CourseDetail')
@@ -188,7 +203,7 @@ describe('building a course', () => {
 
 		await userEvent.click(screen.getByRole('button', { name: /Preview/ }))
 
-		expect(screen.getByText('Due')).toBeInTheDocument()
+		expect(await screen.findByText('Due')).toBeInTheDocument()
 		expect(screen.getByText('Points')).toBeInTheDocument()
 		expect(screen.getByText('Submitting')).toBeInTheDocument()
 		expect(
@@ -203,10 +218,30 @@ describe('building a course', () => {
 
 		await userEvent.click(screen.getByRole('button', { name: /Preview/ }))
 
-		expect(screen.getByText(/no student can see it at all yet/)).toBeInTheDocument()
+		expect(
+			await screen.findByText(/no student can see this at all yet/),
+		).toBeInTheDocument()
 		// And no working control, because a teacher cannot hand work in to
 		// themselves and the server would refuse if they tried.
 		expect(screen.queryByRole('button', { name: 'Hand in' })).toBeNull()
+	})
+
+	it('offers the roster, so a teacher can ask about one student', async () => {
+		// Whether a particular student may still hand a particular thing in
+		// depends on their extensions and the late policy, so the answer comes
+		// from the server rather than from a guess made here.
+		await renderCourse(withScheme, '?tab=assignments')
+
+		await userEvent.click(screen.getByRole('button', { name: /Preview/ }))
+
+		const picker = await screen.findByLabelText('Preview as')
+		expect(picker).toHaveValue('')
+		expect(
+			screen.getByRole('option', { name: 'A student who has just arrived' }),
+		).toBeInTheDocument()
+		expect(
+			screen.getByRole('option', { name: 'Beula Patricia' }),
+		).toBeInTheDocument()
 	})
 
 	it('publishes a piece of work from the list, without opening it', async () => {

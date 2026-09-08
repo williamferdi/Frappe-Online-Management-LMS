@@ -1215,6 +1215,12 @@ export interface CourseworkRow {
 	open: { open: boolean; reason: string | null }
 }
 
+/** One assignment as a student meets it, for the teacher who set it. */
+export interface AssignmentPreview {
+	row: CourseworkRow | null
+	roster: { name: string; student_name: string }[]
+}
+
 export interface CourseworkResponse {
 	registration: {
 		name: string

@@ -21,6 +21,7 @@ from frappe import _
 from frappe.utils import cint, flt, now_datetime, get_datetime
 
 from sibbcs.academic import gradebook, overrides
+from sibbcs.academic import permissions as academic_permissions
 from sibbcs.academic.portal import get_student
 
 ASSIGNMENT_FIELDS = (
@@ -100,8 +101,29 @@ def coursework(course_registration):
 		order_by="due_date asc, creation asc",
 	)
 
+	return {
+		"registration": {
+			"name": registration.name,
+			"course_title": registration.course_title,
+			"course_offering": registration.course_offering,
+			"status": registration.status,
+		},
+		"rows": _rows_for(course_registration, assignments),
+	}
+
+
+def _rows_for(course_registration, assignments):
+	"""Assignments as the student of `course_registration` sees them.
+
+	With no registration it is a student who has just arrived: nothing handed
+	in, and the dates as set rather than as extended for anybody.
+
+	Shared with the staff preview so the two cannot answer differently. In
+	particular `_visible` drops an unposted score here as it does there, which
+	is what makes it safe to show a teacher this view of somebody else.
+	"""
 	mine = {}
-	if assignments:
+	if assignments and course_registration:
 		for submission in frappe.get_all(
 			"Assignment Submission",
 			filters={
@@ -118,27 +140,76 @@ def coursework(course_registration):
 
 	rows = []
 	for assignment in assignments:
-		submission = mine.get(assignment.name)
 		# An extension moves the dates before anything is decided from them,
 		# so "open" and "late" are answered against the dates that actually
 		# apply to this student.
-		overrides.apply_to(assignment, course_registration)
+		if course_registration:
+			overrides.apply_to(assignment, course_registration)
 		rows.append(
 			{
 				"assignment": assignment,
-				"submission": _visible(submission),
+				"submission": _visible(mine.get(assignment.name)),
 				"open": _is_open(assignment),
 			}
 		)
 
+	return rows
+
+
+def _require_teaching():
+	if not academic_permissions.is_teaching_staff():
+		frappe.throw(
+			_("You do not have access to academic records."), frappe.PermissionError
+		)
+
+
+@frappe.whitelist()
+def preview(course_offering, assignment, course_registration=None):
+	"""One piece of work as a student meets it, for the teacher who set it.
+
+	A registration is optional. With one, the dates are that student's real
+	ones and their own submission is shown -- minus anything they cannot see
+	themselves, because the rows come from the builder the portal uses.
+	Without one it is a student who has just arrived.
+
+	Unpublished work is included: a teacher checking a draft is the reason
+	this exists, and `coursework` filters drafts out for students already.
+	"""
+	_require_teaching()
+	academic_permissions.assert_may_teach(course_offering)
+
+	# Or a teacher of one course could read an assignment on another by naming
+	# it, since the offering they may teach is the only thing checked above.
+	on_this_course = frappe.db.get_value(
+		"Course Assignment", assignment, "course_offering"
+	)
+	if on_this_course != course_offering:
+		frappe.throw(_("That assignment is not on this course."), frappe.PermissionError)
+
+	if course_registration:
+		theirs = frappe.db.get_value(
+			"Course Registration", course_registration, "course_offering"
+		)
+		if theirs != course_offering:
+			frappe.throw(_("That student is not on this course."), frappe.PermissionError)
+
+	rows = _rows_for(
+		course_registration,
+		frappe.get_all(
+			"Course Assignment",
+			filters={"name": assignment},
+			fields=list(ASSIGNMENT_FIELDS),
+		),
+	)
+
 	return {
-		"registration": {
-			"name": registration.name,
-			"course_title": registration.course_title,
-			"course_offering": registration.course_offering,
-			"status": registration.status,
-		},
-		"rows": rows,
+		"row": rows[0] if rows else None,
+		"roster": frappe.get_all(
+			"Course Registration",
+			filters={"course_offering": course_offering},
+			fields=["name", "student_name"],
+			order_by="student_name asc",
+		),
 	}
 
 

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { frappeGet, frappePost } from '@/lib/frappe'
 import type {
+	AssignmentPreview,
 	CourseAssignment,
 	CourseDetail,
 	CoursesResponse,
@@ -103,4 +104,32 @@ export function useSetPublished(offering: string) {
 				{ assignment, published: published ? 1 : 0 },
 			),
 	)
+}
+
+
+/**
+ * One assignment as a student meets it.
+ *
+ * Asked of the server rather than assembled here: whether somebody may still
+ * hand a thing in depends on their extensions and the late policy, and a
+ * second opinion computed in the browser is one that can disagree with the
+ * real one. Only fetched while the panel is open, so a course with a dozen
+ * assignments does not make a dozen calls nobody asked for.
+ */
+export function useAssignmentPreview(
+	offering: string,
+	assignment: string,
+	registration: string | null,
+	enabled: boolean,
+) {
+	return useQuery({
+		queryKey: ['course', 'assignment-preview', offering, assignment, registration ?? ''],
+		queryFn: () =>
+			frappeGet<AssignmentPreview>('sibbcs.api.coursework.preview', {
+				course_offering: offering,
+				assignment,
+				...(registration ? { course_registration: registration } : {}),
+			}),
+		enabled,
+	})
 }

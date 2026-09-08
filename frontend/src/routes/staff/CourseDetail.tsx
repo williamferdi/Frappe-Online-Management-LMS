@@ -34,6 +34,7 @@ import { TabsContent } from '@/components/ui/tabs'
 import { CourseWorkspace, type CourseSection } from '@/routes/staff/CourseWorkspace'
 import { Textarea } from '@/components/ui/textarea'
 import {
+	useAssignmentPreview,
 	useCourse,
 	useDeleteAssignment,
 	useDeleteScheme,
@@ -404,16 +405,6 @@ function AssignmentRow({
 	const remove = useDeleteAssignment(offering)
 	const [preview, setPreview] = useState(false)
 
-	// The assignment as somebody who has not handed it in would meet it. The
-	// dates and the points are the assignment's own; `open` is asserted rather
-	// than worked out, because whether a particular student may still hand
-	// something in is the server's answer about that student, not ours.
-	const asStudent = {
-		assignment: row,
-		submission: null,
-		open: { open: true, reason: null },
-	}
-
 	return (
 		<Card>
 			<CardContent className="p-0">
@@ -481,18 +472,61 @@ function AssignmentRow({
 				</div>
 			</div>
 
-			{preview && (
-				<div className="bg-muted/40 border-t p-4">
-					<p className="text-muted-foreground mb-3 text-xs">
-						{row.published
-							? 'As a student who has not handed it in yet would see it.'
-							: 'This is a draft, so no student can see it at all yet. This is what they would meet once it is published.'}
-					</p>
-					<AssignmentDetail row={asStudent} preview />
-				</div>
-			)}
+			{preview && <PreviewPanel row={row} offering={offering} />}
 			</CardContent>
 		</Card>
+	)
+}
+
+/**
+ * The assignment as a student meets it, with a name to choose.
+ *
+ * Without a name it is a student who has just arrived. With one, the dates
+ * are that student's real ones and their own submission is shown -- minus
+ * anything they cannot see themselves, because the server builds these rows
+ * with the same code the portal reads.
+ */
+function PreviewPanel({ row, offering }: { row: CourseAssignment; offering: string }) {
+	const [registration, setRegistration] = useState<string | null>(null)
+	const query = useAssignmentPreview(offering, row.name, registration, true)
+
+	return (
+		<div className="bg-muted/40 space-y-3 border-t p-4">
+			<div className="flex flex-wrap items-center gap-3">
+				<label className="flex items-center gap-2 text-sm">
+					<span className="text-muted-foreground">Seen as</span>
+					<select
+						className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+						value={registration ?? ''}
+						onChange={(event) => setRegistration(event.target.value || null)}
+						aria-label="Preview as"
+					>
+						<option value="">A student who has just arrived</option>
+						{(query.data?.roster ?? []).map((person) => (
+							<option key={person.name} value={person.name}>
+								{person.student_name}
+							</option>
+						))}
+					</select>
+				</label>
+
+				{!row.published && (
+					<span className="text-muted-foreground text-xs">
+						A draft: no student can see this at all yet.
+					</span>
+				)}
+			</div>
+
+			{query.isPending ? (
+				<p className="text-muted-foreground text-sm">Opening…</p>
+			) : query.data?.row ? (
+				<AssignmentDetail row={query.data.row} preview />
+			) : (
+				<p className="text-muted-foreground text-sm">
+					{message(query.error) }
+				</p>
+			)}
+		</div>
 	)
 }
 

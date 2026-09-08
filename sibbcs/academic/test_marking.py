@@ -472,3 +472,146 @@ class TestCoursework(FrappeTestCase):
 				parameters = inspect.signature(function).parameters
 				self.assertNotIn("student", parameters, name)
 				self.assertNotIn("user", parameters, name)
+
+
+class TestAssignmentPreview(FrappeTestCase):
+	"""One assignment as a named student sees it, shown to the teacher.
+
+	The whole reason this is answered by the server: whether somebody may
+	still hand a thing in depends on their extensions and the late policy, and
+	a browser working it out separately can disagree with the real answer.
+	"""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.term = make_term(
+			f"TST-AP-{frappe.generate_hash(length=6)}", status="Open"
+		).name
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		suffix = frappe.generate_hash(length=6)
+
+		self.offering = make_offering(
+			make_course(f"TAP {suffix[:4]}").name, self.term, status="Published"
+		).name
+		make_scheme(self.offering, [{"component": "Assignment", "weight_pct": 100}])
+		self.assignment = make_assignment(
+			self.offering, title=f"Essay {suffix[:4]}", points_possible=20, published=1
+		).name
+
+		self.teacher = make_user(
+			f"ap.teach.{suffix}@example.invalid", ["Academic Coordinator"], "Coordinator"
+		)
+
+		self.email = make_user(f"ap.stud.{suffix}@example.invalid", ["Student"], "Pupil")
+		self.student = make_student(f"Preview Student {suffix}", user=self.email).name
+		self.registration = frappe.get_doc(
+			{
+				"doctype": "Course Registration",
+				"program_enrollment": make_enrollment(self.student).name,
+				"course_offering": self.offering,
+				"status": "Registered",
+			}
+		).insert(ignore_permissions=True).name
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+
+	def test_a_teacher_sees_the_work_and_who_is_on_the_course(self):
+		frappe.set_user(self.teacher)
+		data = coursework.preview(self.offering, self.assignment)
+
+		self.assertEqual(data["row"]["assignment"]["title"][:5], "Essay")
+		self.assertIsNone(data["row"]["submission"])
+		self.assertEqual(len(data["roster"]), 1)
+		self.assertEqual(data["roster"][0]["name"], self.registration)
+
+	def test_a_draft_is_previewable_even_though_no_student_can_see_it(self):
+		"""Checking a draft before publishing it is the point of this."""
+		frappe.db.set_value("Course Assignment", self.assignment, "published", 0)
+
+		frappe.set_user(self.teacher)
+		data = coursework.preview(self.offering, self.assignment)
+		self.assertIsNotNone(data["row"])
+
+		frappe.set_user(self.email)
+		self.assertEqual(coursework.coursework(self.registration)["rows"], [])
+
+	def test_a_named_student_brings_their_own_submission(self):
+		frappe.set_user(self.email)
+		coursework.submit(self.registration, self.assignment, body="My essay")
+
+		frappe.set_user(self.teacher)
+		row = coursework.preview(self.offering, self.assignment, self.registration)["row"]
+
+		self.assertIsNotNone(row["submission"])
+		self.assertEqual(row["submission"]["body"], "My essay")
+
+	def test_a_mark_that_is_not_posted_does_not_show_through_the_preview(self):
+		"""The preview is what the student sees, so it has to withhold what
+		the student is not being shown yet -- or it becomes a way of reading a
+		mark to somebody before anybody meant them to have it."""
+		frappe.set_user(self.email)
+		coursework.submit(self.registration, self.assignment, body="My essay")
+
+		frappe.set_user("Administrator")
+		marking.grade(self.assignment, self.registration, score=17, post=0)
+
+		frappe.set_user(self.teacher)
+		row = coursework.preview(self.offering, self.assignment, self.registration)["row"]
+
+		self.assertNotIn("score", row["submission"])
+		self.assertNotIn("feedback", row["submission"])
+
+	def test_a_posted_mark_does_show(self):
+		frappe.set_user(self.email)
+		coursework.submit(self.registration, self.assignment, body="My essay")
+
+		frappe.set_user("Administrator")
+		marking.grade(self.assignment, self.registration, score=17, post=1)
+
+		frappe.set_user(self.teacher)
+		row = coursework.preview(self.offering, self.assignment, self.registration)["row"]
+
+		self.assertEqual(row["submission"]["score"], 17)
+
+	def test_a_student_cannot_preview_anything(self):
+		frappe.set_user(self.email)
+		with self.assertRaises(frappe.PermissionError):
+			coursework.preview(self.offering, self.assignment)
+
+	def test_an_assignment_on_another_course_is_refused(self):
+		"""The offering is what the permission check is about, so naming an
+		assignment from elsewhere would otherwise read it through a course the
+		teacher does happen to teach."""
+		suffix = frappe.generate_hash(length=6)
+		elsewhere = make_offering(
+			make_course(f"TAP2 {suffix[:4]}").name, self.term, status="Published"
+		).name
+		make_scheme(elsewhere, [{"component": "Assignment", "weight_pct": 100}])
+		other = make_assignment(elsewhere, title="Not yours", points_possible=5).name
+
+		frappe.set_user(self.teacher)
+		with self.assertRaises(frappe.PermissionError):
+			coursework.preview(self.offering, other)
+
+	def test_a_student_on_another_course_is_refused(self):
+		suffix = frappe.generate_hash(length=6)
+		elsewhere = make_offering(
+			make_course(f"TAP3 {suffix[:4]}").name, self.term, status="Published"
+		).name
+		outsider = make_student(f"Outsider {suffix}").name
+		theirs = frappe.get_doc(
+			{
+				"doctype": "Course Registration",
+				"program_enrollment": make_enrollment(outsider).name,
+				"course_offering": elsewhere,
+				"status": "Registered",
+			}
+		).insert(ignore_permissions=True).name
+
+		frappe.set_user(self.teacher)
+		with self.assertRaises(frappe.PermissionError):
+			coursework.preview(self.offering, self.assignment, theirs)
