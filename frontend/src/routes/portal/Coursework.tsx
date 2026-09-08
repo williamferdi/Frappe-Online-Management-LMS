@@ -1,28 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { CircleCheck, Clock, LoaderCircle, Send } from 'lucide-react'
-import { toast } from 'sonner'
+import { Link, useParams } from 'react-router-dom'
+import { CircleCheck } from 'lucide-react'
 
-import { AssignmentMeta } from '@/components/AssignmentMeta'
 import { PageHeader } from '@/components/PageHeader'
 import { QueryState } from '@/components/QueryState'
-import { RichText } from '@/components/RichText'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { useCoursework, useSubmitWork } from '@/hooks/useCoursework'
-import { FrappeError } from '@/lib/frappe'
-import { cn } from '@/lib/utils'
+import { Card, CardContent } from '@/components/ui/card'
+import { useCoursework } from '@/hooks/useCoursework'
 import type { CourseworkResponse, CourseworkRow } from '@/types'
 
-function message(error: unknown) {
-	return error instanceof FrappeError ? error.message : 'Something went wrong.'
-}
-
-/** A student's own coursework: what is set, and what came back. */
+/**
+ * A student's own coursework: what is set, and what came back.
+ *
+ * An index, the way Canvas's assignments page is an index. Each piece has its
+ * own address now, so this lists them and that page holds the instructions,
+ * the submission and the mark. It used to carry a hand-in form per row, which
+ * meant a course with a dozen assignments rendered a dozen forms nobody had
+ * asked for, and gave the same work two places to be handed in from.
+ */
 export function Coursework() {
 	const { name = null } = useParams()
 	const registration = name ? decodeURIComponent(name) : null
@@ -42,17 +36,14 @@ function Loaded({
 	data: CourseworkResponse
 	registration: string
 }) {
-	// Which assignment was asked for, if this was reached from a module item
-	// rather than from the menu.
-	const [params] = useSearchParams()
-	const asked = params.get('assignment')
-
 	return (
 		<>
 			<PageHeader
 				title={data.registration.course_title || data.registration.course_offering}
 				description={
-					data.rows.length === 1 ? '1 piece of work' : `${data.rows.length} pieces of work`
+					data.rows.length === 1
+						? '1 piece of work'
+						: `${data.rows.length} pieces of work`
 				}
 			/>
 
@@ -66,206 +57,55 @@ function Loaded({
 					</CardContent>
 				</Card>
 			) : (
-				<div className="space-y-3">
-					{data.rows.map((row) => (
-						<Piece
-							key={row.assignment.name}
-							row={row}
-							registration={registration}
-							asked={row.assignment.name === asked}
-						/>
-					))}
-				</div>
+				<Card>
+					<CardContent className="p-0">
+						<ul className="divide-y">
+							{data.rows.map((row) => (
+								<Row key={row.assignment.name} row={row} registration={registration} />
+							))}
+						</ul>
+					</CardContent>
+				</Card>
 			)}
 		</>
 	)
 }
 
-function Piece({
-	row,
-	registration,
-	asked,
-}: {
-	row: CourseworkRow
-	registration: string
-	asked: boolean
-}) {
-	const [open, setOpen] = useState(false)
-	const [body, setBody] = useState('')
-	const [url, setUrl] = useState('')
-	const submit = useSubmitWork(registration)
-	const card = useRef<HTMLDivElement>(null)
-
+function Row({ row, registration }: { row: CourseworkRow; registration: string }) {
 	const submission = row.submission
 	const marked = submission && submission.posted && submission.score !== undefined
-	const canHandIn = !submission && row.open.open
-
-	// Arrived here from a module item. Open the form and bring it into view,
-	// rather than leaving somebody to find their own assignment in the list
-	// they were just dropped into.
-	useEffect(() => {
-		if (!asked) return
-		if (canHandIn && row.assignment.submission_type !== 'Quiz') setOpen(true)
-		// Optional call, not just optional chain: jsdom has no scrollIntoView
-		// at all, and a throw here would take the whole effect with it --
-		// including the line above that opens the form.
-		card.current?.scrollIntoView?.({ block: 'start' })
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [asked])
 
 	return (
-		<Card ref={card} className={cn(asked && 'ring-primary/40 ring-2')}>
-			<CardHeader className="pb-3">
-				<div className="flex flex-wrap items-start justify-between gap-2">
-					<CardTitle className="text-base">{row.assignment.title}</CardTitle>
-
-					{marked ? (
-						<Badge>
-							{submission.score} / {row.assignment.points_possible}
-						</Badge>
-					) : submission ? (
-						<Badge variant="secondary">
-							<CircleCheck className="mr-1 size-3" /> Handed in
-						</Badge>
-					) : row.open.open ? (
-						<Badge variant="outline">Not handed in</Badge>
-					) : (
-						<Badge variant="secondary">Closed</Badge>
-					)}
+		<li>
+			<Link
+				to={`/portal/courses/${encodeURIComponent(registration)}/work/${encodeURIComponent(row.assignment.name)}`}
+				className="hover:bg-muted/60 flex flex-wrap items-center gap-3 px-4 py-3"
+			>
+				<div className="min-w-0 flex-1">
+					<div className="truncate text-sm font-medium">{row.assignment.title}</div>
+					<div className="text-muted-foreground mt-0.5 text-xs">
+						{row.assignment.due_date
+							? `Due ${row.assignment.due_date.slice(0, 16).replace('T', ' ')}`
+							: 'No due date'}
+						{' · '}
+						<span className="tabular-nums">{row.assignment.points_possible}</span> points
+					</div>
 				</div>
-			</CardHeader>
 
-			<CardContent className="space-y-4">
-				<AssignmentMeta
-					points={row.assignment.points_possible}
-					dueDate={row.assignment.due_date}
-					submissionType={row.assignment.submission_type}
-				/>
-
-				{row.assignment.description && <RichText html={row.assignment.description} />}
-
-				{/* Everything about what has happened to this, in one place. It
-				    used to be a badge at the top, a sentence in the middle, a
-				    box of feedback and a button at the bottom. */}
-				<section className="border-t pt-4">
-					<h3 className="mb-2 text-sm font-semibold">Submission</h3>
-
-					{row.open.reason && (
-						<p className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs">
-							<Clock className="size-3.5" /> {row.open.reason}
-						</p>
-					)}
-
-					{submission && !marked && (
-						<p className="text-muted-foreground text-sm">
-							Handed in
-							{submission.submitted_on
-								? ` ${submission.submitted_on.slice(0, 16).replace('T', ' ')}`
-								: ''}
-							. Not marked yet.
-						</p>
-					)}
-
-					{marked && (
-						<p className="text-sm">
-							Marked{' '}
-							<span className="font-medium tabular-nums">
-								{submission.score} out of {row.assignment.points_possible}
-							</span>
-							.
-						</p>
-					)}
-
-					{marked && submission.feedback && (
-						<div className="bg-muted mt-3 rounded-md p-3">
-							<div className="mb-1 text-xs font-medium">Feedback</div>
-							<RichText html={submission.feedback} />
-						</div>
-					)}
-
-					{!submission && !row.open.open && (
-						<p className="text-muted-foreground text-sm">
-							This is closed, and nothing was handed in.
-						</p>
-					)}
-
-					{/* A quiz is sat, not typed into a box. The assignment still
-					    holds the due date and the points; the quiz holds the clock. */}
-					{canHandIn && row.assignment.submission_type === 'Quiz' && (
-						<Button size="sm" asChild>
-							<Link
-								to={`/portal/courses/${encodeURIComponent(registration)}/quiz/${encodeURIComponent(row.assignment.name)}`}
-							>
-								Start quiz
-							</Link>
-						</Button>
-					)}
-
-					{canHandIn && row.assignment.submission_type !== 'Quiz' && (
-						<>
-							{open ? (
-								<div className="space-y-3">
-									{row.assignment.submission_type === 'URL' ? (
-										<div>
-											<Label htmlFor={`url-${row.assignment.name}`}>Link</Label>
-											<Input
-												id={`url-${row.assignment.name}`}
-												className="mt-1"
-												value={url}
-												onChange={(event) => setUrl(event.target.value)}
-											/>
-										</div>
-									) : (
-										<div>
-											<Label htmlFor={`body-${row.assignment.name}`}>Your answer</Label>
-											<Textarea
-												id={`body-${row.assignment.name}`}
-												className="mt-1"
-												rows={8}
-												value={body}
-												onChange={(event) => setBody(event.target.value)}
-											/>
-										</div>
-									)}
-
-									<div className="flex justify-end gap-2">
-										<Button variant="outline" size="sm" onClick={() => setOpen(false)}>
-											Cancel
-										</Button>
-										<Button
-											size="sm"
-											disabled={submit.isPending || (!body && !url)}
-											onClick={() =>
-												submit.mutate(
-													{ assignment: row.assignment.name, body, url },
-													{
-														onSuccess: () => {
-															toast.success('Handed in')
-															setOpen(false)
-														},
-														onError: (error) => toast.error(message(error)),
-													},
-												)
-											}
-										>
-											{submit.isPending ? (
-												<LoaderCircle className="animate-spin" />
-											) : (
-												<Send />
-											)}
-											Hand in
-										</Button>
-									</div>
-								</div>
-							) : (
-								<Button size="sm" onClick={() => setOpen(true)}>
-									Hand in
-								</Button>
-							)}
-						</>
-					)}
-				</section>
-			</CardContent>
-		</Card>
+				{marked ? (
+					<Badge>
+						{submission.score} / {row.assignment.points_possible}
+					</Badge>
+				) : submission ? (
+					<Badge variant="secondary">
+						<CircleCheck className="mr-1 size-3" /> Handed in
+					</Badge>
+				) : row.open.open ? (
+					<Badge variant="outline">Not handed in</Badge>
+				) : (
+					<Badge variant="secondary">Closed</Badge>
+				)}
+			</Link>
+		</li>
 	)
 }

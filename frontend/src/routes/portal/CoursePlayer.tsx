@@ -537,11 +537,10 @@ function AssignmentPanel({
 	}
 	registration: string
 }) {
-	// The list is the only place work is handed in, so this points at the one
-	// piece rather than at all of it: `/work` alone drops somebody among a
-	// dozen assignments to find again the one they just clicked.
+	// The piece has its own address, so this is a link to the work rather than
+	// to the list that happens to contain it.
 	const to = content.name
-		? `/portal/courses/${encodeURIComponent(registration)}/work?assignment=${encodeURIComponent(content.name)}`
+		? `/portal/courses/${encodeURIComponent(registration)}/work/${encodeURIComponent(content.name)}`
 		: `/portal/courses/${encodeURIComponent(registration)}/work`
 
 	return (
