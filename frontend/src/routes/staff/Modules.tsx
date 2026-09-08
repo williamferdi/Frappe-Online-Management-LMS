@@ -328,7 +328,7 @@ function ModuleCard({
 					'border-t-primary border-t-2',
 			)}
 		>
-			<div className="bg-muted flex flex-wrap items-center gap-1.5 border-b px-3 py-2">
+			<div className="bg-muted flex items-center gap-1.5 border-b px-3 py-2">
 				<GripVertical
 					className="text-muted-foreground size-4 shrink-0 cursor-grab"
 					aria-hidden
@@ -349,95 +349,104 @@ function ModuleCard({
 					)}
 				</Button>
 
-				<span className="min-w-0 flex-1 truncate font-semibold">{module.title}</span>
+				{/* The title and what qualifies it, wrapping together. The floor on
+				    the title is the point: without one, three chips on a narrow
+				    bar leave it a single letter. */}
+				<div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+					<span className="min-w-24 flex-1 truncate font-semibold">
+						{module.title}
+					</span>
 
-				{waitsFor.length > 0 && (
-					<Badge variant="outline" className="font-normal">
-						After {waitsFor.join(', ')}
-					</Badge>
-				)}
-				{module.require_sequential_progress ? (
-					<Badge variant="outline" className="font-normal">
-						In order
-					</Badge>
-				) : null}
-				{module.unlock_at && (
-					<Badge variant="outline" className="font-normal">
-						Unlocks {module.unlock_at.slice(0, 16).replace('T', ' ')}
-					</Badge>
-				)}
+					{waitsFor.length > 0 && (
+						<Badge variant="outline" className="max-w-48 truncate font-normal">
+							After {waitsFor.join(', ')}
+						</Badge>
+					)}
+					{module.require_sequential_progress ? (
+						<Badge variant="outline" className="font-normal">
+							In order
+						</Badge>
+					) : null}
+					{module.unlock_at && (
+						<Badge variant="outline" className="font-normal">
+							Unlocks {module.unlock_at.slice(0, 16).replace('T', ' ')}
+						</Badge>
+					)}
+				</div>
 
-				<PublishToggle
-					published={Boolean(module.published)}
-					what={`module ${module.title}`}
-					pending={save.isPending}
-					onChange={(next) =>
-						save.mutate(
-							{ values: { published: next ? 1 : 0 }, module: module.name },
-							{ onError: (error) => toast.error(message(error)) },
-						)
-					}
-				/>
+				<div className="flex shrink-0 items-center gap-0.5">
+						<PublishToggle
+						published={Boolean(module.published)}
+						what={`module ${module.title}`}
+						pending={save.isPending}
+						onChange={(next) =>
+							save.mutate(
+								{ values: { published: next ? 1 : 0 }, module: module.name },
+								{ onError: (error) => toast.error(message(error)) },
+							)
+						}
+					/>
 
-				<Button
-					variant="ghost"
-					size="icon"
-					className="size-7 shrink-0"
-					aria-label={`Add an item to ${module.title}`}
-					onClick={() => {
-						open()
-						setAdding(true)
-					}}
-				>
-					<Plus className="size-4" />
-				</Button>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="size-7 shrink-0"
+						aria-label={`Add an item to ${module.title}`}
+						onClick={() => {
+							open()
+							setAdding(true)
+						}}
+					>
+						<Plus className="size-4" />
+					</Button>
 
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							variant="ghost"
-							size="icon"
-							className="size-7 shrink-0"
-							aria-label={`More for ${module.title}`}
-						>
-							<EllipsisVertical className="size-4" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuItem
-							onSelect={() => {
-								open()
-								setEditing(true)
-							}}
-						>
-							Edit
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							disabled={first}
-							onSelect={() => drag.moveBy(module.name, -1)}
-						>
-							Move up
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							disabled={last}
-							onSelect={() => drag.moveBy(module.name, 1)}
-						>
-							Move down
-						</DropdownMenuItem>
-						<DropdownMenuSeparator />
-						<DropdownMenuItem
-							variant="destructive"
-							onSelect={() =>
-								remove.mutate(module.name, {
-									onSuccess: () => toast.success('Module deleted'),
-									onError: (error) => toast.error(message(error)),
-								})
-							}
-						>
-							Delete
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon"
+								className="size-7 shrink-0"
+								aria-label={`More for ${module.title}`}
+							>
+								<EllipsisVertical className="size-4" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								onSelect={() => {
+									open()
+									setEditing(true)
+								}}
+							>
+								Edit
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								disabled={first}
+								onSelect={() => drag.moveBy(module.name, -1)}
+							>
+								Move up
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								disabled={last}
+								onSelect={() => drag.moveBy(module.name, 1)}
+							>
+								Move down
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem
+								variant="destructive"
+								onSelect={() =>
+									remove.mutate(module.name, {
+										onSuccess: () => toast.success('Module deleted'),
+										onError: (error) => toast.error(message(error)),
+									})
+								}
+							>
+								Delete
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+					</div>
 			</div>
 
 			{!shut && (

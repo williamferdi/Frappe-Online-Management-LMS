@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Course workspace preview</title>
+		<script>
+			// What Jinja injects on the real site, so `readBoot` sees a staff
+			// session rather than falling back to Guest.
+			window.user = 'ramsem@sibbc.org'
+			window.full_name = 'Ramsem'
+			window.roles = ['Academic Coordinator', 'Faculty']
+			window.csrf_token = 'preview'
+			window.site_name = 'online.sibbc.org'
+		</script>
+	</head>
+	<body>
+		<div id="root"></div>
+		<script type="module" src="./main.tsx"></script>
+	</body>
+</html>

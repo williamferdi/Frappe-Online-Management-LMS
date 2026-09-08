@@ -1,0 +1,271 @@
+{
+ "modules": [
+  {
+   "name": "CM-00003",
+   "title": "Week 1 \u2014 Introduction",
+   "position": 0,
+   "published": 1,
+   "unlock_at": null,
+   "require_sequential_progress": 1,
+   "prerequisites": [],
+   "state": {
+    "open": true,
+    "reason": null
+   },
+   "complete": false,
+   "items": [
+    {
+     "name": "CMI-PREVIEW-0",
+     "module": "CM-00003",
+     "item_type": "Sub-header",
+     "title": "Course Materials",
+     "position": 0,
+     "indent": 0,
+     "published": 1,
+     "lesson": null,
+     "assignment": null,
+     "page": "CPG-00002",
+     "file": null,
+     "url": null,
+     "completion_requirement": "Nothing",
+     "min_score": 0.0,
+     "progress": null,
+     "complete": false,
+     "locked": false,
+     "lock_reason": null
+    },
+    {
+     "name": "CMI-PREVIEW-1",
+     "module": "CM-00003",
+     "item_type": "Lesson",
+     "title": "Lesson1",
+     "position": 1,
+     "indent": 1,
+     "published": 1,
+     "lesson": null,
+     "assignment": null,
+     "page": "CPG-00002",
+     "file": null,
+     "url": null,
+     "completion_requirement": "View it",
+     "min_score": 0.0,
+     "progress": null,
+     "complete": false,
+     "locked": false,
+     "lock_reason": null
+    },
+    {
+     "name": "CMI-PREVIEW-2",
+     "module": "CM-00003",
+     "item_type": "Page",
+     "title": "Page1",
+     "position": 2,
+     "indent": 1,
+     "published": 1,
+     "lesson": null,
+     "assignment": null,
+     "page": "CPG-00002",
+     "file": null,
+     "url": null,
+     "completion_requirement": "Nothing",
+     "min_score": 0.0,
+     "progress": null,
+     "complete": false,
+     "locked": false,
+     "lock_reason": null
+    },
+    {
+     "name": "CMI-PREVIEW-3",
+     "module": "CM-00003",
+     "item_type": "Page",
+     "title": "P2",
+     "position": 3,
+     "indent": 1,
+     "published": 0,
+     "lesson": null,
+     "assignment": null,
+     "page": "CPG-00002",
+     "file": null,
+     "url": null,
+     "completion_requirement": "Nothing",
+     "min_score": 0.0,
+     "progress": null,
+     "complete": false,
+     "locked": false,
+     "lock_reason": null
+    },
+    {
+     "name": "CMI-PREVIEW-4",
+     "module": "CM-00003",
+     "item_type": "Sub-header",
+     "title": "Assignments",
+     "position": 4,
+     "indent": 0,
+     "published": 1,
+     "lesson": null,
+     "assignment": null,
+     "page": "CPG-00002",
+     "file": null,
+     "url": null,
+     "completion_requirement": "Nothing",
+     "min_score": 0.0,
+     "progress": null,
+     "complete": false,
+     "locked": false,
+     "lock_reason": null
+    },
+    {
+     "name": "CMI-PREVIEW-5",
+     "module": "CM-00003",
+     "item_type": "Assignment",
+     "title": "ASS1",
+     "position": 5,
+     "indent": 1,
+     "published": 1,
+     "lesson": null,
+     "assignment": null,
+     "page": "CPG-00002",
+     "file": null,
+     "url": null,
+     "completion_requirement": "Hand it in",
+     "min_score": 0.0,
+     "progress": null,
+     "complete": false,
+     "locked": false,
+     "lock_reason": null
+    },
+    {
+     "name": "CMI-PREVIEW-6",
+     "module": "CM-00003",
+     "item_type": "File",
+     "title": "File",
+     "position": 6,
+     "indent": 1,
+     "published": 1,
+     "lesson": null,
+     "assignment": null,
+     "page": "CPG-00002",
+     "file": null,
+     "url": null,
+     "completion_requirement": "Nothing",
+     "min_score": 0.0,
+     "progress": null,
+     "complete": false,
+     "locked": false,
+     "lock_reason": null
+    }
+   ]
+  },
+  {
+   "name": "CM-00004",
+   "title": "Week 2 \u2014 Descriptive Statistics",
+   "position": 1,
+   "published": 0,
+   "unlock_at": "2026-10-01 09:00:00",
+   "require_sequential_progress": 1,
+   "prerequisites": [
+    "CM-00003"
+   ],
+   "state": {
+    "open": true,
+    "reason": null
+   },
+   "complete": true,
+   "items": [
+    {
+     "name": "CMI-PREVIEW-0",
+     "module": "CM-00003",
+     "item_type": "Sub-header",
+     "title": "Course Materials",
+     "position": 0,
+     "indent": 0,
+     "published": 1,
+     "lesson": null,
+     "assignment": null,
+     "page": "CPG-00002",
+     "file": null,
+     "url": null,
+     "completion_requirement": "Nothing",
+     "min_score": 0.0,
+     "progress": null,
+     "complete": false,
+     "locked": false,
+     "lock_reason": null
+    },
+    {
+     "name": "CMI-PREVIEW-1",
+     "module": "CM-00003",
+     "item_type": "Lesson",
+     "title": "Lesson1",
+     "position": 1,
+     "indent": 1,
+     "published": 0,
+     "lesson": null,
+     "assignment": null,
+     "page": "CPG-00002",
+     "file": null,
+     "url": null,
+     "completion_requirement": "Nothing",
+     "min_score": 0.0,
+     "progress": null,
+     "complete": false,
+     "locked": false,
+     "lock_reason": null
+    }
+   ]
+  }
+ ],
+ "choices": {
+  "lessons": [
+   {
+    "name": "0181 Lesson1",
+    "title": "Lesson1",
+    "chapter": "Chapter1"
+   },
+   {
+    "name": "0182 Lesson2",
+    "title": "Lesson2 ",
+    "chapter": "Chapter1"
+   }
+  ],
+  "assignments": [
+   {
+    "name": "CA-00001",
+    "title": "Assignment "
+   }
+  ],
+  "pages": [
+   {
+    "name": "CPG-00002",
+    "title": "Page 2",
+    "published": 1
+   },
+   {
+    "name": "CPG-00001",
+    "title": "Page1",
+    "published": 1
+   }
+  ],
+  "files": [
+   {
+    "name": "CFL-00001",
+    "title": "Testing file"
+   }
+  ],
+  "item_types": [
+   "Lesson",
+   "Assignment",
+   "Page",
+   "File",
+   "URL",
+   "Sub-header"
+  ],
+  "completion_rules": [
+   "Nothing",
+   "View it",
+   "Mark it done",
+   "Hand it in",
+   "Score at least"
+  ]
+ }
+}

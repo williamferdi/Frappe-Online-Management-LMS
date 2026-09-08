@@ -1,0 +1,4 @@
+/* The app's own stylesheet, plus the source it has to scan: Tailwind looks
+   beside the CSS file by default, which here is this folder and not the app. */
+@import '../src/index.css';
+@source '../src';
