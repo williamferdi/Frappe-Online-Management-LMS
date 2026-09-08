@@ -14,15 +14,18 @@ const ROSTER: RosterEntry[] = [
 function Harness({
 	roster = ROSTER,
 	onChange = () => {},
+	allowAnyone,
 }: {
 	roster?: RosterEntry[]
 	onChange?: (value: string | null) => void
+	allowAnyone?: boolean
 }) {
 	const [value, setValue] = useState<string | null>(null)
 	return (
 		<RosterPicker
 			roster={roster}
 			value={value}
+			allowAnyone={allowAnyone}
 			onChange={(next) => {
 				setValue(next)
 				onChange(next)
@@ -137,6 +140,32 @@ describe('choosing whose view to look at', () => {
 
 		expect(screen.getAllByRole('option').length).toBeLessThan(60)
 		expect(screen.getByText(/150 more/)).toBeInTheDocument()
+	})
+
+	it('drops the empty choice where there is no such thing', async () => {
+		// Marking is a walk through a class rather than a view of one: there
+		// is always somebody in hand, so a row meaning nobody does nothing.
+		render(<Harness allowAnyone={false} />)
+
+		await userEvent.click(picker())
+
+		expect(screen.getAllByRole('option')).toHaveLength(3)
+		expect(
+			screen.queryByRole('option', { name: /just arrived/ }),
+		).toBeNull()
+	})
+
+	it('does not take nobody when a search has matched nobody', async () => {
+		// With no reset row there is not even a null to fall back on, so Enter
+		// on an empty list has to do nothing rather than clear the choice.
+		const onChange = vi.fn()
+		render(<Harness allowAnyone={false} onChange={onChange} />)
+
+		await userEvent.click(picker())
+		await userEvent.type(picker(), 'zzz')
+		await userEvent.keyboard('{Enter}')
+
+		expect(onChange).not.toHaveBeenCalled()
 	})
 
 	it('shows something for a registration with no name on it yet', async () => {

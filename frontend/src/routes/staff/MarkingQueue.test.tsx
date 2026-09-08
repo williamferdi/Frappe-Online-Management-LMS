@@ -169,6 +169,31 @@ describe('the marking queue', () => {
 		).toBeInTheDocument()
 	})
 
+	it('jumps to a student by name rather than walking to them', async () => {
+		// Clicking Next twenty times to reach the person somebody asked about
+		// is the thing this replaces.
+		await renderQueue()
+
+		expect(screen.getByRole('heading', { name: 'Beula Patricia' })).toBeInTheDocument()
+
+		const jump = screen.getByRole('combobox', { name: 'Jump to' })
+		await userEvent.click(jump)
+		await userEvent.type(jump, 'ruth')
+		await userEvent.click(screen.getByRole('option', { name: /Ruth Demo/ }))
+
+		expect(screen.getByRole('heading', { name: 'Ruth Demo' })).toBeInTheDocument()
+	})
+
+	it('offers no way back to nobody in particular', async () => {
+		// There is always a student in hand while marking, so the empty choice
+		// the other three screens carry would be a row that does nothing.
+		await renderQueue()
+
+		await userEvent.click(screen.getByRole('combobox', { name: 'Jump to' }))
+
+		expect(screen.queryByRole('option', { name: /just arrived/ })).toBeNull()
+	})
+
 	it('offers to enter a mark for work never handed in', async () => {
 		// An offline paper, or a zero for nothing at all.
 		await renderQueue()

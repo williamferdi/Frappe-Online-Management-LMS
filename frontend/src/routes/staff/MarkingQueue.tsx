@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/PageHeader'
 import { QueryState } from '@/components/QueryState'
+import { RosterPicker } from '@/components/RosterPicker'
 import { RichText } from '@/components/RichText'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -119,7 +120,30 @@ function Loaded({
 				</Card>
 			) : (
 				<div className="grid gap-4 lg:grid-cols-[260px_1fr]">
-					<StudentList rows={rows} index={index} onPick={setIndex} />
+					<div className="space-y-3">
+						{/* A class of two hundred is a list nobody scrolls to find
+						    the one person they were asked about. */}
+						{rows.length > 1 && (
+							<RosterPicker
+								roster={rows.map((row) => ({
+									name: row.course_registration,
+									student_name: row.student_name,
+								}))}
+								value={current?.course_registration ?? null}
+								onChange={(picked) => {
+									const found = rows.findIndex(
+										(row) => row.course_registration === picked,
+									)
+									if (found >= 0) setIndex(found)
+								}}
+								label="Jump to"
+								placeholder="Search the class"
+								allowAnyone={false}
+							/>
+						)}
+
+						<StudentList rows={rows} index={index} onPick={setIndex} />
+					</div>
 					{current && (
 						<Marker
 							key={current.course_registration}

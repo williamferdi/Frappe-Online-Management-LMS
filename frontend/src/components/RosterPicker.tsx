@@ -46,6 +46,8 @@ export function RosterPicker({
 	onChange,
 	label = 'Seen as',
 	anyone = 'A student who has just arrived',
+	placeholder,
+	allowAnyone = true,
 }: {
 	roster: RosterEntry[]
 	value: string | null
@@ -53,6 +55,13 @@ export function RosterPicker({
 	label?: string
 	/** What the empty choice is called: nobody in particular. */
 	anyone?: string
+	/** Shown in the empty box. Defaults to whatever the empty choice is
+	 *  called, which is the right words wherever there is one. */
+	placeholder?: string
+	/** Whether there is an empty choice at all. Marking is a walk through a
+	 *  class rather than a view of one: there is always somebody in hand, so
+	 *  a row meaning nobody would be a row that does nothing. */
+	allowAnyone?: boolean
 }) {
 	const id = useId()
 	const [open, setOpen] = useState(false)
@@ -71,9 +80,10 @@ export function RosterPicker({
 		return people.slice(0, SHOWN)
 	}, [roster, query])
 
-	// The reset is always offered, and never filtered away: somebody who has
-	// typed a name still has to be able to get back to nobody in particular.
-	const options: (RosterEntry | null)[] = [null, ...matches]
+	// Where there is a reset it is always offered and never filtered away:
+	// somebody who has typed a name still has to be able to get back to nobody
+	// in particular.
+	const options: (RosterEntry | null)[] = allowAnyone ? [null, ...matches] : matches
 	const hidden = Math.max(
 		0,
 		(query.trim()
@@ -114,7 +124,9 @@ export function RosterPicker({
 
 		if (event.key === 'Enter' && open) {
 			event.preventDefault()
-			take(options[active] ?? null)
+			// Nothing to take when a search has matched nobody, and with no
+			// reset row there is not even a null to fall back on.
+			if (options.length) take(options[active] ?? null)
 			return
 		}
 
@@ -126,12 +138,21 @@ export function RosterPicker({
 	}
 
 	return (
-		<div className="flex items-center gap-2 text-sm" ref={box}>
-			<label id={`${id}-label`} className="text-muted-foreground" htmlFor={`${id}-input`}>
+		<div
+			className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+			ref={box}
+		>
+			<label
+				id={`${id}-label`}
+				className="text-muted-foreground shrink-0"
+				htmlFor={`${id}-input`}
+			>
 				{label}
 			</label>
 
-			<div className="relative">
+			{/* Takes what is left, down to a floor and up to a ceiling: this sits
+			    in a 260px column on one screen and a full-width row on another. */}
+			<div className="relative min-w-44 max-w-72 flex-1">
 				<input
 					id={`${id}-input`}
 					role="combobox"
@@ -140,8 +161,8 @@ export function RosterPicker({
 					aria-autocomplete="list"
 					aria-labelledby={`${id}-label`}
 					aria-activedescendant={open ? `${id}-option-${active}` : undefined}
-					className="border-input bg-background h-9 w-64 rounded-md border px-3 pr-8 text-sm"
-					placeholder={anyone}
+					className="border-input bg-background h-9 w-full rounded-md border px-3 pr-8 text-sm"
+					placeholder={placeholder ?? anyone}
 					value={shownValue}
 					onChange={(event) => {
 						setQuery(event.target.value)
@@ -157,7 +178,7 @@ export function RosterPicker({
 						id={`${id}-list`}
 						role="listbox"
 						aria-labelledby={`${id}-label`}
-						className="bg-popover absolute z-50 mt-1 max-h-72 w-64 overflow-y-auto rounded-md border p-1 shadow-md"
+						className="bg-popover absolute z-50 mt-1 max-h-72 w-full min-w-52 overflow-y-auto rounded-md border p-1 shadow-md"
 					>
 						{options.map((person, index) => (
 							<li
