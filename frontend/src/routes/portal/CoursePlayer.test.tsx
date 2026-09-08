@@ -1,0 +1,168 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+
+import type { OutlineItem, PlayerCourse, PlayerItem } from '@/types'
+
+/**
+ * The player had no front-end test at all. These are the two the modules list
+ * used to carry, which belong here now that a row leads to the player rather
+ * than opening in place -- plus enough around them to prove the page renders.
+ */
+
+const REGISTRATION = 'REG-1'
+const ITEM = 'CMI-00001'
+
+function item(overrides: Partial<OutlineItem> = {}): OutlineItem {
+	return {
+		name: ITEM,
+		module: 'CM-00001',
+		item_type: 'Lesson',
+		title: 'What Scripture is',
+		position: 0,
+		indent: 0,
+		published: 1,
+		lesson: 'lesson-1',
+		assignment: null,
+		page: null,
+		file: null,
+		url: null,
+		completion_requirement: 'View it',
+		min_score: null,
+		progress: null,
+		complete: false,
+		locked: false,
+		lock_reason: null,
+		...overrides,
+	}
+}
+
+function course(row: OutlineItem): PlayerCourse {
+	return {
+		registration: {
+			name: REGISTRATION,
+			course_title: 'Systematic Theology I',
+			course_offering: 'THST601-TERM-A',
+		},
+		modules: [
+			{
+				name: 'CM-00001',
+				title: 'Week One',
+				position: 0,
+				published: 1,
+				unlock_at: null,
+				require_sequential_progress: 0,
+				prerequisites: [],
+				state: { open: true, reason: null },
+				complete: false,
+				items: [row],
+			},
+		],
+		progress: { done: 0, total: 1, percent: 0 },
+		sequence: [ITEM],
+	}
+}
+
+function reading(row: OutlineItem): PlayerItem {
+	return {
+		item: row,
+		module: 'CM-00001',
+		previous: null,
+		next: null,
+		position: { index: 1, total: 1 },
+		content: {
+			name: 'lesson-1',
+			title: 'What Scripture is',
+			blocks: [{ type: 'paragraph', data: { text: 'All Scripture is' } }],
+			removed: [],
+			lms_url: '/lms/courses/intro',
+		},
+		resources: [],
+		note: null,
+	}
+}
+
+const post = vi.fn(async (_path: string, _args?: Record<string, unknown>) => ({}))
+
+async function renderPlayer(row: OutlineItem) {
+	vi.resetModules()
+	Object.assign(window, { user: 'student@x.com', roles: ['Student'], csrf_token: 't' })
+
+	const get = vi.fn(async (path: string) =>
+		path === 'sibbcs.api.player.item' ? reading(row) : course(row),
+	)
+
+	vi.doMock('@/lib/frappe', async () => {
+		const actual = await vi.importActual<typeof import('@/lib/frappe')>('@/lib/frappe')
+		return { ...actual, frappeGet: get, frappePost: post }
+	})
+
+	const { CoursePlayer } = await import('./CoursePlayer')
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+	render(
+		<QueryClientProvider client={client}>
+			<MemoryRouter
+				initialEntries={[`/portal/courses/${REGISTRATION}/learn/${ITEM}`]}
+			>
+				<Routes>
+					<Route
+						path="/portal/courses/:name/learn/:item"
+						element={<CoursePlayer />}
+					/>
+				</Routes>
+			</MemoryRouter>
+		</QueryClientProvider>,
+	)
+
+	await waitFor(() => expect(document.querySelector('[data-slot="skeleton"]')).toBeNull())
+	await screen.findAllByText('What Scripture is')
+}
+
+beforeEach(() => {
+	vi.resetModules()
+	post.mockClear()
+})
+afterEach(() => {
+	vi.doUnmock('@/lib/frappe')
+	vi.restoreAllMocks()
+})
+
+describe('reading a lesson in the player', () => {
+	it('shows the lesson a row led to', async () => {
+		await renderPlayer(item())
+
+		expect(screen.getByText('All Scripture is')).toBeInTheDocument()
+	})
+
+	it('offers Mark done only for the items that ask for it', async () => {
+		await renderPlayer(item({ completion_requirement: 'Mark it done' }))
+
+		await userEvent.click(screen.getByRole('button', { name: /Mark done/ }))
+
+		await waitFor(() => expect(post).toHaveBeenCalled())
+		const [path, args] = post.mock.calls[0]
+		expect(path).toBe('sibbcs.api.syllabus.mark_done')
+		expect(args?.module_item).toBe(ITEM)
+	})
+
+	it('does not offer Mark done for work that is scored', async () => {
+		// Letting a student declare marked work finished is letting them mark
+		// their own work.
+		await renderPlayer(
+			item({ completion_requirement: 'Score at least', min_score: 50 }),
+		)
+
+		expect(screen.queryByRole('button', { name: /Mark done/ })).toBeNull()
+	})
+
+	it('does not offer Mark done twice', async () => {
+		await renderPlayer(
+			item({ completion_requirement: 'Mark it done', complete: true }),
+		)
+
+		expect(screen.queryByRole('button', { name: /Mark done/ })).toBeNull()
+	})
+})

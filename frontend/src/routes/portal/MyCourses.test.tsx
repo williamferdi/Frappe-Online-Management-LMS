@@ -128,6 +128,17 @@ describe('My Courses', () => {
 		expect(link.getAttribute('href')).toContain('/work')
 	})
 
+	it('offers the whole course as a list, not only where to resume', async () => {
+		// "Open course" resumes where the student left off, which is the right
+		// default and cannot show what is coming. This route existed with
+		// nothing linking to it for weeks; the point of this test is that
+		// somebody notices if that happens again.
+		await renderScreen({ enrollment, registrations: [paid] })
+
+		const link = await screen.findByRole('link', { name: /modules/i })
+		expect(link.getAttribute('href')).toContain('/modules')
+	})
+
 	it('asks for payment instead of a course link when the fee is outstanding', async () => {
 		// The course opens on payment. Showing "Open course" here is the reason
 		// students email to ask why the link does nothing.

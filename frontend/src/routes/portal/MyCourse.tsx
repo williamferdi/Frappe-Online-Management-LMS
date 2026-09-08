@@ -1,23 +1,22 @@
-import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { toast } from 'sonner'
 
-import { BlockRenderer } from '@/components/BlockRenderer'
 import { ModuleOutline } from '@/components/ModuleOutline'
 import { PageHeader } from '@/components/PageHeader'
 import { QueryState } from '@/components/QueryState'
-import { RichText } from '@/components/RichText'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { useMarkDone, useMyCourse, useReadItem } from '@/hooks/useSyllabus'
-import { FrappeError } from '@/lib/frappe'
-import type { CourseOutline, OutlineItem } from '@/types'
+import { useMyCourse } from '@/hooks/useSyllabus'
+import type { CourseOutline } from '@/types'
 
-function message(error: unknown) {
-	return error instanceof FrappeError ? error.message : 'Something went wrong.'
-}
-
-/** A student's course: modules in order, with what is open and what is not. */
+/**
+ * A student's course as a list of modules: what is in it, in what order, and
+ * what is open.
+ *
+ * An index and nothing more. A row leads to the player, which is where a
+ * lesson is actually read -- and where the notes, the bookmark, the thread,
+ * the next and previous, and marking something done already live. Opening a
+ * lesson in place here meant a second, poorer reader with none of that, and
+ * two places that both had to learn every new item type.
+ */
 export function MyCourse() {
 	const { name = null } = useParams()
 	const registration = name ? decodeURIComponent(name) : null
@@ -37,23 +36,6 @@ function Loaded({
 	data: CourseOutline
 	registration: string
 }) {
-	const [open, setOpen] = useState<string | null>(null)
-
-	// One reader for the page rather than one per row: only a single item is
-	// open at a time, so the last result is always the open item's.
-	const read = useReadItem(registration)
-
-	const onOpenItem = (item: string | null) => {
-		setOpen(item)
-		if (!item) return
-		read.mutate(item, {
-			onError: (error) => {
-				toast.error(message(error))
-				setOpen(null)
-			},
-		})
-	}
-
 	return (
 		<>
 			<PageHeader
@@ -75,84 +57,14 @@ function Loaded({
 			) : (
 				<ModuleOutline
 					modules={data.modules}
-					openItem={open}
-					onOpenItem={onOpenItem}
-					// A student cannot open what is locked. The teacher's preview
-					// of this same list can, which is why the rule is a prop.
+					itemHref={(item) =>
+						`/portal/courses/${encodeURIComponent(registration)}/learn/${encodeURIComponent(item.name)}`
+					}
+					// A locked row is not a link. The player would refuse it, and
+					// being refused after a click is worse than not being offered.
 					canOpen={(item) => !item.locked}
-					renderBody={(item) => (
-						<ItemBody item={item} registration={registration} read={read} />
-					)}
 				/>
 			)}
 		</>
-	)
-}
-
-function ItemBody({
-	item,
-	registration,
-	read,
-}: {
-	item: OutlineItem
-	registration: string
-	read: ReturnType<typeof useReadItem>
-}) {
-	const done = useMarkDone(registration)
-
-	return (
-		<div className="bg-muted/40 border-t px-4 py-4">
-			{read.isPending && <p className="text-muted-foreground text-sm">Opening…</p>}
-
-			{read.data?.content && (
-				<>
-					{'blocks' in read.data.content ? (
-						<BlockRenderer
-							blocks={read.data.content.blocks}
-							removed={read.data.content.removed}
-							lmsUrl={read.data.content.lms_url}
-						/>
-					) : 'body' in read.data.content ? (
-						<RichText html={read.data.content.body ?? ''} />
-					) : 'file' in read.data.content ? (
-						<a
-							href={read.data.content.file ?? '#'}
-							target="_blank"
-							rel="noreferrer noopener"
-							className="text-primary text-sm underline"
-						>
-							{read.data.content.title}
-						</a>
-					) : null}
-				</>
-			)}
-
-			{item.item_type === 'URL' && item.url && (
-				<a
-					href={item.url}
-					target="_blank"
-					rel="noreferrer noopener"
-					className="text-primary text-sm underline"
-				>
-					{item.url}
-				</a>
-			)}
-
-			{item.completion_requirement === 'Mark it done' && !item.complete && (
-				<Button
-					size="sm"
-					className="mt-4"
-					disabled={done.isPending}
-					onClick={() =>
-						done.mutate(item.name, {
-							onSuccess: () => toast.success('Marked done'),
-							onError: (error) => toast.error(message(error)),
-						})
-					}
-				>
-					Mark done
-				</Button>
-			)}
-		</div>
 	)
 }

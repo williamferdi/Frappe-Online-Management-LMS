@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
 	ChevronDown,
 	ChevronRight,
@@ -28,10 +29,15 @@ import type { OutlineItem, OutlineModule } from '@/types'
  * so the two cannot drift apart the way the two hand-written copies this
  * replaces had already started to.
  *
- * Presentation only. What a row does when it opens belongs to the caller,
- * because that is where the callers genuinely differ: a student's click
- * records progress and is refused on a locked item, while a teacher checking
- * a module that unlocks next week records nothing and is allowed in anyway.
+ * Presentation only. What a row does belongs to the caller, because that is
+ * where the callers genuinely differ. A student's row is a link into the
+ * player, which is where reading, notes, bookmarks and marking something done
+ * all live. A teacher's row on the Student view tab cannot be: the player is
+ * addressed by a registration and a teacher does not have one, so theirs
+ * opens in place against `preview_item`, which records that nobody read it.
+ *
+ * Hence two ways in: give `itemHref` and rows become links; give
+ * `renderBody` and they become toggles.
  */
 
 const ITEM_ICON: Record<string, LucideIcon> = {
@@ -47,27 +53,33 @@ const ITEM_ICON: Record<string, LucideIcon> = {
 const INDENT_STEP = 1.5
 const MAX_INDENT = 3
 
+export interface OutlineBehaviour {
+	/** Where a row leads. Returning null leaves it a toggle instead. */
+	itemHref?: (item: OutlineItem) => string | null
+	/** Which row is open, when rows open in place rather than lead somewhere. */
+	openItem?: string | null
+	onOpenItem?: (item: string | null) => void
+	/** Whether a row can be followed or opened at all. */
+	canOpen?: (item: OutlineItem) => boolean
+	/** What to show underneath a row opened in place. */
+	renderBody?: (item: OutlineItem) => React.ReactNode
+}
+
 export function ModuleOutline({
 	modules,
-	openItem,
+	itemHref,
+	openItem = null,
 	onOpenItem,
 	canOpen = () => true,
 	renderBody,
-}: {
-	modules: OutlineModule[]
-	openItem: string | null
-	onOpenItem: (item: string | null) => void
-	/** Whether a row can be opened at all. */
-	canOpen?: (item: OutlineItem) => boolean
-	/** What to show underneath an opened row. */
-	renderBody: (item: OutlineItem) => React.ReactNode
-}) {
+}: OutlineBehaviour & { modules: OutlineModule[] }) {
 	return (
 		<div className="space-y-3">
 			{modules.map((module) => (
 				<ModuleCard
 					key={module.name}
 					module={module}
+					itemHref={itemHref}
 					openItem={openItem}
 					onOpenItem={onOpenItem}
 					canOpen={canOpen}
@@ -80,17 +92,8 @@ export function ModuleOutline({
 
 function ModuleCard({
 	module,
-	openItem,
-	onOpenItem,
-	canOpen,
-	renderBody,
-}: {
-	module: OutlineModule
-	openItem: string | null
-	onOpenItem: (item: string | null) => void
-	canOpen: (item: OutlineItem) => boolean
-	renderBody: (item: OutlineItem) => React.ReactNode
-}) {
+	...behaviour
+}: OutlineBehaviour & { module: OutlineModule }) {
 	const [shut, setShut] = useState(false)
 	const locked = !module.state.open
 
@@ -149,14 +152,7 @@ function ModuleCard({
 				) : (
 					<ul className="divide-y">
 						{module.items.map((item) => (
-							<ItemRow
-								key={item.name}
-								item={item}
-								isOpen={openItem === item.name}
-								onOpenItem={onOpenItem}
-								canOpen={canOpen}
-								renderBody={renderBody}
-							/>
+							<ItemRow key={item.name} item={item} {...behaviour} />
 						))}
 					</ul>
 				))}
@@ -166,17 +162,13 @@ function ModuleCard({
 
 function ItemRow({
 	item,
-	isOpen,
+	itemHref,
+	openItem = null,
 	onOpenItem,
-	canOpen,
+	canOpen = () => true,
 	renderBody,
-}: {
-	item: OutlineItem
-	isOpen: boolean
-	onOpenItem: (item: string | null) => void
-	canOpen: (item: OutlineItem) => boolean
-	renderBody: (item: OutlineItem) => React.ReactNode
-}) {
+}: OutlineBehaviour & { item: OutlineItem }) {
+	const isOpen = openItem === item.name
 	const indent = Math.min(Math.max(item.indent ?? 0, 0), MAX_INDENT)
 	const pad = `${0.75 + indent * INDENT_STEP}rem`
 
@@ -192,6 +184,9 @@ function ItemRow({
 
 	const Icon = ITEM_ICON[item.item_type]
 	const openable = canOpen(item)
+	// A locked row never becomes a link: the player would only refuse it, and
+	// a link that leads to a refusal is worse than one that does not lead.
+	const href = openable ? (itemHref?.(item) ?? null) : null
 
 	return (
 		<li style={{ paddingLeft: pad }}>
@@ -202,23 +197,29 @@ function ItemRow({
 					<span className="size-4 shrink-0" />
 				)}
 
-				{/* The button holds the title and nothing else. Folding the second
-				    line into it would rename the control to "Lesson 1 Lesson ·
-				    View it", which is what anybody looking for it would not say. */}
+				{/* The control holds the title and nothing else. Folding the second
+				    line into it would rename it to "Lesson 1 Lesson · View it",
+				    which is what nobody looking for it would say. */}
 				<div className="min-w-0 flex-1">
-					<button
-						type="button"
-						disabled={!openable}
-						onClick={() => onOpenItem(isOpen ? null : item.name)}
-						className={cn(
-							'block max-w-full truncate text-left',
-							openable
-								? 'hover:underline'
-								: 'text-muted-foreground cursor-not-allowed',
-						)}
-					>
-						{item.title || item.item_type}
-					</button>
+					{href ? (
+						<Link to={href} className="block max-w-full truncate hover:underline">
+							{item.title || item.item_type}
+						</Link>
+					) : (
+						<button
+							type="button"
+							disabled={!openable}
+							onClick={() => onOpenItem?.(isOpen ? null : item.name)}
+							className={cn(
+								'block max-w-full truncate text-left',
+								openable
+									? 'hover:underline'
+									: 'text-muted-foreground cursor-not-allowed',
+							)}
+						>
+							{item.title || item.item_type}
+						</button>
+					)}
 
 					<span className="text-muted-foreground block text-xs">
 						{item.item_type}
@@ -241,7 +242,7 @@ function ItemRow({
 				) : null}
 			</div>
 
-			{isOpen && renderBody(item)}
+			{isOpen && renderBody?.(item)}
 		</li>
 	)
 }

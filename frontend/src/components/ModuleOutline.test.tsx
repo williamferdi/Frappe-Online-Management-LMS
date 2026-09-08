@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 
 import { ModuleOutline } from './ModuleOutline'
 import type { OutlineItem, OutlineModule } from '@/types'
@@ -49,19 +50,26 @@ function unit(over: Partial<OutlineModule> = {}): OutlineModule {
 function Harness({
 	modules,
 	canOpen,
+	itemHref,
 }: {
 	modules: OutlineModule[]
 	canOpen?: (item: OutlineItem) => boolean
+	itemHref?: (item: OutlineItem) => string | null
 }) {
 	const [open, setOpen] = useState<string | null>(null)
+	// A Router because a row that leads somewhere is a `Link`, and one that
+	// opens in place is not -- both shapes are rendered from here.
 	return (
-		<ModuleOutline
-			modules={modules}
-			openItem={open}
-			onOpenItem={setOpen}
-			canOpen={canOpen}
-			renderBody={(row) => <div>Inside {row.title}</div>}
-		/>
+		<MemoryRouter>
+			<ModuleOutline
+				modules={modules}
+				itemHref={itemHref}
+				openItem={open}
+				onOpenItem={setOpen}
+				canOpen={canOpen}
+				renderBody={(row) => <div>Inside {row.title}</div>}
+			/>
+		</MemoryRouter>
 	)
 }
 
@@ -161,6 +169,35 @@ describe('the course outline a student meets', () => {
 
 		await userEvent.click(screen.getByRole('button', { name: 'Expand Week One' }))
 		expect(screen.getByRole('button', { name: 'What Scripture is' })).toBeInTheDocument()
+	})
+
+	it('leads somewhere when given somewhere to lead', () => {
+		// The student's list sends a row to the player. The teacher's preview
+		// cannot -- the player is addressed by a registration and a teacher
+		// does not have one -- so it opens in place instead.
+		render(<Harness modules={[unit()]} itemHref={(row) => `/learn/${row.name}`} />)
+
+		expect(screen.getByRole('link', { name: 'What Scripture is' })).toHaveAttribute(
+			'href',
+			'/learn/CMI-1',
+		)
+		expect(screen.queryByRole('button', { name: 'What Scripture is' })).toBeNull()
+	})
+
+	it('will not make a locked row into a link', () => {
+		// There is no disabled link. Left as a link it could still be followed
+		// by keyboard, by middle click, or by copying the address out of it --
+		// and the player would only refuse.
+		render(
+			<Harness
+				modules={[unit({ items: [item({ locked: true, lock_reason: 'Not yet' })] })]}
+				itemHref={(row) => `/learn/${row.name}`}
+				canOpen={(row) => !row.locked}
+			/>,
+		)
+
+		expect(screen.queryByRole('link', { name: 'What Scripture is' })).toBeNull()
+		expect(screen.getByRole('button', { name: 'What Scripture is' })).toBeDisabled()
 	})
 
 	it('says a module is empty rather than showing nothing', () => {

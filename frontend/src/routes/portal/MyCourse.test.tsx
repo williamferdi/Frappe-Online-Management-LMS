@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
@@ -59,7 +58,7 @@ function outline(overrides: Partial<CourseOutline['modules'][0]> = {}): CourseOu
 }
 
 const get = vi.fn()
-const post = vi.fn(async (_path: string, _args?: Record<string, unknown>) => ({}))
+const post = vi.fn(async () => ({}))
 
 async function renderCourse(data: CourseOutline) {
 	vi.resetModules()
@@ -117,16 +116,18 @@ describe('a student walking through a course', () => {
 		await renderCourse(outline())
 
 		expect(screen.getByText('Week One')).toBeInTheDocument()
-		expect(screen.getByRole('button', { name: 'What Scripture is' })).toBeEnabled()
+		expect(screen.getByRole('link', { name: 'What Scripture is' })).toBeInTheDocument()
 	})
 
-	it('reads a lesson without leaving the app', async () => {
+	it('sends a row to the player rather than opening it here', async () => {
+		// The player is where reading, notes, bookmarks, the thread and Mark
+		// done already live. A second reader on this page would have been a
+		// poorer one, and another place that had to learn every item type.
 		await renderCourse(outline())
 
-		await userEvent.click(screen.getByRole('button', { name: 'What Scripture is' }))
-
-		await waitFor(() =>
-			expect(screen.getByText('All Scripture is')).toBeInTheDocument(),
+		expect(screen.getByRole('link', { name: 'What Scripture is' })).toHaveAttribute(
+			'href',
+			`/portal/courses/${REGISTRATION}/learn/CMI-00001`,
 		)
 	})
 
@@ -141,6 +142,10 @@ describe('a student walking through a course', () => {
 		)
 
 		expect(screen.getAllByText(/opens on 12 Oct 2026/).length).toBeGreaterThan(0)
+		// Not a disabled link -- there is no such thing. A locked row stays a
+		// button that refuses, so it cannot be followed by keyboard, by middle
+		// click, or by copying the address out of it.
+		expect(screen.queryByRole('link', { name: 'What Scripture is' })).toBeNull()
 		expect(screen.getByRole('button', { name: 'What Scripture is' })).toBeDisabled()
 	})
 
@@ -153,37 +158,6 @@ describe('a student walking through a course', () => {
 		)
 
 		expect(screen.getAllByText('Finish Week One first.').length).toBeGreaterThan(0)
-	})
-
-	it('offers Mark done only for the items that ask for it', async () => {
-		await renderCourse(
-			outline({ items: [item({ completion_requirement: 'Mark it done' })] }),
-		)
-
-		await userEvent.click(screen.getByRole('button', { name: 'What Scripture is' }))
-		await waitFor(() =>
-			expect(screen.getByRole('button', { name: 'Mark done' })).toBeInTheDocument(),
-		)
-
-		await userEvent.click(screen.getByRole('button', { name: 'Mark done' }))
-
-		await waitFor(() => expect(post).toHaveBeenCalled())
-		const [path] = post.mock.calls[0]
-		expect(path).toBe('sibbcs.api.syllabus.mark_done')
-	})
-
-	it('does not offer Mark done for work that is scored', async () => {
-		// Letting a student declare marked work finished is letting them mark
-		// their own work.
-		await renderCourse(
-			outline({
-				items: [item({ completion_requirement: 'Score at least', min_score: 50 })],
-			}),
-		)
-
-		await userEvent.click(screen.getByRole('button', { name: 'What Scripture is' }))
-
-		expect(screen.queryByRole('button', { name: 'Mark done' })).toBeNull()
 	})
 
 	it('says when there is nothing published yet', async () => {
