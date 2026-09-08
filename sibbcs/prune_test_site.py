@@ -120,3 +120,108 @@ def run(apply=False, keep=200):
 	after = {doctype: frappe.db.count(doctype) for doctype in ORDER}
 	print("PRUNE after:", {k: v for k, v in after.items() if v})
 	return after
+
+
+# A test helper's address, and a reserved TLD nobody can register.
+FIXTURE_DOMAIN = "example.invalid"
+
+
+def _unreferenced_people():
+	"""Students and enrolments nothing points at, that no real person owns.
+
+	Returned rather than deleted so the caller can look first. A student kept
+	by `run()`'s tail is referenced by a surviving registration, so leaving
+	them is also what stops this pass creating the orphans the last one
+	cleared.
+	"""
+	live = set(
+		frappe.db.sql_list(
+			"select distinct pe.student from `tabProgram Enrollment` pe "
+			"join `tabCourse Registration` cr on cr.program_enrollment = pe.name"
+		)
+	)
+
+	students = []
+	for row in frappe.db.sql(
+		"select name, email, user, admission_application from `tabStudent`",
+		as_dict=True,
+	):
+		if row.name in live:
+			continue
+		if row.admission_application:
+			# Came through admissions, so somebody applied as this person.
+			continue
+		address = row.user or row.email or ""
+		if address and not address.endswith(FIXTURE_DOMAIN):
+			continue
+		students.append(row.name)
+
+	if not students:
+		return [], []
+
+	enrolments = frappe.get_all(
+		"Program Enrollment",
+		filters={"student": ("in", students)},
+		pluck="name",
+		limit_page_length=100000,
+	)
+	return students, enrolments
+
+
+def people(apply=False):
+	"""Clear test students and their enrolments. See `_unreferenced_people`."""
+	if frappe.local.site != SAFE_SITE:
+		raise Exception(f"refusing to run on {frappe.local.site}; this is for {SAFE_SITE}")
+
+	students, enrolments = _unreferenced_people()
+	print(f"PEOPLE would remove: {len(students)} student(s), {len(enrolments)} enrolment(s)")
+
+	if not apply:
+		print("PEOPLE dry run -- nothing deleted")
+		return len(students), len(enrolments)
+
+	frappe.flags.ignore_links = True
+	gone = {"Program Enrollment": 0, "Student": 0}
+
+	# Enrolments first: a student with one pointing at them will not go.
+	for doctype, names in (("Program Enrollment", enrolments), ("Student", students)):
+		for name in names:
+			try:
+				frappe.delete_doc(
+					doctype, name, force=True, ignore_permissions=True,
+					ignore_missing=True, delete_permanently=True,
+				)
+				gone[doctype] += 1
+			except Exception:
+				continue
+		frappe.db.commit()
+
+	# A student can go while their enrolment refuses to, which leaves the
+	# enrolment pointing at nobody -- the shape of rubbish this is here to
+	# clear, not to make.
+	stragglers = frappe.db.sql_list(
+		"select pe.name from `tabProgram Enrollment` pe "
+		"left join `tabStudent` s on s.name = pe.student "
+		"where s.name is null"
+	)
+	for name in stragglers:
+		try:
+			frappe.delete_doc(
+				"Program Enrollment", name, force=True, ignore_permissions=True,
+				ignore_missing=True, delete_permanently=True,
+			)
+			gone["Program Enrollment"] += 1
+		except Exception as problem:
+			# Said out loud. Swallowing this is how the two got left last time.
+			print(f"PEOPLE could not remove {name}: {problem}")
+	frappe.db.commit()
+
+	left = frappe.db.sql(
+		"select count(*) from `tabProgram Enrollment` pe "
+		"left join `tabStudent` s on s.name = pe.student "
+		"where s.name is null"
+	)[0][0]
+
+	print("PEOPLE removed:", gone)
+	print(f"PEOPLE enrolments still pointing at nobody: {left}")
+	return gone
