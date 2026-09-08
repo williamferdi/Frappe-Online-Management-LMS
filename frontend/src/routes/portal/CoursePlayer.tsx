@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { AssignmentMeta } from '@/components/AssignmentMeta'
 import { BlockRenderer } from '@/components/BlockRenderer'
 import { QueryState } from '@/components/QueryState'
 import { RichText } from '@/components/RichText'
@@ -526,26 +527,37 @@ function AssignmentPanel({
 	content,
 	registration,
 }: {
-	content: { name?: string; title: string; description: string | null; points_possible: number; due_date: string | null }
+	content: {
+		name?: string
+		title: string
+		description: string | null
+		points_possible: number
+		due_date: string | null
+		submission_type?: string
+	}
 	registration: string
 }) {
+	// The list is the only place work is handed in, so this points at the one
+	// piece rather than at all of it: `/work` alone drops somebody among a
+	// dozen assignments to find again the one they just clicked.
+	const to = content.name
+		? `/portal/courses/${encodeURIComponent(registration)}/work?assignment=${encodeURIComponent(content.name)}`
+		: `/portal/courses/${encodeURIComponent(registration)}/work`
+
 	return (
-		<Card>
-			<CardContent className="space-y-3 p-5">
-				<div className="text-muted-foreground text-xs">
-					{content.points_possible} points
-					{content.due_date
-						? ` · due ${content.due_date.slice(0, 16).replace('T', ' ')}`
-						: ' · no due date'}
-				</div>
-				{content.description && <RichText html={content.description} />}
-				<Button asChild>
-					<Link to={`/portal/courses/${encodeURIComponent(registration)}/work`}>
-						Hand it in
-					</Link>
-				</Button>
-			</CardContent>
-		</Card>
+		<div className="space-y-4">
+			<AssignmentMeta
+				points={content.points_possible}
+				dueDate={content.due_date}
+				submissionType={content.submission_type ?? 'Text Entry'}
+			/>
+
+			{content.description && <RichText html={content.description} />}
+
+			<Button asChild>
+				<Link to={to}>Hand it in</Link>
+			</Button>
+		</div>
 	)
 }
 

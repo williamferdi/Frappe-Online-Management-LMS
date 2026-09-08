@@ -45,7 +45,7 @@ function response(overrides: Partial<CourseworkResponse['rows'][0]> = {}): Cours
 
 const post = vi.fn(async (_path: string, _args?: Record<string, unknown>) => ({}))
 
-async function renderWork(data: CourseworkResponse) {
+async function renderWork(data: CourseworkResponse, at = '') {
 	vi.resetModules()
 	Object.assign(window, { user: 'student@x.com', roles: ['Student'], csrf_token: 't' })
 
@@ -59,7 +59,7 @@ async function renderWork(data: CourseworkResponse) {
 
 	render(
 		<QueryClientProvider client={client}>
-			<MemoryRouter initialEntries={[`/portal/courses/${REGISTRATION}/work`]}>
+			<MemoryRouter initialEntries={[`/portal/courses/${REGISTRATION}/work${at}`]}>
 				<Routes>
 					<Route path="/portal/courses/:name/work" element={<Coursework />} />
 				</Routes>
@@ -80,6 +80,29 @@ afterEach(() => {
 })
 
 describe('a student looking at their coursework', () => {
+	it('says when it is due, what it is worth and how it goes in', async () => {
+		// Three facts read separately: somebody checking a deadline is not
+		// reading about the submission type on the way past.
+		await renderWork(response())
+
+		expect(screen.getByText('Due')).toBeInTheDocument()
+		expect(screen.getByText('Points')).toBeInTheDocument()
+		expect(screen.getByText('Submitting')).toBeInTheDocument()
+		// The field spells it "Text Entry"; a student is handing in a text box.
+		expect(screen.getByText('a text box')).toBeInTheDocument()
+	})
+
+	it('opens the assignment it was sent to, not just the list holding it', async () => {
+		// The player's "Hand it in" used to land on the whole list, leaving
+		// somebody to find again the assignment they had just clicked.
+		const data = response()
+		const asked = data.rows[0].assignment.name
+
+		await renderWork(data, `?assignment=${asked}`)
+
+		expect(await screen.findByLabelText('Your answer')).toBeInTheDocument()
+	})
+
 	it('hands work in', async () => {
 		await renderWork(response())
 
