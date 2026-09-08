@@ -1,14 +1,13 @@
 import { useState } from 'react'
-import { CircleCheck, CircleDashed, Eye, Lock } from 'lucide-react'
+import { Eye } from 'lucide-react'
 
 import { BlockRenderer } from '@/components/BlockRenderer'
+import { ModuleOutline } from '@/components/ModuleOutline'
 import { QueryState } from '@/components/QueryState'
 import { RichText } from '@/components/RichText'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { useModulePreview, usePreviewItem } from '@/hooks/useSyllabus'
-import { cn } from '@/lib/utils'
-import type { ModulePreview, OutlineItem, OutlineModule } from '@/types'
+import type { ModulePreview, OutlineItem } from '@/types'
 
 /**
  * The course as a student sees it.
@@ -97,122 +96,18 @@ function Preview({
 					</CardContent>
 				</Card>
 			) : (
-				data.modules.map((module) => (
-					<ModuleBlock
-						key={module.name}
-						module={module}
-						offering={offering}
-						open={open}
-						onOpen={setOpen}
-					/>
-				))
+				<ModuleOutline
+					modules={data.modules}
+					openItem={open}
+					onOpenItem={setOpen}
+					// Openable even when locked: a teacher checking a module that
+					// unlocks next week needs to see inside it. The lock is still
+					// reported on the row, so what a student would meet is not
+					// misrepresented -- only what this reader may do about it.
+					renderBody={(item) => <ItemContent item={item} offering={offering} />}
+				/>
 			)}
 		</div>
-	)
-}
-
-function ModuleBlock({
-	module,
-	offering,
-	open,
-	onOpen,
-}: {
-	module: OutlineModule
-	offering: string
-	open: string | null
-	onOpen: (item: string | null) => void
-}) {
-	return (
-		<Card>
-			<CardContent className="p-0">
-				<div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-					<span className="font-medium">{module.title}</span>
-					{module.complete && (
-						<Badge variant="secondary">
-							<CircleCheck className="mr-1 size-3" /> Done
-						</Badge>
-					)}
-					{!module.state.open && (
-						<span className="text-muted-foreground ml-auto flex items-center gap-1.5 text-xs">
-							<Lock className="size-3.5" /> {module.state.reason}
-						</span>
-					)}
-				</div>
-
-				{module.items.length === 0 ? (
-					<p className="text-muted-foreground px-4 py-6 text-sm">Nothing in here yet.</p>
-				) : (
-					<ul className="divide-y">
-						{module.items.map((item) => (
-							<ItemLine
-								key={item.name}
-								item={item}
-								offering={offering}
-								isOpen={open === item.name}
-								onOpen={onOpen}
-							/>
-						))}
-					</ul>
-				)}
-			</CardContent>
-		</Card>
-	)
-}
-
-function ItemLine({
-	item,
-	offering,
-	isOpen,
-	onOpen,
-}: {
-	item: OutlineItem
-	offering: string
-	isOpen: boolean
-	onOpen: (item: string | null) => void
-}) {
-	if (item.item_type === 'Sub-header') {
-		return (
-			<li
-				className="text-muted-foreground px-4 py-2 text-xs font-medium tracking-wide uppercase"
-				style={{ paddingLeft: `${16 + item.indent * 16}px` }}
-			>
-				{item.title}
-			</li>
-		)
-	}
-
-	return (
-		<li style={{ paddingLeft: `${item.indent * 16}px` }}>
-			<div className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-sm">
-				{/* Openable even when locked: a teacher checking a module that
-				    unlocks next week needs to see inside it. The lock is still
-				    reported, so what a student would meet is not misrepresented. */}
-				<button
-					type="button"
-					onClick={() => onOpen(isOpen ? null : item.name)}
-					className={cn(
-						'min-w-0 flex-1 truncate text-left hover:underline',
-						item.locked && 'text-muted-foreground',
-					)}
-				>
-					{item.title || item.item_type}
-				</button>
-
-				{item.complete ? (
-					<CircleCheck className="size-4 shrink-0 text-emerald-600" />
-				) : item.completion_requirement !== 'Nothing' ? (
-					<CircleDashed className="text-muted-foreground size-4 shrink-0" />
-				) : null}
-
-				{item.locked && (
-					<span className="text-muted-foreground flex items-center gap-1 text-xs">
-						<Lock className="size-3" /> {item.lock_reason}
-					</span>
-				)}
-			</div>
-
-			{isOpen && <ItemContent item={item} offering={offering} />}
-		</li>
 	)
 }
 
