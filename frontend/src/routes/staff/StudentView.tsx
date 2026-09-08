@@ -3,6 +3,7 @@ import { Eye } from 'lucide-react'
 
 import { BlockRenderer } from '@/components/BlockRenderer'
 import { ModuleOutline } from '@/components/ModuleOutline'
+import { RosterPicker } from '@/components/RosterPicker'
 import { QueryState } from '@/components/QueryState'
 import { RichText } from '@/components/RichText'
 import { Card, CardContent } from '@/components/ui/card'
@@ -54,22 +55,11 @@ function Preview({
 			<Card>
 				<CardContent className="flex flex-wrap items-center gap-3 p-4">
 					<Eye className="text-muted-foreground size-4 shrink-0" />
-					<label className="flex items-center gap-2 text-sm">
-						<span className="text-muted-foreground">Seen as</span>
-						<select
-							className="border-input bg-background h-9 rounded-md border px-3 text-sm"
-							value={registration ?? ''}
-							onChange={(event) => onRegistration(event.target.value || null)}
-							aria-label="Preview as"
-						>
-							<option value="">A student who has just arrived</option>
-							{data.roster.map((row) => (
-								<option key={row.name} value={row.name}>
-									{row.student_name}
-								</option>
-							))}
-						</select>
-					</label>
+					<RosterPicker
+						roster={data.roster}
+						value={registration}
+						onChange={onRegistration}
+					/>
 
 					{hidden > 0 && (
 						<span className="text-muted-foreground ml-auto text-xs">

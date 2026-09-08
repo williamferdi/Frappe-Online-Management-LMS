@@ -234,14 +234,14 @@ describe('building a course', () => {
 
 		await userEvent.click(screen.getByRole('button', { name: /Preview/ }))
 
-		const picker = await screen.findByLabelText('Preview as')
+		const picker = await screen.findByRole('combobox', { name: 'Seen as' })
 		expect(picker).toHaveValue('')
+
+		await userEvent.click(picker)
 		expect(
-			screen.getByRole('option', { name: 'A student who has just arrived' }),
+			screen.getByRole('option', { name: /A student who has just arrived/ }),
 		).toBeInTheDocument()
-		expect(
-			screen.getByRole('option', { name: 'Beula Patricia' }),
-		).toBeInTheDocument()
+		expect(screen.getByRole('option', { name: /Beula Patricia/ })).toBeInTheDocument()
 	})
 
 	it('publishes a piece of work from the list, without opening it', async () => {

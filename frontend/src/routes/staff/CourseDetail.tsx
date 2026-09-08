@@ -18,6 +18,7 @@ import {
 import { toast } from 'sonner'
 
 import { AssignmentDetail } from '@/components/AssignmentDetail'
+import { RosterPicker } from '@/components/RosterPicker'
 import { PageHeader } from '@/components/PageHeader'
 import { QueryState } from '@/components/QueryState'
 import { Badge } from '@/components/ui/badge'
@@ -493,22 +494,11 @@ function PreviewPanel({ row, offering }: { row: CourseAssignment; offering: stri
 	return (
 		<div className="bg-muted/40 space-y-3 border-t p-4">
 			<div className="flex flex-wrap items-center gap-3">
-				<label className="flex items-center gap-2 text-sm">
-					<span className="text-muted-foreground">Seen as</span>
-					<select
-						className="border-input bg-background h-9 rounded-md border px-3 text-sm"
-						value={registration ?? ''}
-						onChange={(event) => setRegistration(event.target.value || null)}
-						aria-label="Preview as"
-					>
-						<option value="">A student who has just arrived</option>
-						{(query.data?.roster ?? []).map((person) => (
-							<option key={person.name} value={person.name}>
-								{person.student_name}
-							</option>
-						))}
-					</select>
-				</label>
+				<RosterPicker
+					roster={query.data?.roster ?? []}
+					value={registration}
+					onChange={setRegistration}
+				/>
 
 				{!row.published && (
 					<span className="text-muted-foreground text-xs">
