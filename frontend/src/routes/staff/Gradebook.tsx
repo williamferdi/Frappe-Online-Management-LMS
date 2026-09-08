@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { QueryState } from '@/components/QueryState'
+import { RosterPicker } from '@/components/RosterPicker'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { useGradebook } from '@/hooks/useMarking'
@@ -25,6 +27,8 @@ export function Gradebook({ offering }: { offering: string }) {
 }
 
 function Grid({ data, offering }: { data: GradebookGrid; offering: string }) {
+	const [only, setOnly] = useState<string | null>(null)
+
 	if (data.rows.length === 0) {
 		return (
 			<Card>
@@ -38,7 +42,37 @@ function Grid({ data, offering }: { data: GradebookGrid; offering: string }) {
 		)
 	}
 
+	// The rows are the roster: a gradebook already lists everybody on the
+	// course, so there is nothing else to ask for it.
+	const roster = data.rows.map((row) => ({
+		name: row.course_registration,
+		student_name: row.student_name,
+	}))
+	const shown = only
+		? data.rows.filter((row) => row.course_registration === only)
+		: data.rows
+
 	return (
+		<>
+			{/* Nothing to find among one student. */}
+			{data.rows.length > 1 && (
+				<div className="mb-3 flex flex-wrap items-center gap-3">
+					<RosterPicker
+						roster={roster}
+						value={only}
+						onChange={setOnly}
+						label="Find"
+						anyone="Everyone"
+					/>
+
+					{only && (
+						<span className="text-muted-foreground text-xs">
+							Showing 1 of {data.rows.length} students.
+						</span>
+					)}
+				</div>
+			)}
+
 		<Card>
 			{/* Wide tables scroll inside their own box; the page never scrolls
 			    sideways. */}
@@ -68,7 +102,7 @@ function Grid({ data, offering }: { data: GradebookGrid; offering: string }) {
 						</tr>
 					</thead>
 					<tbody>
-						{data.rows.map((row) => (
+						{shown.map((row) => (
 							<tr key={row.course_registration} className="border-b last:border-0">
 								<td className="bg-card sticky left-0 px-3 py-2 whitespace-nowrap">
 									{row.student_name}
@@ -110,6 +144,7 @@ function Grid({ data, offering }: { data: GradebookGrid; offering: string }) {
 				</CardContent>
 			)}
 		</Card>
+		</>
 	)
 }
 
