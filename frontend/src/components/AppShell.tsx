@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Menu, PanelLeftClose, PanelLeftOpen, X, type LucideIcon } from 'lucide-react'
 
@@ -23,8 +23,6 @@ export interface NavSection {
 interface AppShellProps {
 	product: string
 	sections: NavSection[]
-	/** Pages that want the width more than they want the menu. */
-	collapseOn?: (pathname: string) => boolean
 }
 
 /** Remembered per browser, so the choice survives a reload.
@@ -50,36 +48,23 @@ function rememberCollapsed(value: boolean) {
 	}
 }
 
-export function AppShell({ product, sections, collapseOn }: AppShellProps) {
+export function AppShell({ product, sections }: AppShellProps) {
 	const [open, setOpen] = useState(false)
 	const [collapsed, setCollapsed] = useState(readCollapsed)
 	const location = useLocation()
 
-	// Whether *we* collapsed it. Somebody who closed the menu themselves meant
-	// it, and reopening it for them on the next page is the software arguing.
-	const collapsedByUs = useRef(false)
-
 	// A tap on a nav link should close the drawer; without this the new page
-	// renders behind the menu on a phone.
+	// renders behind the menu on a phone. Note it closes the phone drawer
+	// only -- the wide-screen menu below is nobody's business but the
+	// reader's.
 	useEffect(() => setOpen(false), [location.pathname])
 
-	useEffect(() => {
-		if (!collapseOn) return
-		const wants = collapseOn(location.pathname)
-
-		if (wants && !collapsed) {
-			collapsedByUs.current = true
-			setCollapsed(true)
-		} else if (!wants && collapsed && collapsedByUs.current) {
-			collapsedByUs.current = false
-			setCollapsed(false)
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [location.pathname])
-
+	// Which is to say: no page hides this menu by itself. Opening a course
+	// used to, because the player carries its own module list and two
+	// sidebars either side of a lesson squeeze the reading -- but that list
+	// has its own button, and the choice made here is remembered, so anybody
+	// who wants the width takes it once and keeps it.
 	const toggle = () => {
-		// A deliberate choice, so stop treating it as ours to undo.
-		collapsedByUs.current = false
 		setCollapsed(!collapsed)
 		rememberCollapsed(!collapsed)
 	}

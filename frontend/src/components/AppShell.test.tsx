@@ -22,11 +22,7 @@ function renderShell(initial = '/portal') {
 				<Route
 					path="/portal"
 					element={
-						<AppShell
-							product="Student Portal"
-							sections={sections}
-							collapseOn={(pathname) => pathname.startsWith('/portal/courses')}
-						/>
+						<AppShell product="Student Portal" sections={sections} />
 					}
 				>
 					<Route index element={<p>Dashboard</p>} />
@@ -58,30 +54,20 @@ describe('the main menu', () => {
 		expect(window.localStorage.getItem('sibbcs.nav.collapsed')).toBe('1')
 	})
 
-	it('gets out of the way when a course is opened', async () => {
-		// The player has its own module sidebar; two either side of a lesson
-		// leaves the reading squeezed in the middle.
+	it('stays put when a course is opened', async () => {
+		// This is the one that changed: opening My Courses used to hide the
+		// menu, and choosing a menu item is not a request to put the menu away.
 		renderShell()
 		expect(screen.getByRole('button', { name: 'Hide the menu' })).toBeInTheDocument()
 
 		await userEvent.click(screen.getByRole('link', { name: 'My Courses' }))
 
-		expect(screen.getByRole('button', { name: 'Show the menu' })).toBeInTheDocument()
-	})
-
-	it('comes back when the course is left', async () => {
-		renderShell()
-		await userEvent.click(screen.getByRole('link', { name: 'My Courses' }))
-		expect(screen.getByRole('button', { name: 'Show the menu' })).toBeInTheDocument()
-
-		await userEvent.click(screen.getByRole('link', { name: 'Dashboard' }))
-
 		expect(screen.getByRole('button', { name: 'Hide the menu' })).toBeInTheDocument()
 	})
 
-	it('does not reopen a menu the reader closed themselves', async () => {
-		// Somebody who closed it meant it. Springing back open on the next
-		// page is the software arguing.
+	it('stays closed across pages once the reader closes it', async () => {
+		// Somebody who closed it meant it -- on this page and on the next.
+		// This is how a reader who does want the width on a course keeps it.
 		renderShell()
 		await userEvent.click(screen.getByRole('button', { name: 'Hide the menu' }))
 
