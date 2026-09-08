@@ -137,6 +137,27 @@ describe('reading a lesson in the player', () => {
 		expect(screen.getByText('All Scripture is')).toBeInTheDocument()
 	})
 
+	it('offers the whole course as a list, not only where to resume', async () => {
+		// The modules page had nothing linking to it for weeks and no test
+		// noticed. That is this test's whole job: it does not care where the
+		// way in lives, only that there is one.
+		await renderPlayer(item())
+
+		const link = screen.getByRole('link', { name: 'Modules' })
+		expect(link.getAttribute('href')).toBe(`/portal/courses/${REGISTRATION}/modules`)
+	})
+
+	it('does not call two different things Modules', async () => {
+		// One loads a page, one folds the list beside it. Told apart by eye
+		// from their shape, and by ear only if they are named differently.
+		await renderPlayer(item())
+
+		expect(
+			screen.getByRole('button', { name: /module list/i }),
+		).toBeInTheDocument()
+		expect(screen.queryByRole('button', { name: 'Modules' })).toBeNull()
+	})
+
 	it('offers Mark done only for the items that ask for it', async () => {
 		await renderPlayer(item({ completion_requirement: 'Mark it done' }))
 

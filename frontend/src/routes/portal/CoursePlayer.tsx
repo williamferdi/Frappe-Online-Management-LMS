@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
 	ArrowLeft,
+	List,
 	Bookmark,
 	Check,
 	ChevronLeft,
@@ -102,11 +103,15 @@ function Player({
 
 	return (
 		<div className="-m-4 flex min-h-[calc(100vh-4rem)] flex-col sm:-m-6">
-			<header className="bg-card flex items-center gap-3 border-b px-4 py-3">
+			<header className="bg-card flex items-center gap-2 border-b px-4 py-3 sm:gap-3">
+				{/* Named for what it does to the list beside this, not for the
+				    list itself: there is a link to the modules page in this same
+				    header, and two controls called "modules" cannot be told
+				    apart by anybody listening rather than looking. */}
 				<Button
 					variant="ghost"
 					size="icon"
-					aria-label={open ? 'Hide modules' : 'Show modules'}
+					aria-label={open ? 'Hide the module list' : 'Show the module list'}
 					onClick={() => setOpen(!open)}
 				>
 					{open ? (
@@ -117,19 +122,35 @@ function Player({
 				</Button>
 
 				<Button variant="ghost" size="sm" asChild>
-					<Link to="/portal/courses">
+					<Link to="/portal/courses" aria-label="All my courses">
 						<ArrowLeft className="size-4" />
 					</Link>
 				</Button>
 
-				<span className="min-w-0 flex-1 truncate font-medium">
+				{/* The whole course as a list. The sidebar is a way to get about
+				    inside it; this is the way to stand back and see what is
+				    coming, which a narrow rail cannot show. The label goes on
+				    narrow screens but the name does not. */}
+				<Button variant="ghost" size="sm" asChild>
+					<Link
+						to={`/portal/courses/${encodeURIComponent(registration)}/modules`}
+						aria-label="Modules"
+					>
+						<List className="size-4" />
+						<span className="hidden sm:inline">Modules</span>
+					</Link>
+				</Button>
+
+				{/* A floor, so the controls beside it can never take the whole
+				    bar. Measured: without one this reached nothing at 320px. */}
+				<span className="min-w-16 flex-1 truncate font-medium">
 					{data.registration.course_title || data.registration.course_offering}
 				</span>
 
 				{percent !== null && (
 					<div className="flex items-center gap-2">
 						<div
-							className="bg-muted h-1.5 w-24 overflow-hidden rounded-full"
+							className="bg-muted h-1.5 w-12 overflow-hidden rounded-full sm:w-24"
 							role="progressbar"
 							aria-valuenow={percent}
 							aria-valuemin={0}

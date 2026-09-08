@@ -220,9 +220,9 @@ function CourseRow({
 						) : (
 							<>
 								{/* Open course goes to the player, which resumes where the
-								    student left off rather than at the top. Modules is for
-								    standing back and looking at the whole course, which
-								    resuming cannot show. Coursework keeps
+								    student left off rather than at the top; the whole course as
+								    a list is a header away once inside it, which is where
+								    somebody is when they want it. Coursework keeps
 								    its own entrance because it is what a student checks most
 								    often, and the LMS link stays as the fallback for content
 								    we cannot render. */}
@@ -231,13 +231,6 @@ function CourseRow({
 										to={`/portal/courses/${encodeURIComponent(registration.name)}/learn`}
 									>
 										Open course
-									</Link>
-								</Button>
-								<Button size="sm" variant="outline" asChild>
-									<Link
-										to={`/portal/courses/${encodeURIComponent(registration.name)}/modules`}
-									>
-										Modules
 									</Link>
 								</Button>
 								<Button size="sm" variant="outline" asChild>
