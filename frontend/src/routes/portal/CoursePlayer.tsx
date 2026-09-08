@@ -193,6 +193,7 @@ function Player({
 							key={current}
 							registration={registration}
 							moduleItem={current}
+							modules={data.modules}
 						/>
 					) : (
 						<p className="text-muted-foreground text-sm">
@@ -331,9 +332,11 @@ function SidebarItem({
 function ItemPane({
 	registration,
 	moduleItem,
+	modules,
 }: {
 	registration: string
 	moduleItem: string
+	modules: OutlineModule[]
 }) {
 	const open = usePlayerItem(registration)
 	const [data, setData] = useState<PlayerItem | null>(null)
@@ -365,19 +368,37 @@ function ItemPane({
 		return <p className="text-muted-foreground text-sm">Opening…</p>
 	}
 
-	return <ItemBody data={data} registration={registration} />
+	return <ItemBody data={data} registration={registration} modules={modules} />
 }
 
-function ItemBody({ data, registration }: { data: PlayerItem; registration: string }) {
+function ItemBody({
+	data,
+	registration,
+	modules,
+}: {
+	data: PlayerItem
+	registration: string
+	modules: OutlineModule[]
+}) {
 	const item = data.item
 	const bookmark = useToggleBookmark(registration)
 	const done = useMarkItemDone(registration)
 	const content = data.content
 
+	// Which module this belongs to. "1 of 4" says how far along somebody is
+	// and nothing about where they are.
+	const moduleTitle = modules.find((module) => module.name === data.module)?.title
+
 	return (
 		<article className="mx-auto max-w-3xl space-y-6">
-			<header className="space-y-2">
+			<header className="space-y-2 border-b pb-4">
 				<div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+					{moduleTitle && (
+						<>
+							<span className="text-foreground font-medium">{moduleTitle}</span>
+							<span>·</span>
+						</>
+					)}
 					<span>
 						{data.position.index} of {data.position.total}
 					</span>
@@ -396,21 +417,45 @@ function ItemBody({ data, registration }: { data: PlayerItem; registration: stri
 						{item.title || item.item_type}
 					</h1>
 
-					<Button
-						variant="ghost"
-						size="sm"
-						aria-pressed={Boolean(data.note?.bookmarked)}
-						onClick={() =>
-							bookmark.mutate(item.name, {
-								onError: (problem) => toast.error(message(problem)),
-							})
-						}
-					>
-						<Bookmark
-							className={cn('size-4', data.note?.bookmarked && 'fill-current')}
-						/>
-						{data.note?.bookmarked ? 'Bookmarked' : 'Bookmark'}
-					</Button>
+					{/* What finishes the lesson sits with the lesson's name, which
+					    is where Canvas keeps it and where somebody looks for it --
+					    rather than loose between the notes and the discussion. */}
+					<div className="flex shrink-0 items-center gap-1">
+						{item.complete ? (
+							<Badge variant="outline" className="font-normal">
+								<CircleCheck className="text-success mr-1 size-3.5" /> Done
+							</Badge>
+						) : item.completion_requirement === 'Mark it done' ? (
+							<Button
+								size="sm"
+								disabled={done.isPending}
+								onClick={() =>
+									done.mutate(item.name, {
+										onSuccess: () => toast.success('Marked done'),
+										onError: (problem) => toast.error(message(problem)),
+									})
+								}
+							>
+								<Check className="size-4" /> Mark done
+							</Button>
+						) : null}
+
+						<Button
+							variant="ghost"
+							size="sm"
+							aria-pressed={Boolean(data.note?.bookmarked)}
+							onClick={() =>
+								bookmark.mutate(item.name, {
+									onError: (problem) => toast.error(message(problem)),
+								})
+							}
+						>
+							<Bookmark
+								className={cn('size-4', data.note?.bookmarked && 'fill-current')}
+							/>
+							{data.note?.bookmarked ? 'Bookmarked' : 'Bookmark'}
+						</Button>
+					</div>
 				</div>
 			</header>
 
@@ -445,19 +490,6 @@ function ItemBody({ data, registration }: { data: PlayerItem; registration: stri
 			{data.resources.length > 0 && <Resources resources={data.resources} />}
 
 			<Notes registration={registration} moduleItem={item.name} initial={data.note?.body ?? ''} />
-
-			{item.completion_requirement === 'Mark it done' && !item.complete && (
-				<Button
-					onClick={() =>
-						done.mutate(item.name, {
-							onSuccess: () => toast.success('Marked done'),
-							onError: (problem) => toast.error(message(problem)),
-						})
-					}
-				>
-					<Check className="size-4" /> Mark done
-				</Button>
-			)}
 
 			<LessonDiscussionPanel moduleItem={item.name} />
 
@@ -523,7 +555,7 @@ function Resources({
 	resources: { item: string; title: string; url: string; description: string | null }[]
 }) {
 	return (
-		<section>
+		<section className="border-t pt-5">
 			<h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
 				<Paperclip className="size-4" /> Resources
 			</h2>
@@ -582,7 +614,7 @@ function Notes({
 	}, [settled])
 
 	return (
-		<section>
+		<section className="border-t pt-5">
 			<h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
 				<NotebookPen className="size-4" /> My notes
 				{saved && (

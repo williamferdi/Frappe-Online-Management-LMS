@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -179,11 +179,21 @@ describe('reading a lesson in the player', () => {
 		expect(screen.queryByRole('button', { name: /Mark done/ })).toBeNull()
 	})
 
-	it('does not offer Mark done twice', async () => {
+	it('says a finished lesson is finished', async () => {
+		// The button used to just stop being there, which reads exactly like a
+		// lesson that never asked to be marked in the first place.
 		await renderPlayer(
 			item({ completion_requirement: 'Mark it done', complete: true }),
 		)
 
 		expect(screen.queryByRole('button', { name: /Mark done/ })).toBeNull()
+		expect(within(screen.getByRole('article')).getByText('Done')).toBeInTheDocument()
+	})
+
+	it('says which module the lesson is in', async () => {
+		// "1 of 4" says how far along somebody is and nothing about where.
+		await renderPlayer(item())
+
+		expect(within(screen.getByRole('article')).getByText('Week One')).toBeInTheDocument()
 	})
 })
