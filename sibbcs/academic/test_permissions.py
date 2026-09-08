@@ -208,7 +208,10 @@ class TestAcademicScoping(FrappeTestCase):
 	def test_the_offering_list_is_narrowed_to_what_the_teacher_teaches(self):
 		frappe.set_user(self.mine_user)
 
-		names = [row["name"] for row in academic_api.offerings()["rows"]]
+		# This class's own term. `offerings()` pages at 200 rows ordered by
+		# term, and a test site carries every term every earlier run made --
+		# without this the answer depends on how much rubbish is lying about.
+		names = [row["name"] for row in academic_api.offerings(term=self.term)["rows"]]
 
 		self.assertIn(self.mine_offering, names)
 		self.assertNotIn(self.theirs_offering, names)
@@ -217,7 +220,7 @@ class TestAcademicScoping(FrappeTestCase):
 		registrar = make_user("registrar2.scope@example.invalid", ["Registrar"])
 		frappe.set_user(registrar)
 
-		names = [row["name"] for row in academic_api.offerings()["rows"]]
+		names = [row["name"] for row in academic_api.offerings(term=self.term)["rows"]]
 
 		self.assertIn(self.mine_offering, names)
 		self.assertIn(self.theirs_offering, names)
