@@ -181,6 +181,34 @@ describe('building a course', () => {
 		expect(options).not.toContain('Attendance')
 	})
 
+	it('shows a teacher the work as a student would meet it', async () => {
+		// The same component the student page renders, so this cannot end up
+		// describing an assignment differently from the page that sets it.
+		await renderCourse(withScheme, '?tab=assignments')
+
+		await userEvent.click(screen.getByRole('button', { name: /Preview/ }))
+
+		expect(screen.getByText('Due')).toBeInTheDocument()
+		expect(screen.getByText('Points')).toBeInTheDocument()
+		expect(screen.getByText('Submitting')).toBeInTheDocument()
+		expect(
+			screen.getByText('A student hands this in as a text box.'),
+		).toBeInTheDocument()
+	})
+
+	it('says a draft cannot be seen at all, rather than only how it looks', async () => {
+		// The first question about an unpublished assignment is not what it
+		// looks like; it is whether anybody can see it. Essay One is a draft.
+		await renderCourse(withScheme, '?tab=assignments')
+
+		await userEvent.click(screen.getByRole('button', { name: /Preview/ }))
+
+		expect(screen.getByText(/no student can see it at all yet/)).toBeInTheDocument()
+		// And no working control, because a teacher cannot hand work in to
+		// themselves and the server would refuse if they tried.
+		expect(screen.queryByRole('button', { name: 'Hand in' })).toBeNull()
+	})
+
 	it('publishes a piece of work from the list, without opening it', async () => {
 		await renderCourse(withScheme)
 

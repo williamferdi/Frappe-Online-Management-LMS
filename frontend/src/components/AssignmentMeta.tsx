@@ -24,6 +24,12 @@ const HOW: Record<string, string> = {
 	'No Submission': 'nothing to hand in',
 }
 
+/** How work goes in, in the college's words rather than the field's. Exported
+ *  because the assignment page says it in a sentence as well as in the strip. */
+export function submittingAs(type: string) {
+	return HOW[type] ?? type
+}
+
 function when(date: string | null) {
 	// The stored value is `YYYY-MM-DD HH:MM:SS`; the seconds are noise on a
 	// deadline and the T is an artefact of the wire format.
@@ -66,7 +72,7 @@ export function AssignmentMeta({
 			<Fact label="Points">
 				<span className="tabular-nums">{points}</span>
 			</Fact>
-			<Fact label="Submitting">{HOW[submissionType] ?? submissionType}</Fact>
+			<Fact label="Submitting">{submittingAs(submissionType)}</Fact>
 		</dl>
 	)
 }

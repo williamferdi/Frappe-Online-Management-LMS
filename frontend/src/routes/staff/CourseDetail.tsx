@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { AssignmentDetail } from '@/components/AssignmentDetail'
 import { PageHeader } from '@/components/PageHeader'
 import { QueryState } from '@/components/QueryState'
 import { Badge } from '@/components/ui/badge'
@@ -401,10 +402,22 @@ function AssignmentRow({
 }) {
 	const publish = useSetPublished(offering)
 	const remove = useDeleteAssignment(offering)
+	const [preview, setPreview] = useState(false)
+
+	// The assignment as somebody who has not handed it in would meet it. The
+	// dates and the points are the assignment's own; `open` is asserted rather
+	// than worked out, because whether a particular student may still hand
+	// something in is the server's answer about that student, not ours.
+	const asStudent = {
+		assignment: row,
+		submission: null,
+		open: { open: true, reason: null },
+	}
 
 	return (
 		<Card>
-			<CardContent className="flex flex-wrap items-center gap-3 p-4">
+			<CardContent className="p-0">
+			<div className="flex flex-wrap items-center gap-3 p-4">
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2">
 						<span className="truncate font-medium">{row.title}</span>
@@ -419,6 +432,14 @@ function AssignmentRow({
 				</div>
 
 				<div className="flex gap-1">
+					<Button
+						variant="ghost"
+						size="sm"
+						aria-expanded={preview}
+						onClick={() => setPreview(!preview)}
+					>
+						<Eye className="size-4" /> Preview
+					</Button>
 					<Button
 						variant="ghost"
 						size="sm"
@@ -458,6 +479,18 @@ function AssignmentRow({
 						<Trash2 className="size-4" />
 					</Button>
 				</div>
+			</div>
+
+			{preview && (
+				<div className="bg-muted/40 border-t p-4">
+					<p className="text-muted-foreground mb-3 text-xs">
+						{row.published
+							? 'As a student who has not handed it in yet would see it.'
+							: 'This is a draft, so no student can see it at all yet. This is what they would meet once it is published.'}
+					</p>
+					<AssignmentDetail row={asStudent} preview />
+				</div>
+			)}
 			</CardContent>
 		</Card>
 	)
