@@ -29,10 +29,15 @@ export function useContentOutline(offering: string | null) {
  * next one.
  */
 
-export function useLesson(name: string | null) {
+/** With its offering, for the same reason as `usePage`. */
+export function useLesson(name: string | null, offering: string) {
 	return useQuery({
 		queryKey: contentKeys.lesson(name ?? ''),
-		queryFn: () => frappeGet<LessonDraft>('sibbcs.api.content.lesson', { name }),
+		queryFn: () =>
+			frappeGet<LessonDraft>('sibbcs.api.content.lesson', {
+				name,
+				course_offering: offering,
+			}),
 		enabled: Boolean(name),
 		gcTime: 0,
 	})

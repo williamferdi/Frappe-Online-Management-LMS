@@ -153,15 +153,27 @@ def _lessons_in_order(chapter):
 
 
 @frappe.whitelist()
-def lesson(name):
-	"""One lesson, as blocks the editor can work on."""
+def lesson(name, course_offering):
+	"""One lesson, as blocks the editor can work on -- through an offering on
+	its course.
+
+	The same hole `page` had: by name alone this opened any lesson in the
+	college to any member of staff. A lesson lives in its course's LMS course,
+	which every term of that course shares, so any offering of the right
+	course will do and a lesson from another course is refused. The staff
+	check stays first, for the reason given in `page`.
+	"""
 	_require_teaching()
+	course = _course_of(course_offering)
+	lms_course = _lms_course_of(course)
 
 	row = frappe.db.get_value(
-		"Course Lesson", name, ["name", "title", "chapter", "content"], as_dict=True
+		"Course Lesson", name, ["name", "title", "chapter", "content", "course"], as_dict=True
 	)
 	if not row:
 		frappe.throw(_("Lesson not found."))
+	if row.course != lms_course:
+		frappe.throw(_("That lesson belongs to another course."), frappe.PermissionError)
 
 	blocks = []
 	if row.content:

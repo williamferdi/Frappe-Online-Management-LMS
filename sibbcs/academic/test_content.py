@@ -136,7 +136,7 @@ class TestContentAuthoring(FrappeTestCase):
 			name=lesson,
 		)
 
-		draft = content.lesson(lesson)
+		draft = content.lesson(lesson, self.offering)
 		self.assertEqual(draft["title"], "Revised")
 		self.assertEqual([b["type"] for b in draft["blocks"]], ["header"])
 
@@ -287,3 +287,57 @@ class TestContentAuthoring(FrappeTestCase):
 		frappe.set_user(email)
 		with self.assertRaises(frappe.PermissionError):
 			content.page(page, self.offering)
+
+	# --- reading a lesson back, the same hole as pages ----------------------
+
+	def _lesson(self, offering=None, title="Creation"):
+		"""A lesson written through `offering`, with its course's space made."""
+		offering = offering or self.offering
+		lms_sync.ensure_lms_course(frappe.db.get_value("Course Offering", offering, "course"))
+		chapter = content.save_chapter(offering, "Week One")["chapter"]
+		return content.save_lesson(
+			offering, chapter, title,
+			[{"type": "paragraph", "data": {"text": "In the beginning"}}],
+		)["lesson"]
+
+	def test_a_lesson_opens_through_an_offering_on_its_course(self):
+		lesson = self._lesson()
+
+		draft = content.lesson(lesson, self.offering)
+
+		self.assertEqual([b["type"] for b in draft["blocks"]], ["paragraph"])
+
+	def test_a_lesson_will_not_open_through_an_offering_on_another_course(self):
+		"""Otherwise naming an offering you do teach would open a lesson from
+		one you do not."""
+		self._with_space()
+		other = make_offering(
+			make_course(f"TCN {frappe.generate_hash(length=4)}").name,
+			self.term,
+			status="Published",
+		).name
+		lesson = self._lesson(other, "Somebody else's lecture")
+
+		with self.assertRaises(frappe.PermissionError):
+			content.lesson(lesson, self.offering)
+
+	def test_a_teacher_cannot_open_a_lesson_on_a_course_they_do_not_teach(self):
+		from sibbcs.academic.doctype.course_offering.test_course_offering import (
+			make_instructor,
+		)
+
+		lesson = self._lesson()
+		email = self._user(["Faculty"])
+		make_instructor(f"Lesson {email[5:11]}", user=email)
+
+		frappe.set_user(email)
+		with self.assertRaises(frappe.PermissionError):
+			content.lesson(lesson, self.offering)
+
+	def test_someone_who_is_not_staff_cannot_open_a_lesson_at_all(self):
+		lesson = self._lesson()
+		email = self._user([])
+
+		frappe.set_user(email)
+		with self.assertRaises(frappe.PermissionError):
+			content.lesson(lesson, self.offering)

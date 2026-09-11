@@ -48,7 +48,7 @@ async function renderContent({
 }: {
 	data?: ContentOutline
 	onePage?: (args?: Record<string, unknown>) => Promise<unknown>
-	oneLesson?: () => Promise<unknown>
+	oneLesson?: (args?: Record<string, unknown>) => Promise<unknown>
 } = {}) {
 	vi.resetModules()
 	Object.assign(window, { user: 'faculty@x.com', roles: ['Faculty'], csrf_token: 't' })
@@ -61,7 +61,7 @@ async function renderContent({
 				path.endsWith('.page')
 					? onePage(args)
 					: path.endsWith('.lesson')
-						? oneLesson()
+						? oneLesson(args)
 						: data,
 			),
 			frappePost: post,
@@ -235,6 +235,27 @@ describe('editing a page', () => {
 })
 
 describe('editing a lesson', () => {
+	it('asks for the lesson through this course, so the server can refuse any other', async () => {
+		let asked: Record<string, unknown> | undefined
+		await renderContent({
+			data: outline({
+				pages: [],
+				chapters: [
+					{ name: 'CH-1', title: 'Week One', lessons: [{ name: 'LES-1', title: 'Creation' }] },
+				],
+			}),
+			oneLesson: async (args) => {
+				asked = args
+				return { name: 'LES-1', title: 'Creation', chapter: 'CH-1', blocks: [] }
+			},
+		})
+
+		await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+		await screen.findByLabelText('Lesson title')
+
+		expect(asked).toEqual({ name: 'LES-1', course_offering: OFFERING })
+	})
+
 	it('does not open an empty editor over a lesson it could not load', async () => {
 		await renderContent({
 			data: outline({

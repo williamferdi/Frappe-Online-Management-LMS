@@ -294,7 +294,7 @@ function LessonPane({
 	blockTypes: string[]
 	onDone: () => void
 }) {
-	const existing = useLesson(lessonName ?? null)
+	const existing = useLesson(lessonName ?? null, offering)
 
 	if (lessonName && existing.isPending) {
 		return <p className="text-muted-foreground text-sm">Opening…</p>
