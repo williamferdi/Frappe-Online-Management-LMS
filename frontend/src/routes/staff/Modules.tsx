@@ -462,7 +462,7 @@ function ModuleCard({
 						</div>
 					)}
 
-					<ItemList module={module} offering={offering} />
+					<ItemList module={module} data={data} offering={offering} />
 
 					<div className="px-3 py-2">
 						{adding ? (
@@ -622,7 +622,15 @@ function ModuleForm({
  * Their own list rather than rows inside the card, because reordering needs
  * the whole set — a row cannot know what it is being dropped above.
  */
-function ItemList({ module, offering }: { module: OutlineModule; offering: string }) {
+function ItemList({
+	module,
+	data,
+	offering,
+}: {
+	module: OutlineModule
+	data: StaffOutline
+	offering: string
+}) {
 	const reorder = useReorder(offering)
 	const drag = useDragOrder(
 		module.items.map((item) => item.name),
@@ -647,6 +655,7 @@ function ItemList({ module, offering }: { module: OutlineModule; offering: strin
 				<ItemRow
 					key={item.name}
 					item={item}
+					data={data}
 					offering={offering}
 					drag={drag}
 					first={index === 0}
@@ -675,17 +684,20 @@ const MAX_INDENT = 3
 
 function ItemRow({
 	item,
+	data,
 	offering,
 	drag,
 	first,
 	last,
 }: {
 	item: OutlineItem
+	data: StaffOutline
 	offering: string
 	drag: ReturnType<typeof useDragOrder>
 	first: boolean
 	last: boolean
 }) {
+	const [editing, setEditing] = useState(false)
 	const save = useSaveItem(offering)
 	const remove = useDeleteItem(offering)
 
@@ -706,95 +718,116 @@ function ItemRow({
 
 	return (
 		<li
-			{...drag.handlers(item.name)}
+			// Not draggable while its form is open: a drag begun inside a text
+			// box would carry the whole row off instead of selecting the words.
+			{...(editing ? {} : drag.handlers(item.name))}
 			className={cn(
-				'flex items-center gap-2 py-2 pr-3 text-sm',
 				drag.dragging === item.name && 'opacity-50',
 				drag.over === item.name &&
 					drag.dragging !== item.name &&
 					'border-primary border-t-2',
 			)}
-			style={{ paddingLeft: `${0.75 + indent * INDENT_STEP}rem` }}
 		>
-			<GripVertical
-				className="text-muted-foreground size-4 shrink-0 cursor-grab"
-				aria-hidden
-			/>
+			<div
+				className="flex items-center gap-2 py-2 pr-3 text-sm"
+				style={{ paddingLeft: `${0.75 + indent * INDENT_STEP}rem` }}
+			>
+				<GripVertical
+					className="text-muted-foreground size-4 shrink-0 cursor-grab"
+					aria-hidden
+				/>
 
-			{heading ? null : Icon ? (
-				<Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
-			) : (
-				<span className="size-4 shrink-0" />
-			)}
-
-			<div className="min-w-0 flex-1">
-				<span className={cn('block truncate', heading && 'font-semibold')}>
-					{label}
-				</span>
-				{!heading && (
-					<span className="text-muted-foreground block text-xs">
-						{item.item_type}
-						{item.completion_requirement !== 'Nothing' &&
-							` · ${item.completion_requirement}`}
-						{item.completion_requirement === 'Score at least' && ` ${item.min_score}`}
-					</span>
+				{heading ? null : Icon ? (
+					<Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
+				) : (
+					<span className="size-4 shrink-0" />
 				)}
+
+				<div className="min-w-0 flex-1">
+					<span className={cn('block truncate', heading && 'font-semibold')}>
+						{label}
+					</span>
+					{!heading && (
+						<span className="text-muted-foreground block text-xs">
+							{item.item_type}
+							{item.completion_requirement !== 'Nothing' &&
+								` · ${item.completion_requirement}`}
+							{item.completion_requirement === 'Score at least' &&
+								` ${item.min_score}`}
+						</span>
+					)}
+				</div>
+
+				<PublishToggle
+					published={Boolean(item.published)}
+					what={label}
+					pending={save.isPending}
+					onChange={(next) => set({ published: next ? 1 : 0 })}
+				/>
+
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="size-7 shrink-0"
+							aria-label={`More for ${label}`}
+						>
+							<EllipsisVertical className="size-4" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem onSelect={() => setEditing(true)}>Edit</DropdownMenuItem>
+						<DropdownMenuItem
+							disabled={first}
+							onSelect={() => drag.moveBy(item.name, -1)}
+						>
+							Move up
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							disabled={last}
+							onSelect={() => drag.moveBy(item.name, 1)}
+						>
+							Move down
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							disabled={indent >= MAX_INDENT}
+							onSelect={() => set({ indent: indent + 1 })}
+						>
+							Indent
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							disabled={indent <= 0}
+							onSelect={() => set({ indent: indent - 1 })}
+						>
+							Outdent
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							variant="destructive"
+							onSelect={() =>
+								remove.mutate(item.name, {
+									onError: (error) => toast.error(message(error)),
+								})
+							}
+						>
+							Delete
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</div>
 
-			<PublishToggle
-				published={Boolean(item.published)}
-				what={label}
-				pending={save.isPending}
-				onChange={(next) => set({ published: next ? 1 : 0 })}
-			/>
-
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="size-7 shrink-0"
-						aria-label={`More for ${label}`}
-					>
-						<EllipsisVertical className="size-4" />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end">
-					<DropdownMenuItem
-						disabled={first}
-						onSelect={() => drag.moveBy(item.name, -1)}
-					>
-						Move up
-					</DropdownMenuItem>
-					<DropdownMenuItem disabled={last} onSelect={() => drag.moveBy(item.name, 1)}>
-						Move down
-					</DropdownMenuItem>
-					<DropdownMenuSeparator />
-					<DropdownMenuItem
-						disabled={indent >= MAX_INDENT}
-						onSelect={() => set({ indent: indent + 1 })}
-					>
-						Indent
-					</DropdownMenuItem>
-					<DropdownMenuItem
-						disabled={indent <= 0}
-						onSelect={() => set({ indent: indent - 1 })}
-					>
-						Outdent
-					</DropdownMenuItem>
-					<DropdownMenuSeparator />
-					<DropdownMenuItem
-						variant="destructive"
-						onSelect={() =>
-							remove.mutate(item.name, {
-								onError: (error) => toast.error(message(error)),
-							})
-						}
-					>
-						Delete
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
+			{editing && (
+				<div className="bg-muted/30 border-t px-3 py-3">
+					<ItemEditForm
+						item={item}
+						data={data}
+						offering={offering}
+						onDone={() => setEditing(false)}
+					/>
+				</div>
+			)}
 		</li>
 	)
 }
@@ -932,34 +965,13 @@ function ItemForm({
 				</label>
 			</div>
 
-			<div className="grid gap-3 sm:grid-cols-3">
-				<label className="block">
-					<span className="text-xs font-medium">What counts as done</span>
-					<select
-						className="border-input bg-background mt-1 h-9 w-full rounded-md border px-3 text-sm"
-						value={requirement}
-						onChange={(event) => setRequirement(event.target.value)}
-					>
-						{data.choices.completion_rules.map((option) => (
-							<option key={option} value={option}>
-								{option}
-							</option>
-						))}
-					</select>
-				</label>
-
-				{requirement === 'Score at least' && (
-					<label className="block">
-						<span className="text-xs font-medium">Minimum score</span>
-						<Input
-							type="number"
-							className="mt-1"
-							value={minScore}
-							onChange={(event) => setMinScore(event.target.value)}
-						/>
-					</label>
-				)}
-			</div>
+			<CompletionFields
+				rules={data.choices.completion_rules}
+				requirement={requirement}
+				minScore={minScore}
+				onRequirement={setRequirement}
+				onMinScore={setMinScore}
+			/>
 
 			<div className="flex justify-end gap-2">
 				<Button variant="outline" size="sm" onClick={onDone}>
@@ -1000,6 +1012,191 @@ function ItemForm({
 					}
 				>
 					Add
+				</Button>
+			</div>
+		</div>
+	)
+}
+
+/** What counts as done, and the score when that is the rule. Adding an item
+ *  and editing one ask the same question, so they ask it the same way. */
+function CompletionFields({
+	rules,
+	requirement,
+	minScore,
+	onRequirement,
+	onMinScore,
+}: {
+	rules: string[]
+	requirement: string
+	minScore: string
+	onRequirement: (value: string) => void
+	onMinScore: (value: string) => void
+}) {
+	return (
+		<div className="grid gap-3 sm:grid-cols-3">
+			<label className="block">
+				<span className="text-xs font-medium">What counts as done</span>
+				<select
+					className="border-input bg-background mt-1 h-9 w-full rounded-md border px-3 text-sm"
+					value={requirement}
+					onChange={(event) => onRequirement(event.target.value)}
+				>
+					{rules.map((option) => (
+						<option key={option} value={option}>
+							{option}
+						</option>
+					))}
+				</select>
+			</label>
+
+			{requirement === 'Score at least' && (
+				<label className="block">
+					<span className="text-xs font-medium">Minimum score</span>
+					<Input
+						type="number"
+						className="mt-1"
+						value={minScore}
+						onChange={(event) => onMinScore(event.target.value)}
+					/>
+				</label>
+			)}
+		</div>
+	)
+}
+
+/** The lesson, assignment, page or file an item opens, by the title it was
+ *  chosen by -- or null when that is no longer on the course. */
+function pointsAt(item: OutlineItem, data: StaffOutline): string | null {
+	const { choices } = data
+	const found =
+		item.item_type === 'Lesson'
+			? choices.lessons.find((row) => row.name === item.lesson)
+			: item.item_type === 'Assignment'
+				? choices.assignments.find((row) => row.name === item.assignment)
+				: item.item_type === 'Page'
+					? choices.pages.find((row) => row.name === item.page)
+					: item.item_type === 'File'
+						? choices.files.find((row) => row.name === item.file)
+						: undefined
+	return found?.title ?? null
+}
+
+/**
+ * Changing an item already in a module: what it is called, what counts as
+ * done, and -- for a link -- where it goes.
+ *
+ * Not what it points at. A student's progress belongs to the lesson or piece
+ * of work they actually opened, so moving an item onto a different one would
+ * carry their ticks across to something they have never seen. Canvas draws
+ * the same line. To point at something else, add that and delete this.
+ *
+ * So neither `item_type` nor the pointer is ever sent, and `save_item` -- which
+ * sets exactly the fields it is given -- leaves both as they were.
+ */
+function ItemEditForm({
+	item,
+	data,
+	offering,
+	onDone,
+}: {
+	item: OutlineItem
+	data: StaffOutline
+	offering: string
+	onDone: () => void
+}) {
+	const [title, setTitle] = useState(item.title ?? '')
+	const [url, setUrl] = useState(item.url ?? '')
+	const [requirement, setRequirement] = useState(item.completion_requirement)
+	const [minScore, setMinScore] = useState(
+		item.min_score == null ? '' : String(item.min_score),
+	)
+	const save = useSaveItem(offering)
+
+	const heading = item.item_type === 'Sub-header'
+	const link = item.item_type === 'URL'
+	const target = heading || link ? null : pointsAt(item, data)
+
+	return (
+		<div className="space-y-3">
+			{!heading && !link && (
+				<p className="text-muted-foreground text-xs">
+					Opens the {item.item_type.toLowerCase()}{' '}
+					<span className="text-foreground font-medium">
+						{target ?? 'that is no longer on this course'}
+					</span>
+					. To point it at something else, add that as a new item and delete this
+					one: a student&apos;s progress stays with what they actually opened.
+				</p>
+			)}
+
+			<div className="grid gap-3 sm:grid-cols-3">
+				<label className="block">
+					<span className="text-xs font-medium">Title</span>
+					<Input
+						className="mt-1"
+						value={title}
+						onChange={(event) => setTitle(event.target.value)}
+					/>
+				</label>
+
+				{link && (
+					<label className="block sm:col-span-2">
+						<span className="text-xs font-medium">Link</span>
+						<Input
+							className="mt-1"
+							value={url}
+							onChange={(event) => setUrl(event.target.value)}
+						/>
+					</label>
+				)}
+			</div>
+
+			{!heading && (
+				<CompletionFields
+					rules={data.choices.completion_rules}
+					requirement={requirement}
+					minScore={minScore}
+					onRequirement={setRequirement}
+					onMinScore={setMinScore}
+				/>
+			)}
+
+			<div className="flex justify-end gap-2">
+				<Button variant="outline" size="sm" onClick={onDone}>
+					Cancel
+				</Button>
+				<Button
+					size="sm"
+					// A sub-header is nothing but its words, and a link nothing
+					// without its address.
+					disabled={save.isPending || (heading && !title.trim()) || (link && !url.trim())}
+					onClick={() =>
+						save.mutate(
+							{
+								module: item.module,
+								item: item.name,
+								values: {
+									title,
+									...(link ? { url: url.trim() } : {}),
+									...(heading ? {} : { completion_requirement: requirement }),
+									...(!heading && requirement === 'Score at least'
+										? { min_score: Number(minScore) || 0 }
+										: {}),
+								},
+							},
+							{
+								onSuccess: () => {
+									toast.success('Item saved')
+									onDone()
+								},
+								onError: (error) => toast.error(message(error)),
+							},
+						)
+					}
+				>
+					{save.isPending ? <LoaderCircle className="animate-spin" /> : null}
+					Save item
 				</Button>
 			</div>
 		</div>

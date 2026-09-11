@@ -254,3 +254,95 @@ describe('the module builder', () => {
 		expect(screen.getByText('Nothing in this module yet.')).toBeInTheDocument()
 	})
 })
+
+describe('editing an item already in a module', () => {
+	it('opens where the item sits, with what it already says', async () => {
+		const data = outline([
+			unit({ items: [item({ completion_requirement: 'Score at least', min_score: 70 })] }),
+		])
+		data.choices.completion_rules = [...data.choices.completion_rules, 'Score at least']
+		await renderModules(data)
+
+		await choose('More for Lecture 1', 'Edit')
+
+		expect(screen.getByLabelText('Title')).toHaveValue('Lecture 1')
+		expect(screen.getByLabelText(/What counts as done/)).toHaveValue('Score at least')
+		expect(screen.getByLabelText('Minimum score')).toHaveValue(70)
+		// What it points at is said, not offered -- see ItemEditForm for why.
+		expect(screen.getByText(/add that as a new item/)).toBeInTheDocument()
+	})
+
+	it('saves the change to the same item, and leaves what it points at alone', async () => {
+		await renderModules(outline([unit({ items: [item()] })]))
+		await choose('More for Lecture 1', 'Edit')
+
+		const title = screen.getByLabelText('Title')
+		await userEvent.clear(title)
+		await userEvent.type(title, 'Lecture 1: Creation')
+		await userEvent.selectOptions(screen.getByLabelText(/What counts as done/), 'Mark it done')
+		await userEvent.click(screen.getByRole('button', { name: 'Save item' }))
+
+		await waitFor(() => expect(post).toHaveBeenCalled())
+		const [path, args] = post.mock.calls[0]
+		expect(path).toBe('sibbcs.api.syllabus.save_item')
+		expect(args?.item).toBe('CMI-00001')
+		expect(args?.module).toBe('CM-00001')
+		// No item_type and no lesson: an edit cannot move students' progress
+		// onto something they never opened.
+		expect(args?.values).toEqual({
+			title: 'Lecture 1: Creation',
+			completion_requirement: 'Mark it done',
+		})
+	})
+
+	it('lets a link be pointed somewhere else', async () => {
+		await renderModules(
+			outline([
+				unit({
+					items: [
+						item({
+							item_type: 'URL',
+							title: 'Reading',
+							lesson: null,
+							url: 'https://old.example.org',
+						}),
+					],
+				}),
+			]),
+		)
+		await choose('More for Reading', 'Edit')
+
+		const link = screen.getByLabelText('Link')
+		expect(link).toHaveValue('https://old.example.org')
+		await userEvent.clear(link)
+		await userEvent.type(link, 'https://www.bible.com')
+		await userEvent.click(screen.getByRole('button', { name: 'Save item' }))
+
+		await waitFor(() => expect(post).toHaveBeenCalled())
+		expect(post.mock.calls[0][1]?.values).toMatchObject({ url: 'https://www.bible.com' })
+	})
+
+	it('gives a sub-header only its title to change', async () => {
+		await renderModules(
+			outline([
+				unit({
+					items: [item({ item_type: 'Sub-header', title: 'Course Materials', lesson: null })],
+				}),
+			]),
+		)
+		await choose('More for Course Materials', 'Edit')
+
+		expect(screen.getByLabelText('Title')).toHaveValue('Course Materials')
+		expect(screen.queryByLabelText(/What counts as done/)).toBeNull()
+	})
+
+	it('closes on Cancel without saving anything', async () => {
+		await renderModules(outline([unit({ items: [item()] })]))
+		await choose('More for Lecture 1', 'Edit')
+
+		await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+		expect(screen.queryByRole('button', { name: 'Save item' })).toBeNull()
+		expect(post).not.toHaveBeenCalled()
+	})
+})
