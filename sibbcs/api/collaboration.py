@@ -158,6 +158,9 @@ def save_group(group_set, title, members=None, name=None):
 
 	doc = frappe.get_doc("Course Group", name) if name else frappe.new_doc("Course Group")
 	doc.group_set = group_set
+	# Fetched from the set, but Frappe checks permission before it fetches, so a
+	# new group arriving without its offering was refused to every teacher.
+	doc.course_offering = offering
 	doc.title = title
 
 	if members is not None:
@@ -264,6 +267,10 @@ def save_override(assignment, values, name=None):
 		else frappe.new_doc("Assignment Override")
 	)
 	doc.assignment = assignment
+	# Fetched from the assignment, but Frappe checks permission before it
+	# fetches, so a new override arriving without its offering was refused to
+	# every teacher.
+	doc.course_offering = offering
 	for field in (
 		"course_registration", "course_group", "available_from", "due_date",
 		"available_until", "reason",

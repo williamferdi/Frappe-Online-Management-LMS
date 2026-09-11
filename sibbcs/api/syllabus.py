@@ -328,6 +328,10 @@ def save_item(module, values, item=None):
 	else:
 		doc = frappe.new_doc("Course Module Item")
 		doc.module = module
+		# Set here as well as fetched. Frappe checks create permission before it
+		# fetches, so an item arriving without its offering was refused to every
+		# teacher -- only unrestricted staff could add one (found 2026-09-11).
+		doc.course_offering = offering
 		doc.position = _next_position("Course Module Item", {"module": module})
 
 	for field in ITEM_FIELDS:

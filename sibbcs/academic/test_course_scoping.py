@@ -539,3 +539,48 @@ class TestCourseScoping(FrappeTestCase):
 		self.assertTrue(frappe.has_permission("Question Bank", "write", doc=self.theirs_bank))
 		self.assertTrue(frappe.has_permission("Course Page", "write", doc=self.theirs_page))
 		self.assertIn(self.theirs_student, frappe.get_list("Student", pluck="name", limit_page_length=0))
+
+	# --- a teacher's own course still works -------------------------------
+	# Frappe checks create permission before it fetches, so a new record that
+	# takes its offering from its parent reached the permission hook with none
+	# and was refused to every teacher -- only unrestricted staff could add
+	# one. Found by the tests above on 2026-09-11; the endpoints now set the
+	# offering they already know.
+
+	def _mine_registration(self):
+		return frappe.db.get_value(
+			"Course Registration",
+			{"student": self.mine_student, "course_offering": self.mine_offering},
+			"name",
+		)
+
+	def test_a_teacher_adds_a_group_to_their_own_set(self):
+		frappe.set_user(self.mine_user)
+		group = collaboration.save_group(
+			self.mine_set, f"New {frappe.generate_hash(length=4)}"
+		)["group"]
+
+		self.assertEqual(
+			frappe.db.get_value("Course Group", group, "course_offering"), self.mine_offering
+		)
+
+	def test_a_teacher_adds_an_override_on_their_own_course(self):
+		frappe.set_user(self.mine_user)
+		override = collaboration.save_override(
+			self.mine_assignment,
+			{
+				"course_registration": self._mine_registration(),
+				"due_date": add_days(now_datetime(), 5),
+			},
+		)["override"]
+
+		self.assertTrue(override)
+
+	def test_a_teacher_marks_work_never_handed_in(self):
+		"""An offline paper, or a zero for nothing submitted."""
+		frappe.set_user(self.mine_user)
+		result = marking.grade(self.mine_assignment, self._mine_registration(), score=0)
+
+		self.assertEqual(
+			result["submission"]["course_registration"], self._mine_registration()
+		)

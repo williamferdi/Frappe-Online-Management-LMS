@@ -247,6 +247,9 @@ def _submission_for(assignment, course_registration, assignment_row):
 	submission = frappe.new_doc("Assignment Submission")
 	submission.assignment = assignment
 	submission.course_registration = course_registration
+	# Fetched from the assignment, but Frappe checks permission before it
+	# fetches, so marking work nobody handed in was refused to every teacher.
+	submission.course_offering = assignment_row.course_offering
 	submission.attempt = 1
 	submission.status = "Missing"
 	return submission
