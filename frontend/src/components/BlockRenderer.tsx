@@ -2,6 +2,7 @@ import { ExternalLink } from 'lucide-react'
 
 import { RichText } from '@/components/RichText'
 import { cn } from '@/lib/utils'
+import { readVideo } from '@/lib/video'
 
 /**
  * EditorJS lesson content, rendered here rather than in an iframe.
@@ -191,9 +192,11 @@ function BlockView({ block, lmsUrl }: { block: Block; lmsUrl?: string | null }) 
 /**
  * An embedded video.
  *
- * Only the services the LMS's own embed tool produces, and only as an iframe
- * to that service -- never a raw URL from lesson content dropped into `src`
- * without looking at where it points.
+ * Only YouTube and Vimeo, and never a URL from lesson content dropped into
+ * `src` as it was stored: `readVideo` builds the address to play from the
+ * video's id. That is also what lets a teacher paste the link from the
+ * address bar -- YouTube's watch page refuses to be framed ("refused to
+ * connect"), and the embed address built from the same id does not.
  */
 function Embed({
 	data,
@@ -202,17 +205,22 @@ function Embed({
 	data: Record<string, unknown>
 	lmsUrl?: string | null
 }) {
-	const embed = typeof data.embed === 'string' ? data.embed : ''
+	const stored = typeof data.embed === 'string' ? data.embed : ''
 	const source = typeof data.source === 'string' ? data.source : ''
-	const allowed = /^https:\/\/(www\.)?(youtube\.com|youtube-nocookie\.com|player\.vimeo\.com)\//
+	// Either may hold the link. The LMS writes both; a lesson saved before
+	// links were read holds whatever was pasted, in `embed`.
+	const video = readVideo(stored) ?? readVideo(source)
 
-	if (!embed || !allowed.test(embed)) {
+	if (!video) {
+		// Offered as a link only when it is a web address: a `javascript:` URL
+		// out of stored content is not a thing to put under a student's cursor.
+		const elsewhere = [source, stored].find((link) => /^https?:\/\//i.test(link))
 		return (
 			<Notice lmsUrl={lmsUrl}>
 				This lesson embeds something from elsewhere.{' '}
-				{source && (
+				{elsewhere && (
 					<a
-						href={source}
+						href={elsewhere}
 						target="_blank"
 						rel="noreferrer noopener"
 						className="underline"
@@ -227,7 +235,7 @@ function Embed({
 	return (
 		<div className="aspect-video overflow-hidden rounded-md">
 			<iframe
-				src={embed}
+				src={video.embed}
 				title={String(data.caption ?? 'Embedded video')}
 				className="size-full"
 				allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture"

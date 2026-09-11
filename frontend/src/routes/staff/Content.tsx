@@ -3,13 +3,12 @@ import { BookText, FileText, LoaderCircle, Paperclip, Plus, Trash2 } from 'lucid
 import { toast } from 'sonner'
 
 import { QueryState } from '@/components/QueryState'
-import { RichText } from '@/components/RichText'
+import { RichTextEditor } from '@/components/RichTextEditor'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { LessonEditor } from '@/routes/staff/LessonEditor'
 import {
 	useContentOutline,
@@ -17,6 +16,7 @@ import {
 	useDeleteLesson,
 	useDeletePage,
 	useLesson,
+	usePage,
 	useSaveChapter,
 	useSaveFile,
 	useSavePage,
@@ -84,6 +84,37 @@ function NoSpace({ offering }: { offering: string }) {
 				>
 					{make.isPending ? <LoaderCircle className="animate-spin" /> : null}
 					Set up lessons
+				</Button>
+			</CardContent>
+		</Card>
+	)
+}
+
+/**
+ * Said instead of opening an editor over something that did not load.
+ *
+ * The editors take their starting text once. Opened empty over a lesson or
+ * page that failed to arrive, the first Save would write that emptiness over
+ * it -- so this goes no further than saying so.
+ */
+function CouldNotOpen({
+	what,
+	error,
+	onBack,
+}: {
+	what: string
+	error: unknown
+	onBack: () => void
+}) {
+	return (
+		<Card>
+			<CardContent className="space-y-3 py-8 text-center">
+				<div className="font-medium">This {what} could not be opened</div>
+				<p className="text-muted-foreground text-sm">
+					{message(error)} Nothing has been changed.
+				</p>
+				<Button variant="outline" size="sm" onClick={onBack}>
+					Back
 				</Button>
 			</CardContent>
 		</Card>
@@ -269,6 +300,10 @@ function LessonPane({
 		return <p className="text-muted-foreground text-sm">Opening…</p>
 	}
 
+	if (lessonName && existing.isError) {
+		return <CouldNotOpen what="lesson" error={existing.error} onBack={onDone} />
+	}
+
 	return (
 		<LessonEditor
 			offering={offering}
@@ -287,10 +322,8 @@ function LessonPane({
 // ---------------------------------------------------------------------------
 
 function Pages({ data, offering }: { data: ContentOutline; offering: string }) {
-	const [editing, setEditing] = useState<{ name?: string; title: string; body: string } | null>(
-		null,
-	)
-	const save = useSavePage(offering)
+	// No `name` is a new page; a `name` is the page being edited.
+	const [editing, setEditing] = useState<{ name?: string } | null>(null)
 	const remove = useDeletePage(offering)
 
 	return (
@@ -298,81 +331,14 @@ function Pages({ data, offering }: { data: ContentOutline; offering: string }) {
 			<div className="mb-3 flex items-center justify-between gap-2">
 				<h3 className="text-sm font-semibold">Pages</h3>
 				{!editing && (
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={() => setEditing({ title: '', body: '' })}
-					>
+					<Button size="sm" variant="outline" onClick={() => setEditing({})}>
 						<Plus /> New page
 					</Button>
 				)}
 			</div>
 
 			{editing ? (
-				<Card>
-					<CardContent className="space-y-3 p-4">
-						<div>
-							<Label htmlFor="page-title">Title</Label>
-							<Input
-								id="page-title"
-								className="mt-1"
-								value={editing.title}
-								onChange={(event) =>
-									setEditing({ ...editing, title: event.target.value })
-								}
-							/>
-						</div>
-						<div>
-							<Label htmlFor="page-body">Body</Label>
-							<Textarea
-								id="page-body"
-								className="mt-1 font-mono text-xs"
-								rows={8}
-								value={editing.body}
-								onChange={(event) => setEditing({ ...editing, body: event.target.value })}
-							/>
-							<p className="text-muted-foreground mt-1 text-xs">
-								HTML, shown to students as written.
-							</p>
-						</div>
-						{editing.body && (
-							<div className="bg-muted rounded-md p-3">
-								<div className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
-									Preview
-								</div>
-								<RichText html={editing.body} />
-							</div>
-						)}
-						<div className="flex justify-end gap-2">
-							<Button variant="outline" size="sm" onClick={() => setEditing(null)}>
-								Cancel
-							</Button>
-							<Button
-								size="sm"
-								disabled={!editing.title || save.isPending}
-								onClick={() =>
-									save.mutate(
-										{
-											title: editing.title,
-											body: editing.body,
-											published: 1,
-											name: editing.name,
-										},
-										{
-											onSuccess: () => {
-												toast.success('Page saved')
-												setEditing(null)
-											},
-											onError: (error) => toast.error(message(error)),
-										},
-									)
-								}
-							>
-								Save page
-							</Button>
-						</div>
-					</CardContent>
-				</Card>
+				<PagePane offering={offering} name={editing.name} onDone={() => setEditing(null)} />
 			) : data.pages.length === 0 ? (
 				<Card>
 					<CardContent className="py-8 text-center">
@@ -398,6 +364,14 @@ function Pages({ data, offering }: { data: ContentOutline; offering: string }) {
 									</Badge>
 									<Button
 										variant="ghost"
+										size="sm"
+										aria-label={`Edit ${page.title}`}
+										onClick={() => setEditing({ name: page.name })}
+									>
+										Edit
+									</Button>
+									<Button
+										variant="ghost"
 										size="icon"
 										aria-label={`Delete ${page.title}`}
 										onClick={() =>
@@ -416,6 +390,122 @@ function Pages({ data, offering }: { data: ContentOutline; offering: string }) {
 				</Card>
 			)}
 		</section>
+	)
+}
+
+/** Loads an existing page before editing it; a new one starts empty. */
+function PagePane({
+	offering,
+	name,
+	onDone,
+}: {
+	offering: string
+	name?: string
+	onDone: () => void
+}) {
+	const existing = usePage(name ?? null)
+
+	if (name && existing.isPending) {
+		return <p className="text-muted-foreground text-sm">Opening…</p>
+	}
+
+	if (name && existing.isError) {
+		return <CouldNotOpen what="page" error={existing.error} onBack={onDone} />
+	}
+
+	return (
+		<PageEditor
+			offering={offering}
+			name={name}
+			initialTitle={existing.data?.title ?? ''}
+			initialBody={existing.data?.body ?? ''}
+			// A new page is published, as it always was here. An existing one
+			// keeps what it has: editing a draft must not publish it.
+			initialPublished={existing.data ? existing.data.published : 1}
+			onDone={onDone}
+		/>
+	)
+}
+
+function PageEditor({
+	offering,
+	name,
+	initialTitle,
+	initialBody,
+	initialPublished,
+	onDone,
+}: {
+	offering: string
+	name?: string
+	initialTitle: string
+	initialBody: string
+	initialPublished: number
+	onDone: () => void
+}) {
+	const [title, setTitle] = useState(initialTitle)
+	const [body, setBody] = useState(initialBody)
+	const [published, setPublished] = useState(initialPublished)
+	const save = useSavePage(offering)
+
+	return (
+		<Card>
+			<CardContent className="space-y-3 p-4">
+				<div>
+					<Label htmlFor="page-title">Title</Label>
+					<Input
+						id="page-title"
+						className="mt-1"
+						value={title}
+						onChange={(event) => setTitle(event.target.value)}
+					/>
+				</div>
+				<div>
+					<Label id="page-body-label" htmlFor="page-body">
+						Body
+					</Label>
+					<RichTextEditor
+						id="page-body"
+						labelledBy="page-body-label"
+						className="mt-1"
+						value={body}
+						onChange={setBody}
+						placeholder="Write the page, or paste it from Word or Google Docs."
+					/>
+				</div>
+				<label className="flex items-center gap-2 text-sm">
+					<input
+						type="checkbox"
+						checked={Boolean(published)}
+						onChange={(event) => setPublished(event.target.checked ? 1 : 0)}
+					/>
+					Students can see this page
+				</label>
+				<div className="flex justify-end gap-2">
+					<Button variant="outline" size="sm" onClick={onDone}>
+						Cancel
+					</Button>
+					<Button
+						size="sm"
+						disabled={!title || save.isPending}
+						onClick={() =>
+							save.mutate(
+								{ title, body, published, name },
+								{
+									onSuccess: () => {
+										toast.success(name ? 'Page saved' : 'Page created')
+										onDone()
+									},
+									onError: (error) => toast.error(message(error)),
+								},
+							)
+						}
+					>
+						{save.isPending ? <LoaderCircle className="animate-spin" /> : null}
+						Save page
+					</Button>
+				</div>
+			</CardContent>
+		</Card>
 	)
 }
 

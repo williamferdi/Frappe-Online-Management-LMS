@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useSaveLesson } from '@/hooks/useContent'
 import { FrappeError } from '@/lib/frappe'
+import { readVideo } from '@/lib/video'
 
 function message(error: unknown) {
 	return error instanceof FrappeError ? error.message : 'Something went wrong.'
@@ -329,21 +330,69 @@ function BlockEditor({
 				)}
 
 				{block.type === 'embed' && (
-					<div className="space-y-2">
-						<Input
-							aria-label={`Video address ${index + 1}`}
-							placeholder="https://www.youtube.com/embed/…"
-							value={typeof data.embed === 'string' ? data.embed : ''}
-							onChange={(event) => onChange({ ...data, embed: event.target.value })}
-						/>
-						<p className="text-muted-foreground text-xs">
-							YouTube or Vimeo embed address. Anything else is shown as a link
-							rather than played in the page.
-						</p>
-					</div>
+					<VideoField data={data} index={index} onChange={onChange} />
 				)}
 			</CardContent>
 		</Card>
+	)
+}
+
+/**
+ * The link to a video, as the teacher found it.
+ *
+ * Any YouTube or Vimeo link works -- the address bar, the Share button, an
+ * embed link -- because `readVideo` turns each into the one form a page may
+ * play. Said under the box as it is typed, so a link that will not play is
+ * found out here, and not by a student.
+ */
+function VideoField({
+	data,
+	index,
+	onChange,
+}: {
+	data: Record<string, unknown>
+	index: number
+	onChange: (data: Record<string, unknown>) => void
+}) {
+	// A lesson written in the LMS, or saved before links were read, may carry
+	// only `embed`.
+	const link =
+		typeof data.source === 'string' && data.source
+			? data.source
+			: typeof data.embed === 'string'
+				? data.embed
+				: ''
+	const video = link ? readVideo(link) : null
+	const hint = `video-hint-${index}`
+
+	return (
+		<div className="space-y-2">
+			<Input
+				aria-label={`Video address ${index + 1}`}
+				aria-describedby={hint}
+				placeholder="https://www.youtube.com/watch?v=…"
+				value={link}
+				onChange={(event) => {
+					const typed = event.target.value
+					const found = readVideo(typed)
+					// What was pasted is kept as `source`, as the LMS's own editor
+					// keeps it; `embed` only ever holds an address that plays.
+					onChange({
+						...data,
+						source: typed,
+						embed: found?.embed ?? '',
+						service: found?.service ?? '',
+					})
+				}}
+			/>
+			<p id={hint} className={video ? 'text-success text-xs' : 'text-muted-foreground text-xs'}>
+				{!link
+					? 'Paste a YouTube or Vimeo link — from the address bar, the Share button, or an embed code.'
+					: video
+						? `${video.service === 'youtube' ? 'YouTube' : 'Vimeo'} video — it will play in the lesson.`
+						: 'Not a YouTube or Vimeo video link. Students will be shown a link to it instead of a player.'}
+			</p>
+		</div>
 	)
 }
 

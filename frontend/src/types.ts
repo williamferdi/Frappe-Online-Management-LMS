@@ -1506,6 +1506,15 @@ export interface LessonDraft {
 	blocks: { type: string; data?: Record<string, unknown> }[]
 }
 
+/** One course page, as the editor opens it. */
+export interface PageDraft {
+	name: string
+	course: string
+	title: string
+	body: string | null
+	published: number
+}
+
 /** A thread hanging off one lesson rather than the whole course. */
 export interface LessonDiscussionReply {
 	name: string

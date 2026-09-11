@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { frappeGet, frappePost } from '@/lib/frappe'
-import type { ContentOutline, LessonDraft } from '@/types'
+import type { ContentOutline, LessonDraft, PageDraft } from '@/types'
 
 export const contentKeys = {
 	outline: (offering: string) => ['content', 'outline', offering] as const,
 	lesson: (name: string) => ['content', 'lesson', name] as const,
+	page: (name: string) => ['content', 'page', name] as const,
 }
 
 export function useContentOutline(offering: string | null) {
@@ -19,11 +20,30 @@ export function useContentOutline(offering: string | null) {
 	})
 }
 
+/*
+ * A lesson or page, opened to be edited.
+ *
+ * Never served from a remembered copy (`gcTime: 0`). The editor takes its
+ * starting text once, so a copy from before the last save would be saved
+ * straight back over it -- the teacher's previous edit quietly undone by the
+ * next one.
+ */
+
 export function useLesson(name: string | null) {
 	return useQuery({
 		queryKey: contentKeys.lesson(name ?? ''),
 		queryFn: () => frappeGet<LessonDraft>('sibbcs.api.content.lesson', { name }),
 		enabled: Boolean(name),
+		gcTime: 0,
+	})
+}
+
+export function usePage(name: string | null) {
+	return useQuery({
+		queryKey: contentKeys.page(name ?? ''),
+		queryFn: () => frappeGet<PageDraft>('sibbcs.api.content.page', { name }),
+		enabled: Boolean(name),
+		gcTime: 0,
 	})
 }
 
