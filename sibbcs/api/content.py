@@ -358,13 +358,27 @@ def save_page(course_offering, title, body=None, published=None, name=None):
 
 
 @frappe.whitelist()
-def page(name):
+def page(name, course_offering):
+	"""One page, for its editor -- and only through an offering on its course.
+
+	By name alone this opened any page in the college to any member of staff:
+	`_require_teaching` asks whether you are staff at all, not whether this is
+	your course. The offering is what `assert_may_teach` can check, and the
+	page must belong to that offering's course, or naming an offering you do
+	teach would open a page from one you do not.
+
+	The staff check stays first. `assert_may_teach` alone would let a student
+	through, because `offering_scope` is None for them too.
+	"""
 	_require_teaching()
+	course = _course_of(course_offering)
 	row = frappe.db.get_value(
 		"Course Page", name, ["name", "course", "title", "body", "published"], as_dict=True
 	)
 	if not row:
 		frappe.throw(_("Page not found."))
+	if row.course != course:
+		frappe.throw(_("That page belongs to another course."), frappe.PermissionError)
 	return row
 
 

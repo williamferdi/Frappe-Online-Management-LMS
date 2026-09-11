@@ -226,3 +226,64 @@ class TestContentAuthoring(FrappeTestCase):
 	def test_a_course_with_no_space_says_so_rather_than_failing_oddly(self):
 		with self.assertRaises(frappe.ValidationError):
 			content.save_chapter(self.offering, "Too early")
+
+	# --- reading a page back, which was open to any member of staff ---------
+
+	def _user(self, roles):
+		email = f"page.{frappe.generate_hash(length=6)}@example.invalid"
+		frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": email,
+				"first_name": "Page",
+				"user_type": "System User",
+				"send_welcome_email": 0,
+				"roles": [{"role": role} for role in roles],
+			}
+		).insert(ignore_permissions=True)
+		return email
+
+	def test_a_page_opens_through_an_offering_on_its_course(self):
+		page = content.save_page(self.offering, "Syllabus", body="<p>Welcome</p>")["page"]
+
+		row = content.page(page, self.offering)
+
+		self.assertEqual(row.body, "<p>Welcome</p>")
+
+	def test_a_page_will_not_open_through_an_offering_on_another_course(self):
+		"""Otherwise naming an offering you do teach would open a page from one
+		you do not."""
+		other = make_offering(
+			make_course(f"TCN {frappe.generate_hash(length=4)}").name,
+			self.term,
+			status="Published",
+		).name
+		page = content.save_page(other, "Somebody else's syllabus")["page"]
+
+		with self.assertRaises(frappe.PermissionError):
+			content.page(page, self.offering)
+
+	def test_a_teacher_cannot_open_a_page_on_a_course_they_do_not_teach(self):
+		"""The hole this closes: by name alone, any member of staff could read
+		any page in the college."""
+		from sibbcs.academic.doctype.course_offering.test_course_offering import (
+			make_instructor,
+		)
+
+		page = content.save_page(self.offering, "Syllabus", body="<p>Welcome</p>")["page"]
+		email = self._user(["Faculty"])
+		make_instructor(f"Page {email[5:11]}", user=email)
+
+		frappe.set_user(email)
+		with self.assertRaises(frappe.PermissionError):
+			content.page(page, self.offering)
+
+	def test_someone_who_is_not_staff_cannot_open_a_page_at_all(self):
+		"""`assert_may_teach` alone would let them through -- `offering_scope`
+		is None for a student too -- so the staff check has to come first."""
+		page = content.save_page(self.offering, "Syllabus")["page"]
+		email = self._user([])
+
+		frappe.set_user(email)
+		with self.assertRaises(frappe.PermissionError):
+			content.page(page, self.offering)

@@ -38,10 +38,13 @@ export function useLesson(name: string | null) {
 	})
 }
 
-export function usePage(name: string | null) {
+/** The offering goes too, so the server can refuse a page on a course this
+ *  teacher does not teach -- by name alone, it would open any page there is. */
+export function usePage(name: string | null, offering: string) {
 	return useQuery({
 		queryKey: contentKeys.page(name ?? ''),
-		queryFn: () => frappeGet<PageDraft>('sibbcs.api.content.page', { name }),
+		queryFn: () =>
+			frappeGet<PageDraft>('sibbcs.api.content.page', { name, course_offering: offering }),
 		enabled: Boolean(name),
 		gcTime: 0,
 	})

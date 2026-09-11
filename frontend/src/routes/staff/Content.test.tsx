@@ -47,7 +47,7 @@ async function renderContent({
 	oneLesson = async () => ({}),
 }: {
 	data?: ContentOutline
-	onePage?: () => Promise<unknown>
+	onePage?: (args?: Record<string, unknown>) => Promise<unknown>
 	oneLesson?: () => Promise<unknown>
 } = {}) {
 	vi.resetModules()
@@ -57,8 +57,12 @@ async function renderContent({
 		const actual = await vi.importActual<typeof import('@/lib/frappe')>('@/lib/frappe')
 		return {
 			...actual,
-			frappeGet: vi.fn(async (path: string) =>
-				path.endsWith('.page') ? onePage() : path.endsWith('.lesson') ? oneLesson() : data,
+			frappeGet: vi.fn(async (path: string, args?: Record<string, unknown>) =>
+				path.endsWith('.page')
+					? onePage(args)
+					: path.endsWith('.lesson')
+						? oneLesson()
+						: data,
 			),
 			frappePost: post,
 		}
@@ -98,6 +102,21 @@ describe('editing a page', () => {
 			'<p>Week one: Genesis.</p>',
 		)
 		expect(screen.getByRole('toolbar', { name: 'Formatting' })).toBeInTheDocument()
+	})
+
+	it('asks for the page through this course, so the server can refuse any other', async () => {
+		let asked: Record<string, unknown> | undefined
+		await renderContent({
+			onePage: async (args) => {
+				asked = args
+				return page()
+			},
+		})
+
+		await userEvent.click(await screen.findByRole('button', { name: 'Edit Syllabus' }))
+		await screen.findByLabelText('Title')
+
+		expect(asked).toEqual({ name: 'CP-0001', course_offering: OFFERING })
 	})
 
 	it('saves what was written with the formatting toolbar', async () => {

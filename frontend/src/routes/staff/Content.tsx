@@ -403,7 +403,7 @@ function PagePane({
 	name?: string
 	onDone: () => void
 }) {
-	const existing = usePage(name ?? null)
+	const existing = usePage(name ?? null, offering)
 
 	if (name && existing.isPending) {
 		return <p className="text-muted-foreground text-sm">Opening…</p>
