@@ -443,16 +443,22 @@ def _fully_marked(registrations):
 # ---------------------------------------------------------------------------
 
 
+def _rubric_course(rubric):
+	"""A rubric's course, or None when it is shared. One that does not exist
+	is said so, rather than read as a shared one."""
+	if not rubric or not frappe.db.exists("Course Rubric", rubric):
+		frappe.throw(_("Rubric not found."))
+	return frappe.db.get_value("Course Rubric", rubric, "course")
+
+
 @frappe.whitelist()
 def rubrics(course=None):
+	"""Rubrics this user may use: their own courses', and the shared ones."""
 	_require_teaching()
-	filters = {}
-	if course:
-		filters["course"] = ("in", [course, ""])
 	return {
 		"rows": frappe.get_all(
 			"Course Rubric",
-			filters=filters,
+			or_filters=academic_permissions.course_record_filters(course),
 			fields=["name", "title", "course", "total_points", "description"],
 			order_by="title asc",
 		)
@@ -462,8 +468,7 @@ def rubrics(course=None):
 @frappe.whitelist()
 def rubric(name):
 	_require_teaching()
-	if not frappe.db.exists("Course Rubric", name):
-		frappe.throw(_("Rubric not found."))
+	academic_permissions.assert_may_see(_rubric_course(name))
 	return _rubric_payload(name)
 
 
@@ -475,8 +480,16 @@ def save_rubric(title, criteria, name=None, course=None, description=None):
 	replaces: a criterion that survives keeps its name, and therefore keeps
 	every assessment already made against it. Deleting and re-creating would
 	silently orphan past marking.
+
+	A course's rubric is its teachers' to change, and a shared one the
+	office's: one teacher's edit to a shared rubric would change how every
+	course using it is marked. Both where it is and where it would go are
+	checked, or a rubric could be carried off another course.
 	"""
 	_require_teaching()
+	if name:
+		academic_permissions.assert_may_change(_rubric_course(name), _("rubric"))
+	academic_permissions.assert_may_change(course or None, _("rubric"))
 
 	if isinstance(criteria, str):
 		criteria = frappe.parse_json(criteria)
@@ -495,9 +508,14 @@ def save_rubric(title, criteria, name=None, course=None, description=None):
 
 	kept = set()
 	for position, entry in enumerate(criteria):
+		# Only this rubric's own criteria keep their names. A criterion named
+		# from another rubric would be moved here, out from under the marking
+		# already done against it there.
+		existing = entry.get("name")
 		criterion = (
-			frappe.get_doc("Rubric Criterion", entry["name"])
-			if entry.get("name") and frappe.db.exists("Rubric Criterion", entry["name"])
+			frappe.get_doc("Rubric Criterion", existing)
+			if existing
+			and frappe.db.get_value("Rubric Criterion", existing, "rubric") == doc.name
 			else frappe.new_doc("Rubric Criterion")
 		)
 		criterion.rubric = doc.name

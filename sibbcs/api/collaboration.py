@@ -102,10 +102,26 @@ def _groups_of_set(group_set):
 	return groups
 
 
+# An existing record is checked against where it already is, *before* the
+# endpoint writes the caller's own course onto it. The permission hooks read a
+# record as it is about to be saved, so they would pass one carried in from
+# another course -- the audit of 2026-09-11 found group sets and discussions
+# could be taken that way.
+
+
 @frappe.whitelist(methods=["POST"])
 def save_group_set(course_offering, title, self_signup=0, group_limit=0, name=None):
 	_require_teaching()
 	academic_permissions.assert_may_teach(course_offering)
+
+	if name:
+		where = frappe.db.get_value("Course Group Set", name, "course_offering")
+		if not where:
+			frappe.throw(_("Group set not found."))
+		if where != course_offering:
+			frappe.throw(
+				_("That group set belongs to another course."), frappe.PermissionError
+			)
 
 	doc = (
 		frappe.get_doc("Course Group Set", name)
@@ -129,6 +145,13 @@ def save_group(group_set, title, members=None, name=None):
 	if not offering:
 		frappe.throw(_("Group set not found."))
 	academic_permissions.assert_may_teach(offering)
+
+	if name:
+		where = frappe.db.get_value("Course Group", name, "group_set")
+		if not where:
+			frappe.throw(_("Group not found."))
+		if where != group_set:
+			frappe.throw(_("That group is in another set."), frappe.PermissionError)
 
 	if isinstance(members, str):
 		members = frappe.parse_json(members)
@@ -226,6 +249,15 @@ def save_override(assignment, values, name=None):
 	if not isinstance(values, dict):
 		frappe.throw(_("An override must be a set of fields."))
 
+	if name:
+		where = frappe.db.get_value("Assignment Override", name, "assignment")
+		if not where:
+			frappe.throw(_("Override not found."))
+		if where != assignment:
+			frappe.throw(
+				_("That override belongs to another assignment."), frappe.PermissionError
+			)
+
 	doc = (
 		frappe.get_doc("Assignment Override", name)
 		if name
@@ -295,6 +327,23 @@ def save_discussion(course_offering, values, name=None):
 		values = frappe.parse_json(values)
 	if not isinstance(values, dict):
 		frappe.throw(_("A discussion must be a set of fields."))
+
+	if name:
+		where = frappe.db.get_value("Course Discussion", name, "course_offering")
+		if not where:
+			frappe.throw(_("Discussion not found."))
+		if where != course_offering:
+			frappe.throw(
+				_("That discussion belongs to another course."), frappe.PermissionError
+			)
+
+	# Taking part submits to this assignment, so it must be this course's --
+	# or a discussion here would put marks on another course's work.
+	assignment = values.get("assignment")
+	if assignment and frappe.db.get_value(
+		"Course Assignment", assignment, "course_offering"
+	) != course_offering:
+		frappe.throw(_("That assignment is not on this course."), frappe.PermissionError)
 
 	doc = (
 		frappe.get_doc("Course Discussion", name)

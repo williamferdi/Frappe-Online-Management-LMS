@@ -33,7 +33,9 @@ Who sees what:
                                                       row, so the grade fields
                                                       stay dark
     Faculty, Facilitator                              the offerings they teach
-                                                      or facilitate
+                                                      or facilitate, the
+                                                      courses those belong to,
+                                                      and the students on them
     Student                                           their own records
 
 A Faculty user with no Instructor record teaches nothing and so sees nothing.
@@ -63,6 +65,9 @@ TEACHING_ROLES = ("Faculty", "Facilitator")
 # A condition no row satisfies. Returning this rather than "" is the whole
 # difference between "you see nothing" and "you see everything".
 NOTHING = "1 = 0"
+
+# What changes a record, as opposed to looking at it or picking it in a link.
+CHANGES = {"write", "create", "delete", "submit", "cancel", "amend"}
 
 
 def _cache():
@@ -184,6 +189,53 @@ def offerings_for(user=None):
 	)
 
 
+def courses_for(user=None):
+	"""The courses a user teaches at least one offering of.
+
+	Pages, files, rubrics, question banks and quizzes belong to the Course, not
+	to one run of it, so every term reuses them. Teaching this term's offering
+	is what makes them a teacher's to work on.
+	"""
+	user = user or frappe.session.user
+	offerings = offerings_for(user)
+	if not offerings:
+		return []
+	return _memo(
+		("courses", user),
+		lambda: sorted(
+			{
+				course
+				for course in frappe.get_all(
+					"Course Offering", filters={"name": ("in", offerings)}, pluck="course"
+				)
+				if course
+			}
+		),
+	)
+
+
+def students_for(user=None):
+	"""The students registered on any offering a user teaches or facilitates."""
+	user = user or frappe.session.user
+	offerings = offerings_for(user)
+	if not offerings:
+		return []
+	return _memo(
+		("students", user),
+		lambda: sorted(
+			{
+				student
+				for student in frappe.get_all(
+					"Course Registration",
+					filters={"course_offering": ("in", offerings)},
+					pluck="student",
+				)
+				if student
+			}
+		),
+	)
+
+
 def student_for(user=None):
 	"""The Student record this user is, if they are one."""
 	user = user or frappe.session.user
@@ -236,6 +288,78 @@ def assert_may_teach(course_offering, user=None):
 	frappe.throw(
 		_("You are not teaching {0}.").format(course_offering), frappe.PermissionError
 	)
+
+
+def course_scope(user=None):
+	"""The courses this user may work on, or None meaning all of them.
+
+	The same None/[] distinction as `offering_scope`, and the same trap: None
+	is also the answer for a student. This narrows staff; whether somebody is
+	staff at all is the caller's to ask first.
+	"""
+	user = user or frappe.session.user
+	if is_unrestricted(user) or not _teaches(user):
+		return None
+	return courses_for(user)
+
+
+def assert_may_teach_course(course, user=None):
+	"""Refuse a course this user teaches no offering of."""
+	scope = course_scope(user)
+	if scope is None or course in scope:
+		return
+	frappe.throw(_("You are not teaching {0}.").format(course), frappe.PermissionError)
+
+
+def assert_may_see(course, user=None):
+	"""Read a course's own rubric or bank as its teacher, or a shared one --
+	no course -- as anyone who teaches."""
+	if course:
+		assert_may_teach_course(course, user)
+
+
+def assert_may_change(course, what, user=None):
+	"""Change a course's own rubric or bank as its teacher; a shared one only
+	as the academic office, because one teacher's edit would change how every
+	course using it is examined or marked."""
+	if course:
+		assert_may_teach_course(course, user)
+		return
+	if course_scope(user) is not None:
+		frappe.throw(
+			_("Only the academic office can change a shared {0}.").format(what),
+			frappe.PermissionError,
+		)
+
+
+def course_record_filters(course=None, user=None):
+	"""`or_filters` for the rubrics or banks this user may use.
+
+	Their own courses' and the shared ones; None -- no filter at all -- for the
+	office. Naming a course narrows to it and the shared ones, and a teacher
+	may only name one they teach.
+	"""
+	if course:
+		assert_may_teach_course(course, user)
+	courses = [course] if course else course_scope(user)
+	if courses is None:
+		return None
+	filters = [["course", "is", "not set"]]
+	if courses:
+		filters.append(["course", "in", courses])
+	return filters
+
+
+def student_scope(user=None):
+	"""The students this user may look up, or None meaning all of them.
+
+	Since 2026-09-11 a teacher's roll is their own students. [] is a teacher
+	with nobody on their courses, and must read as "nobody", not as no filter.
+	"""
+	user = user or frappe.session.user
+	if is_unrestricted(user) or not _teaches(user):
+		return None
+	return students_for(user)
 
 
 # --- Course Registration --------------------------------------------------
@@ -440,35 +564,171 @@ def module_item_progress_permission(doc, ptype="read", user=None):
 # --- Student and Program Enrollment ---------------------------------------
 # Both carry `read(STUDENT)`, which without a row filter is the student
 # directory and the cohort's levels handed to anyone holding the role.
-# Faculty are left unscoped here: looking a student up is ordinary teaching
-# work, and neither record carries a mark.
+#
+# A teacher sees the students on the courses they teach, and nobody else.
+# This was once left open -- "looking a student up is ordinary teaching
+# work" -- until the college decided on 2026-09-11 that a teacher's roll is
+# their own students: a name, a telephone number and a photograph are
+# personal details, and a teacher has no reason to hold them for a student
+# they never teach.
 
 
 def student_query(user=None):
 	user = user or frappe.session.user
-	if not _only_a_student(user) or is_unrestricted(user):
+	if is_unrestricted(user):
 		return ""
-	student = student_for(user)
-	return _within("Student", "name", [student] if student else [])
+	if _teaches(user):
+		return _within("Student", "name", students_for(user))
+	if _only_a_student(user):
+		student = student_for(user)
+		return _within("Student", "name", [student] if student else [])
+	return ""
 
 
 def student_permission(doc, ptype="read", user=None):
 	user = user or frappe.session.user
-	if not doc or is_unrestricted(user) or not _only_a_student(user):
+	if not doc or is_unrestricted(user):
 		return True
-	return doc.get("name") == student_for(user)
+	if _teaches(user):
+		return doc.get("name") in students_for(user)
+	if _only_a_student(user):
+		return doc.get("name") == student_for(user)
+	return True
 
 
 def program_enrollment_query(user=None):
 	user = user or frappe.session.user
-	if not _only_a_student(user) or is_unrestricted(user):
+	if is_unrestricted(user):
 		return ""
-	student = student_for(user)
-	return _within("Program Enrollment", "student", [student] if student else [])
+	if _teaches(user):
+		return _within("Program Enrollment", "student", students_for(user))
+	if _only_a_student(user):
+		student = student_for(user)
+		return _within("Program Enrollment", "student", [student] if student else [])
+	return ""
 
 
 def program_enrollment_permission(doc, ptype="read", user=None):
 	user = user or frappe.session.user
-	if not doc or is_unrestricted(user) or not _only_a_student(user):
+	if not doc or is_unrestricted(user):
 		return True
-	return doc.get("student") == student_for(user)
+	if _teaches(user):
+		return doc.get("student") in students_for(user)
+	if _only_a_student(user):
+		return doc.get("student") == student_for(user)
+	return True
+
+
+# --- what belongs to a Course rather than to one run of it ---------------
+# Pages, files, rubrics, question banks and quizzes are the Course's, so every
+# term reuses them. Faculty hold full rights on all of them, and until
+# 2026-09-11 nothing narrowed that to *which* course: any teacher could
+# rewrite another course's quiz answers, through Desk or the API. A teacher
+# now works on the courses they teach an offering of.
+#
+# A rubric or bank with no course is shared: every teacher may read it and use
+# it, and only the office may change it -- one teacher's edit would change how
+# every course using it is examined or marked.
+
+
+def _may_touch_course(course, ptype, user, shared):
+	if not course:
+		return shared and ptype not in CHANGES
+	return course in courses_for(user)
+
+
+def _course_scoped_query(doctype, user, shared=False):
+	if is_unrestricted(user) or not _teaches(user):
+		return ""
+	condition = _within(doctype, "course", courses_for(user))
+	if shared:
+		condition = f"({condition} or ifnull(`tab{doctype}`.`course`, '') = '')"
+	return condition
+
+
+def _course_scoped_permission(doc, ptype, user, shared=False):
+	if not doc or is_unrestricted(user) or not _teaches(user):
+		return True
+	return _may_touch_course(doc.get("course"), ptype, user, shared)
+
+
+def _within_parent(child, link, parent, user):
+	"""Rows whose parent is on the teacher's courses, or is shared."""
+	inner = _within(parent, "course", courses_for(user))
+	return (
+		f"`tab{child}`.`{link}` in (select `name` from `tab{parent}` "
+		f"where {inner} or ifnull(`tab{parent}`.`course`, '') = '')"
+	)
+
+
+def _parent_scoped_permission(doc, ptype, user, link, parent):
+	if not doc or is_unrestricted(user) or not _teaches(user):
+		return True
+	course = frappe.db.get_value(parent, doc.get(link), "course")
+	return _may_touch_course(course, ptype, user, shared=True)
+
+
+def course_page_query(user=None):
+	return _course_scoped_query("Course Page", user or frappe.session.user)
+
+
+def course_page_permission(doc, ptype="read", user=None):
+	return _course_scoped_permission(doc, ptype, user or frappe.session.user)
+
+
+def course_file_query(user=None):
+	return _course_scoped_query("Course File", user or frappe.session.user)
+
+
+def course_file_permission(doc, ptype="read", user=None):
+	return _course_scoped_permission(doc, ptype, user or frappe.session.user)
+
+
+def course_quiz_query(user=None):
+	return _course_scoped_query("Course Quiz", user or frappe.session.user)
+
+
+def course_quiz_permission(doc, ptype="read", user=None):
+	return _course_scoped_permission(doc, ptype, user or frappe.session.user)
+
+
+def course_rubric_query(user=None):
+	return _course_scoped_query("Course Rubric", user or frappe.session.user, shared=True)
+
+
+def course_rubric_permission(doc, ptype="read", user=None):
+	return _course_scoped_permission(doc, ptype, user or frappe.session.user, shared=True)
+
+
+def question_bank_query(user=None):
+	return _course_scoped_query("Question Bank", user or frappe.session.user, shared=True)
+
+
+def question_bank_permission(doc, ptype="read", user=None):
+	return _course_scoped_permission(doc, ptype, user or frappe.session.user, shared=True)
+
+
+def rubric_criterion_query(user=None):
+	user = user or frappe.session.user
+	if is_unrestricted(user) or not _teaches(user):
+		return ""
+	return _within_parent("Rubric Criterion", "rubric", "Course Rubric", user)
+
+
+def rubric_criterion_permission(doc, ptype="read", user=None):
+	return _parent_scoped_permission(
+		doc, ptype, user or frappe.session.user, "rubric", "Course Rubric"
+	)
+
+
+def bank_question_query(user=None):
+	user = user or frappe.session.user
+	if is_unrestricted(user) or not _teaches(user):
+		return ""
+	return _within_parent("Bank Question", "bank", "Question Bank", user)
+
+
+def bank_question_permission(doc, ptype="read", user=None):
+	return _parent_scoped_permission(
+		doc, ptype, user or frappe.session.user, "bank", "Question Bank"
+	)

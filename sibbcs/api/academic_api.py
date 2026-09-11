@@ -74,9 +74,18 @@ def students(search=None, program=None, level=None, status=None, limit=200):
 	"""
 	_require_academic()
 
+	# A teacher's roll is their own students -- the college's decision of
+	# 2026-09-11. None is everybody; [] is a teacher with nobody on their
+	# courses, which must come back empty rather than as no filter at all.
+	scope = academic_permissions.student_scope()
+	if scope is not None and not scope:
+		return _student_page([], program, level, False)
+
 	filters = {}
 	if status:
 		filters["status"] = status
+	if scope is not None:
+		filters["name"] = ("in", scope)
 
 	or_filters = None
 	if search:
@@ -136,8 +145,20 @@ def _student_page(rows, program, level, truncated=False):
 
 @frappe.whitelist()
 def student(name):
-	"""One student: enrolment, registrations, grades and money owed."""
+	"""One student: enrolment, registrations, grades and money owed.
+
+	A teacher sees their own students, and on them only their own courses'
+	marks -- the college's decision of 2026-09-11.
+	"""
 	_require_academic()
+
+	# Asked before the record is looked up, so a teacher is told the same thing
+	# about a student who does not exist and one who is not theirs.
+	scope = academic_permissions.student_scope()
+	if scope is not None and name not in scope:
+		frappe.throw(
+			_("That student is not on any course you teach."), frappe.PermissionError
+		)
 
 	record = frappe.db.get_value(
 		"Student",
@@ -160,9 +181,16 @@ def student(name):
 
 	registrations = []
 	if enrollment:
+		filters = {"program_enrollment": enrollment.name}
+		# A teacher sees the marks on their own courses only: the rule the
+		# registration permission hook applies everywhere else, which a read
+		# through get_all never meets.
+		offerings = academic_permissions.offering_scope()
+		if offerings is not None:
+			filters["course_offering"] = ("in", offerings or [""])
 		registrations = frappe.get_all(
 			"Course Registration",
-			filters={"program_enrollment": enrollment.name},
+			filters=filters,
 			fields=[
 				"name", "course", "course_title", "term", "status", "credits",
 				"level_at_registration", "final_marks", "grade", "grade_points",
@@ -377,9 +405,18 @@ def demographics():
 	"""
 	_require_academic()
 
-	students = frappe.get_all(
-		"Student",
-		fields=["name", "gender", "status", "admission_application"],
+	# A teacher's panels describe their own students: since 2026-09-11 that is
+	# the roll they may see, and a breakdown of the college's would be the
+	# directory by other means.
+	scope = academic_permissions.student_scope()
+	students = (
+		[]
+		if scope is not None and not scope
+		else frappe.get_all(
+			"Student",
+			filters={"name": ("in", scope)} if scope is not None else {},
+			fields=["name", "gender", "status", "admission_application"],
+		)
 	)
 	total = len(students)
 

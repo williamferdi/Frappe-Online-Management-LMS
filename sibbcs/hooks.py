@@ -334,6 +334,11 @@ website_route_rules = [
 # has_permission guards the same record fetched by name. The /staff API reads
 # through frappe.get_all and is subject to neither -- it calls
 # permissions.assert_may_teach for itself.
+#
+# The last seven are a Course's own material rather than one offering's
+# (2026-09-11): scoped to the courses a teacher teaches an offering of, with a
+# rubric or bank that has no course readable by every teacher and changed
+# only by the office.
 permission_query_conditions = {
 	"Course Registration": "sibbcs.academic.permissions.course_registration_query",
 	"Course Assignment": "sibbcs.academic.permissions.course_assignment_query",
@@ -350,6 +355,13 @@ permission_query_conditions = {
 	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_query",
 	"Student": "sibbcs.academic.permissions.student_query",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_query",
+	"Course Page": "sibbcs.academic.permissions.course_page_query",
+	"Course File": "sibbcs.academic.permissions.course_file_query",
+	"Course Quiz": "sibbcs.academic.permissions.course_quiz_query",
+	"Course Rubric": "sibbcs.academic.permissions.course_rubric_query",
+	"Rubric Criterion": "sibbcs.academic.permissions.rubric_criterion_query",
+	"Question Bank": "sibbcs.academic.permissions.question_bank_query",
+	"Bank Question": "sibbcs.academic.permissions.bank_question_query",
 }
 
 has_permission = {
@@ -368,4 +380,11 @@ has_permission = {
 	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_permission",
 	"Student": "sibbcs.academic.permissions.student_permission",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_permission",
+	"Course Page": "sibbcs.academic.permissions.course_page_permission",
+	"Course File": "sibbcs.academic.permissions.course_file_permission",
+	"Course Quiz": "sibbcs.academic.permissions.course_quiz_permission",
+	"Course Rubric": "sibbcs.academic.permissions.course_rubric_permission",
+	"Rubric Criterion": "sibbcs.academic.permissions.rubric_criterion_permission",
+	"Question Bank": "sibbcs.academic.permissions.question_bank_permission",
+	"Bank Question": "sibbcs.academic.permissions.bank_question_permission",
 }

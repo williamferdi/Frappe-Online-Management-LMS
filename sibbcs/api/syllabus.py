@@ -279,10 +279,19 @@ def save_module(course_offering, values, module=None):
 			doc.set(field, values[field])
 
 	if "prerequisites" in values:
+		# Only this offering's own modules. One from another course would lock
+		# this module behind work its students can never see.
+		own = set(
+			frappe.get_all(
+				"Course Module", filters={"course_offering": course_offering}, pluck="name"
+			)
+		)
 		doc.set("prerequisites", [])
 		for name in values["prerequisites"] or []:
 			if name == doc.name:
 				# A module cannot wait for itself.
+				continue
+			if name not in own:
 				continue
 			doc.append("prerequisites", {"module": name})
 
@@ -392,49 +401,10 @@ def delete_item(item):
 	return {"deleted": item}
 
 
-# ---------------------------------------------------------------------------
-# staff: pages
-# ---------------------------------------------------------------------------
-
-
-@frappe.whitelist()
-def pages(course):
-	_require_teaching()
-	return {
-		"rows": frappe.get_all(
-			"Course Page",
-			filters={"course": course},
-			fields=["name", "title", "published", "modified"],
-			order_by="title asc",
-		)
-	}
-
-
-@frappe.whitelist()
-def page(name):
-	_require_teaching()
-	row = frappe.db.get_value(
-		"Course Page", name, ["name", "course", "title", "body", "published"], as_dict=True
-	)
-	if not row:
-		frappe.throw(_("Page not found."))
-	return row
-
-
-@frappe.whitelist(methods=["POST"])
-def save_page(course, title, body=None, published=None, name=None):
-	_require_teaching()
-
-	doc = frappe.get_doc("Course Page", name) if name else frappe.new_doc("Course Page")
-	doc.course = course
-	doc.title = title
-	doc.body = body
-	if published is not None:
-		doc.published = cint(published)
-
-	doc.save()
-	frappe.db.commit()
-	return {"page": doc.name}
+# Pages are written and read through `sibbcs.api.content`, which checks the
+# course. The three endpoints that stood here did not -- `page` opened any page
+# by name, and `save_page` could overwrite one and move it to another course --
+# and no screen called them, so they went rather than being mended (2026-09-11).
 
 
 # ---------------------------------------------------------------------------

@@ -239,12 +239,24 @@ class TestAcademicScoping(FrappeTestCase):
 		self.assertIn(mine.name, names)
 		self.assertNotIn(theirs.name, names)
 
-	def test_a_teacher_may_still_look_a_student_up(self):
-		"""Faculty are not scoped on Student: neither that record nor the
-		enrollment carries a mark, and looking a student up is teaching work."""
+	def test_a_teacher_may_still_look_up_their_own_students(self):
+		"""This student is on the teacher's course, which since 2026-09-11 is
+		exactly what a teacher's roll is: their own students."""
 		frappe.set_user(self.mine_user)
 
 		self.assertIn(self.student, frappe.get_list("Student", pluck="name"))
+
+	def test_a_teacher_cannot_look_up_a_student_they_do_not_teach(self):
+		"""Once left open -- "looking a student up is teaching work" -- until
+		the college decided a teacher holds no personal details for a student
+		they never teach."""
+		stranger = make_student(f"Scope Stranger {frappe.generate_hash(length=5)}").name
+		make_enrollment(stranger)
+
+		frappe.set_user(self.mine_user)
+
+		self.assertNotIn(stranger, frappe.get_list("Student", pluck="name"))
+		self.assertFalse(frappe.has_permission("Student", "read", doc=stranger))
 
 	def test_a_teacher_with_no_course_gets_an_empty_list_not_an_error(self):
 		"""The live configuration today: every Instructor record has a null

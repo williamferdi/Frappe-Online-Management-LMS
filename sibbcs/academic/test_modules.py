@@ -518,7 +518,16 @@ class TestSyllabusApi(FrappeTestCase):
 	def test_a_page_belongs_to_the_course_so_it_survives_the_term(self):
 		"""Content is the Course's; only dates and sequence are the
 		Offering's. A page written this term is there next term."""
-		page = syllabus.save_page(self.course, "Syllabus", body="<p>Welcome</p>")["page"]
+		# Made directly: `syllabus.save_page` was removed on 2026-09-11, and
+		# this test is about where a page belongs, not how one is written.
+		page = frappe.get_doc(
+			{
+				"doctype": "Course Page",
+				"course": self.course,
+				"title": "Syllabus",
+				"body": "<p>Welcome</p>",
+			}
+		).insert(ignore_permissions=True).name
 
 		next_term = make_term(f"TSY-N-{frappe.generate_hash(length=5)}", status="Open").name
 		next_offering = make_offering(self.course, next_term, status="Published").name

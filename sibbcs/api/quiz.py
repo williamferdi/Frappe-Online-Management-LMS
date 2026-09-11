@@ -326,16 +326,26 @@ def _may_reveal(quiz, attempt):
 # ---------------------------------------------------------------------------
 
 
+def _bank_course(bank):
+	"""A bank's course, or None when it is shared. A bank that does not exist
+	is said so, rather than read as a shared one."""
+	if not bank or not frappe.db.exists("Question Bank", bank):
+		frappe.throw(_("Bank not found."))
+	return frappe.db.get_value("Question Bank", bank, "course")
+
+
 @frappe.whitelist()
 def banks(course=None):
+	"""The banks this user may use: their own courses', and the shared ones.
+
+	Scoped since 2026-09-11. A bank carries its answers, so a list of every
+	course's banks was a directory of other people's exams.
+	"""
 	_require_teaching()
-	filters = {}
-	if course:
-		filters["course"] = ("in", [course, ""])
 	return {
 		"rows": frappe.get_all(
 			"Question Bank",
-			filters=filters,
+			or_filters=academic_permissions.course_record_filters(course),
 			fields=["name", "title", "course", "question_count", "description"],
 			order_by="title asc",
 		)
@@ -344,7 +354,11 @@ def banks(course=None):
 
 @frappe.whitelist()
 def bank(name):
+	"""One bank with its questions -- and their answers, so only for the
+	teachers of its course, or for anyone who teaches when it is shared."""
 	_require_teaching()
+	academic_permissions.assert_may_see(_bank_course(name))
+
 	row = frappe.db.get_value(
 		"Question Bank", name, ["name", "title", "course", "description"], as_dict=True
 	)
@@ -371,7 +385,14 @@ def bank(name):
 
 @frappe.whitelist(methods=["POST"])
 def save_bank(title, course=None, description=None, name=None):
+	"""A course's bank is its teachers'; a shared one the office's. Where it
+	is now and where it would go are both checked, or a bank could be carried
+	off another course."""
 	_require_teaching()
+	if name:
+		academic_permissions.assert_may_change(_bank_course(name), _("question bank"))
+	academic_permissions.assert_may_change(course or None, _("question bank"))
+
 	doc = frappe.get_doc("Question Bank", name) if name else frappe.new_doc("Question Bank")
 	doc.title = title
 	doc.course = course or None
@@ -384,6 +405,11 @@ def save_bank(title, course=None, description=None, name=None):
 @frappe.whitelist(methods=["POST"])
 def save_question(bank, values, question=None):
 	_require_teaching()
+	academic_permissions.assert_may_change(_bank_course(bank), _("question bank"))
+	if question and frappe.db.get_value("Bank Question", question, "bank") != bank:
+		# Moving a question in would take it out of another bank -- possibly
+		# another course's live quiz.
+		frappe.throw(_("That question is in another bank."), frappe.PermissionError)
 
 	if isinstance(values, str):
 		values = frappe.parse_json(values)
@@ -419,8 +445,11 @@ def save_question(bank, values, question=None):
 @frappe.whitelist(methods=["POST"])
 def delete_question(question):
 	_require_teaching()
-	if not frappe.db.exists("Bank Question", question):
+	bank = frappe.db.get_value("Bank Question", question, "bank")
+	if not bank:
 		frappe.throw(_("Question not found."))
+	academic_permissions.assert_may_change(_bank_course(bank), _("question bank"))
+
 	frappe.delete_doc("Bank Question", question)
 	frappe.db.commit()
 	return {"deleted": question}
@@ -429,6 +458,7 @@ def delete_question(question):
 @frappe.whitelist()
 def quizzes_for(course):
 	_require_teaching()
+	academic_permissions.assert_may_teach_course(course)
 	return {
 		"rows": frappe.get_all(
 			"Course Quiz",
@@ -442,7 +472,17 @@ def quizzes_for(course):
 
 @frappe.whitelist(methods=["POST"])
 def save_quiz(course, values, name=None):
+	"""A quiz is its course's and stays there: changed by that course's
+	teachers, never carried to another, and drawing only on its own course's
+	banks or shared ones."""
 	_require_teaching()
+	academic_permissions.assert_may_teach_course(course)
+	if name:
+		where = frappe.db.get_value("Course Quiz", name, "course")
+		if not where:
+			frappe.throw(_("Quiz not found."))
+		if where != course:
+			frappe.throw(_("That quiz belongs to another course."), frappe.PermissionError)
 
 	if isinstance(values, str):
 		values = frappe.parse_json(values)
@@ -461,6 +501,14 @@ def save_quiz(course, values, name=None):
 	if "sources" in values:
 		doc.set("sources", [])
 		for source in values["sources"] or []:
+			owner = _bank_course(source.get("bank"))
+			if owner and owner != course:
+				# Drawing on it would put another course's exam questions in
+				# this one's paper.
+				frappe.throw(
+					_("{0} belongs to another course.").format(source.get("bank")),
+					frappe.PermissionError,
+				)
 			doc.append(
 				"sources",
 				{"bank": source.get("bank"), "pick": cint(source.get("pick")) or 1},

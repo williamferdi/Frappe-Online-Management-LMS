@@ -395,10 +395,28 @@ class TestStudentProfile(FrappeTestCase):
 
 	def test_a_reader_without_admission_permission_gets_the_rest(self):
 		"""Faculty may see a student and grade them but hold nothing on
-		Admission Application. The page drops the block; it does not fail."""
+		Admission Application. The page drops the block; it does not fail.
+
+		The teacher teaches this student. Since 2026-09-11 a teacher's roll is
+		their own students, and a profile outside it is refused outright.
+		"""
+		from sibbcs.academic.doctype.course_offering.test_course_offering import (
+			make_instructor,
+		)
+
 		name, _ = self.a_student_admitted_from_an_application()
 		email = f"faculty.{frappe.generate_hash(length=8)}@example.invalid"
 		make_user(email, ["Faculty"])
+
+		tag = frappe.generate_hash(length=6)
+		offering = make_offering(
+			make_course(f"GRD{tag}", level="1", credits=3).name,
+			make_term(f"GRD-{tag}", status="Open").name,
+			status="Published",
+			instructor=make_instructor(f"Profile Teacher {tag}", user=email).name,
+		).name
+		enrollment = frappe.db.get_value("Program Enrollment", {"student": name}, "name")
+		make_registration(enrollment, offering)
 
 		frappe.set_user(email)
 		profile = api.student(name)
