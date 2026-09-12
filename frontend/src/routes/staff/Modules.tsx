@@ -855,6 +855,10 @@ function ItemForm({
 	const [type, setType] = useState('Lesson')
 	const [target, setTarget] = useState('')
 	const [title, setTitle] = useState('')
+	// The title last copied in from the chosen content. While the box still
+	// says that, choosing something else replaces it; once somebody has typed
+	// their own, it is theirs and nothing here touches it.
+	const [copied, setCopied] = useState('')
 	const [requirement, setRequirement] = useState('Nothing')
 	const [minScore, setMinScore] = useState('')
 	const save = useSaveItem(offering)
@@ -884,6 +888,19 @@ function ItemForm({
 						? data.choices.files.map((row) => ({ value: row.name, label: row.title }))
 						: []
 
+	const labelOf = (value: string) =>
+		options.find((option) => option.value === value)?.label ?? ''
+
+	/** Point at something, and take its title unless the teacher chose one. */
+	const choose = (value: string) => {
+		setTarget(value)
+		if (title === '' || title === copied) {
+			const label = labelOf(value)
+			setTitle(label)
+			setCopied(label)
+		}
+	}
+
 	return (
 		<div className="space-y-3">
 			<div className="grid gap-3 sm:grid-cols-3">
@@ -895,6 +912,12 @@ function ItemForm({
 						onChange={(event) => {
 							setType(event.target.value)
 							setTarget('')
+							// A title copied from a lesson says nothing about the
+							// page chosen next.
+							if (title === copied) {
+								setTitle('')
+								setCopied('')
+							}
 						}}
 					>
 						{data.choices.item_types.map((option) => (
@@ -911,7 +934,7 @@ function ItemForm({
 						<select
 							className="border-input bg-background mt-1 h-9 w-full rounded-md border px-3 text-sm"
 							value={target}
-							onChange={(event) => setTarget(event.target.value)}
+							onChange={(event) => choose(event.target.value)}
 						>
 							<option value="">Choose…</option>
 							{options.map((option) => (
@@ -958,7 +981,7 @@ function ItemForm({
 					<span className="text-xs font-medium">Title</span>
 					<Input
 						className="mt-1"
-						placeholder="Optional"
+						placeholder={needsTarget ? 'Taken from what you choose' : 'Optional'}
 						value={title}
 						onChange={(event) => setTitle(event.target.value)}
 					/>
@@ -993,7 +1016,9 @@ function ItemForm({
 								module,
 								values: {
 									item_type: type,
-									title,
+									// Emptied on purpose or never filled, it is still
+									// called what it opens rather than "(untitled)".
+									title: title.trim() || labelOf(target),
 									completion_requirement: requirement,
 									...(requirement === 'Score at least'
 										? { min_score: Number(minScore) || 0 }

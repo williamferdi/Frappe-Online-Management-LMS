@@ -346,3 +346,62 @@ describe('editing an item already in a module', () => {
 		expect(post).not.toHaveBeenCalled()
 	})
 })
+
+describe('adding an item', () => {
+	// The title comes from the content chosen, so a teacher does not retype
+	// what the lesson is already called -- and an item never ends up
+	// "(untitled)" because the box was left empty.
+
+	const openTheForm = () =>
+		userEvent.click(screen.getByRole('button', { name: 'Add an item to Week 1' }))
+
+	it('takes its title from the content chosen', async () => {
+		await renderModules(outline([unit()]))
+		await openTheForm()
+
+		await userEvent.selectOptions(screen.getByLabelText(/Which one/), 'LES-1')
+
+		expect(screen.getByLabelText('Title')).toHaveValue('Lecture 1')
+	})
+
+	it('keeps a title the teacher typed first', async () => {
+		await renderModules(outline([unit()]))
+		await openTheForm()
+
+		await userEvent.type(screen.getByLabelText('Title'), 'Reading for Monday')
+		await userEvent.selectOptions(screen.getByLabelText(/Which one/), 'LES-1')
+
+		expect(screen.getByLabelText('Title')).toHaveValue('Reading for Monday')
+	})
+
+	it('replaces a copied title when the choice changes', async () => {
+		const data = outline([unit()])
+		data.choices.lessons = [
+			...data.choices.lessons,
+			{ name: 'LES-2', title: 'Lecture 2', chapter: 'CH-1' },
+		]
+		await renderModules(data)
+		await openTheForm()
+
+		await userEvent.selectOptions(screen.getByLabelText(/Which one/), 'LES-1')
+		await userEvent.selectOptions(screen.getByLabelText(/Which one/), 'LES-2')
+
+		expect(screen.getByLabelText('Title')).toHaveValue('Lecture 2')
+	})
+
+	it('saves the content title even when the box was emptied', async () => {
+		await renderModules(outline([unit()]))
+		await openTheForm()
+
+		await userEvent.selectOptions(screen.getByLabelText(/Which one/), 'LES-1')
+		await userEvent.clear(screen.getByLabelText('Title'))
+		await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+		await waitFor(() => expect(post).toHaveBeenCalled())
+		expect(post.mock.calls[0][1]?.values).toMatchObject({
+			item_type: 'Lesson',
+			lesson: 'LES-1',
+			title: 'Lecture 1',
+		})
+	})
+})
