@@ -234,6 +234,17 @@ class TestMarking(FrappeTestCase):
 		self.assertTrue(row["marks_complete"])
 		self.assertEqual(row["final_marks"], 90.0)
 
+	def test_the_gradebook_says_what_each_assignment_asked_for(self):
+		"""So a marker can read the brief from its column."""
+		frappe.db.set_value(
+			"Course Assignment", self.assignment, "description", "<p>1500 words on Romans 8.</p>"
+		)
+
+		grid = marking.gradebook_grid(self.offering)
+		column = next(row for row in grid["assignments"] if row["name"] == self.assignment)
+
+		self.assertEqual(column["description"], "<p>1500 words on Romans 8.</p>")
+
 	# --- late work --------------------------------------------------------
 
 	def test_a_late_penalty_applies_once_however_often_it_is_saved(self):

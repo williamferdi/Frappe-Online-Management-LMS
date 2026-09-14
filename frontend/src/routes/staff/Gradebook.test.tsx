@@ -15,6 +15,7 @@ const assignment = {
 	points_possible: 20,
 	due_date: '2026-10-01 23:59:00',
 	published: 1,
+	description: null as string | null,
 }
 
 function student(index: number, name: string | null) {
@@ -37,9 +38,12 @@ function student(index: number, name: string | null) {
 	}
 }
 
-function grid(names: (string | null)[]): GradebookGrid {
+function grid(
+	names: (string | null)[],
+	over: Partial<typeof assignment> = {},
+): GradebookGrid {
 	return {
-		assignments: [assignment],
+		assignments: [{ ...assignment, ...over }],
 		rows: names.map((name, index) => student(index, name)),
 		scheme: [{ component: 'Assignment', weight_pct: 100, posting_policy: 'Manual' }],
 	} as unknown as GradebookGrid
@@ -75,6 +79,35 @@ beforeEach(() => vi.resetModules())
 afterEach(() => {
 	vi.doUnmock('@/lib/frappe')
 	vi.restoreAllMocks()
+})
+
+describe('what an assignment asked for', () => {
+	const brief = '<p>Write <strong>1500 words</strong> on Romans 8.</p>'
+
+	it('shows the description as hover text on its column', async () => {
+		await renderGradebook(grid(['Ruth Demo'], { description: brief }))
+
+		expect(screen.getByRole('button', { name: 'About Essay One' })).toHaveAttribute(
+			'title',
+			'Write 1500 words on Romans 8.',
+		)
+	})
+
+	it('opens it in full, formatting and all, on a click or tap', async () => {
+		await renderGradebook(grid(['Ruth Demo'], { description: brief }))
+
+		await userEvent.click(screen.getByRole('button', { name: 'About Essay One' }))
+
+		const dialog = await screen.findByRole('dialog', { name: 'Essay One' })
+		expect(within(dialog).getByText('1500 words').tagName).toBe('STRONG')
+	})
+
+	it('offers nothing for an assignment without one', async () => {
+		await renderGradebook(grid(['Ruth Demo']))
+
+		expect(screen.queryByRole('button', { name: /About/ })).toBeNull()
+		expect(screen.getByRole('link', { name: /Essay One/ })).toBeInTheDocument()
+	})
 })
 
 describe('the class against the work', () => {

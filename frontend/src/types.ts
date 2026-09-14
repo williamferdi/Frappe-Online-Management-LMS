@@ -1162,6 +1162,8 @@ export interface GradebookGrid {
 		points_possible: number
 		due_date: string | null
 		published: number
+		/** The brief, as HTML from its Text Editor field. */
+		description: string | null
 	}[]
 	rows: {
 		course_registration: string

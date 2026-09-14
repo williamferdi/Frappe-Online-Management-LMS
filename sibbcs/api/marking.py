@@ -347,10 +347,15 @@ def gradebook_grid(course_offering):
 	_require_teaching()
 	academic_permissions.assert_may_teach(course_offering)
 
+	# The description rides along so a marker can see what the work asked for
+	# from its column, without leaving the grid.
 	assignments = frappe.get_all(
 		"Course Assignment",
 		filters={"course_offering": course_offering},
-		fields=["name", "title", "component", "points_possible", "due_date", "published"],
+		fields=[
+			"name", "title", "component", "points_possible", "due_date", "published",
+			"description",
+		],
 		order_by="due_date asc, creation asc",
 	)
 

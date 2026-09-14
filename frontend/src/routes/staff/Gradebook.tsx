@@ -1,10 +1,20 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Info } from 'lucide-react'
 
 import { QueryState } from '@/components/QueryState'
+import { RichText } from '@/components/RichText'
 import { RosterPicker } from '@/components/RosterPicker'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from '@/components/ui/dialog'
 import { useGradebook } from '@/hooks/useMarking'
 import { cn } from '@/lib/utils'
 import type { GradebookGrid, SubmissionSummary } from '@/types'
@@ -85,16 +95,22 @@ function Grid({ data, offering }: { data: GradebookGrid; offering: string }) {
 							</th>
 							{data.assignments.map((assignment) => (
 								<th key={assignment.name} className="px-3 py-2 text-left font-medium">
-									<Link
-										to={`/staff/courses/${encodeURIComponent(offering)}/grade/${encodeURIComponent(assignment.name)}`}
-										className="hover:underline"
-									>
-										<span className="block max-w-32 truncate">{assignment.title}</span>
-										<span className="text-muted-foreground text-[10px] font-normal">
-											{assignment.component} · {assignment.points_possible}
-											{!assignment.published && ' · draft'}
-										</span>
-									</Link>
+									<div className="flex items-start gap-1">
+										<Link
+											to={`/staff/courses/${encodeURIComponent(offering)}/grade/${encodeURIComponent(assignment.name)}`}
+											className="hover:underline"
+										>
+											<span className="block max-w-32 truncate">{assignment.title}</span>
+											<span className="text-muted-foreground text-[10px] font-normal">
+												{assignment.component} · {assignment.points_possible}
+												{!assignment.published && ' · draft'}
+											</span>
+										</Link>
+										<AboutAssignment
+											title={assignment.title}
+											description={assignment.description}
+										/>
+									</div>
 								</th>
 							))}
 							<th className="px-3 py-2 text-right font-medium">Total</th>
@@ -145,6 +161,53 @@ function Grid({ data, offering }: { data: GradebookGrid; offering: string }) {
 			)}
 		</Card>
 		</>
+	)
+}
+
+/** A description without its markup, for the hover text, which cannot draw
+ *  any. Parsed rather than regexed; a parsed document is inert. */
+function plainText(html: string) {
+	const text = new DOMParser().parseFromString(html, 'text/html').body.textContent ?? ''
+	return text.replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * What an assignment asked for, from its column.
+ *
+ * Hovering shows it as plain text in the browser's own tooltip. A click or
+ * tap opens it in full, formatting and all: a tooltip cannot be tapped on a
+ * phone, and a pop-up inside the grid would be cut off by its scrolling box.
+ */
+function AboutAssignment({
+	title,
+	description,
+}: {
+	title: string
+	description: string | null
+}) {
+	const text = description ? plainText(description) : ''
+	if (!text) return null
+
+	return (
+		<Dialog>
+			<DialogTrigger asChild>
+				<Button
+					variant="ghost"
+					size="icon"
+					className="text-muted-foreground size-6 shrink-0"
+					aria-label={`About ${title}`}
+					title={text.length > 300 ? `${text.slice(0, 300)}…` : text}
+				>
+					<Info className="size-3.5" />
+				</Button>
+			</DialogTrigger>
+			<DialogContent aria-describedby={undefined}>
+				<DialogHeader>
+					<DialogTitle>{title}</DialogTitle>
+				</DialogHeader>
+				<RichText html={description ?? ''} className="max-h-[60vh] overflow-y-auto" />
+			</DialogContent>
+		</Dialog>
 	)
 }
 
