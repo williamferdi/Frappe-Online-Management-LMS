@@ -86,12 +86,12 @@ function reading(row: OutlineItem): PlayerItem {
 
 const post = vi.fn(async (_path: string, _args?: Record<string, unknown>) => ({}))
 
-async function renderPlayer(row: OutlineItem) {
+async function renderPlayer(row: OutlineItem, over: Partial<PlayerItem> = {}) {
 	vi.resetModules()
 	Object.assign(window, { user: 'student@x.com', roles: ['Student'], csrf_token: 't' })
 
 	const get = vi.fn(async (path: string) =>
-		path === 'sibbcs.api.player.item' ? reading(row) : course(row),
+		path === 'sibbcs.api.player.item' ? { ...reading(row), ...over } : course(row),
 	)
 
 	vi.doMock('@/lib/frappe', async () => {
@@ -128,6 +128,52 @@ beforeEach(() => {
 afterEach(() => {
 	vi.doUnmock('@/lib/frappe')
 	vi.restoreAllMocks()
+})
+
+describe('a file in the player', () => {
+	const file = () => item({ item_type: 'File', lesson: null, file: 'CFL-00001' })
+	const readingList = (description: string | null) => ({
+		content: { title: 'Reading list', file: '/private/files/reading.pdf', description },
+	})
+
+	it('shows what the teacher wrote about it, with the file', async () => {
+		await renderPlayer(file(), readingList('Read chapters 1-3 before Tuesday.'))
+
+		expect(screen.getByText('Read chapters 1-3 before Tuesday.')).toBeInTheDocument()
+		expect(screen.getByRole('link', { name: 'Reading list' })).toHaveAttribute(
+			'href',
+			'/private/files/reading.pdf',
+		)
+	})
+
+	it('draws the description as text, not as markup', async () => {
+		await renderPlayer(file(), readingList('Bring a pen.\n<b>Not bold</b>'))
+
+		const said = screen.getByText(/Bring a pen\./)
+		expect(said).toHaveTextContent('<b>Not bold</b>')
+		expect(said.querySelector('b')).toBeNull()
+	})
+
+	it('shows each resource with what was written about it', async () => {
+		await renderPlayer(item(), {
+			resources: [
+				{
+					item: 'CMI-00002',
+					title: 'Glossary',
+					url: '/private/files/glossary.pdf',
+					description: 'Terms for week one',
+				},
+			],
+		})
+
+		expect(screen.getByText('Terms for week one')).toBeInTheDocument()
+		// The description sits beside the link, so the link is still named by
+		// its title alone.
+		expect(screen.getByRole('link', { name: 'Glossary' })).toHaveAttribute(
+			'href',
+			'/private/files/glossary.pdf',
+		)
+	})
 })
 
 describe('reading a lesson in the player', () => {

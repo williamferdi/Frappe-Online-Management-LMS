@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { LessonEditor } from '@/routes/staff/LessonEditor'
 import {
 	useContentOutline,
@@ -628,8 +629,34 @@ function FilePreview({ url, title }: { url: string | null; title: string }) {
 	)
 }
 
+/** Students see this with the file, so the label says so. */
+function DescriptionField({
+	id,
+	value,
+	onChange,
+}: {
+	id: string
+	value: string
+	onChange: (value: string) => void
+}) {
+	return (
+		<div>
+			<Label htmlFor={id}>Description</Label>
+			<Textarea
+				id={id}
+				className="mt-1"
+				rows={3}
+				value={value}
+				onChange={(event) => onChange(event.target.value)}
+				placeholder="What it is, or what to do with it. Optional."
+			/>
+			<p className="text-muted-foreground mt-1 text-xs">Students see this with the file.</p>
+		</div>
+	)
+}
+
 /**
- * Renames a file or replaces what is attached to it.
+ * Renames a file, describes it, or replaces what is attached to it.
  *
  * A replacement is uploaded at once but recorded only on Save, so Cancel
  * leaves the file students see exactly as it was.
@@ -644,6 +671,7 @@ function FileEditor({
 	onDone: () => void
 }) {
 	const [title, setTitle] = useState(file.title)
+	const [description, setDescription] = useState(file.description ?? '')
 	const [replacement, setReplacement] = useState<{ url: string; name: string } | null>(null)
 	const [uploading, setUploading] = useState(false)
 	const save = useSaveFile(offering)
@@ -680,6 +708,8 @@ function FileEditor({
 					</p>
 				)}
 
+				<DescriptionField id="file-edit-description" value={description} onChange={setDescription} />
+
 				<div className="flex justify-end gap-2">
 					<Button variant="outline" size="sm" onClick={onDone}>
 						Cancel
@@ -692,6 +722,7 @@ function FileEditor({
 								{
 									name: file.name,
 									title,
+									description,
 									...(replacement ? { file: replacement.url } : {}),
 								},
 								{
@@ -718,6 +749,7 @@ function Files({ data, offering }: { data: ContentOutline; offering: string }) {
 	const [editing, setEditing] = useState<string | null>(null)
 	const [title, setTitle] = useState('')
 	const [url, setUrl] = useState('')
+	const [description, setDescription] = useState('')
 	const [uploading, setUploading] = useState(false)
 	const save = useSaveFile(offering)
 	const remove = useDeleteFile(offering)
@@ -745,60 +777,71 @@ function Files({ data, offering }: { data: ContentOutline; offering: string }) {
 
 			{adding && (
 				<Card className="mb-3">
-					<CardContent className="flex flex-wrap items-end gap-3 p-4">
-						<div>
-							<Label htmlFor="file-title">Title</Label>
-							<Input
-								id="file-title"
-								className="mt-1 w-56"
-								value={title}
-								onChange={(event) => setTitle(event.target.value)}
-							/>
+					<CardContent className="space-y-3 p-4">
+						<div className="flex flex-wrap items-start gap-3">
+							<div>
+								<Label htmlFor="file-title">Title</Label>
+								<Input
+									id="file-title"
+									className="mt-1 w-56"
+									value={title}
+									onChange={(event) => setTitle(event.target.value)}
+								/>
+							</div>
+
+							<div className="min-w-64 flex-1">
+								<FilePicker
+									id="file-upload"
+									label="File"
+									busy={uploading}
+									onBusy={setUploading}
+									onUploaded={(stored, chosen) => {
+										setUrl(stored)
+										// The file's own name is the obvious title, and
+										// retyping it is work nobody asked for.
+										setTitle((current) => current || chosen.name)
+									}}
+								/>
+								{url && !uploading && (
+									<p className="text-muted-foreground mt-1 truncate text-xs">
+										Uploaded {fileName(url)}
+									</p>
+								)}
+							</div>
 						</div>
 
-						<div className="min-w-64 flex-1">
-							<FilePicker
-								id="file-upload"
-								label="File"
-								busy={uploading}
-								onBusy={setUploading}
-								onUploaded={(stored, chosen) => {
-									setUrl(stored)
-									// The file's own name is the obvious title, and
-									// retyping it is work nobody asked for.
-									setTitle((current) => current || chosen.name)
-								}}
-							/>
-							{url && !uploading && (
-								<p className="text-muted-foreground mt-1 truncate text-xs">
-									Uploaded {fileName(url)}
-								</p>
-							)}
-						</div>
+						<DescriptionField
+							id="file-description"
+							value={description}
+							onChange={setDescription}
+						/>
 
-						<Button
-							size="sm"
-							disabled={!title || !url || uploading || save.isPending}
-							onClick={() =>
-								save.mutate(
-									{ title, file: url },
-									{
-										onSuccess: () => {
-											toast.success('File added')
-											setTitle('')
-											setUrl('')
-											setAdding(false)
+						<div className="flex justify-end gap-2">
+							<Button variant="outline" size="sm" onClick={() => setAdding(false)}>
+								Cancel
+							</Button>
+							<Button
+								size="sm"
+								disabled={!title || !url || uploading || save.isPending}
+								onClick={() =>
+									save.mutate(
+										{ title, file: url, description },
+										{
+											onSuccess: () => {
+												toast.success('File added')
+												setTitle('')
+												setUrl('')
+												setDescription('')
+												setAdding(false)
+											},
+											onError: (error) => toast.error(message(error)),
 										},
-										onError: (error) => toast.error(message(error)),
-									},
-								)
-							}
-						>
-							Add
-						</Button>
-						<Button variant="outline" size="sm" onClick={() => setAdding(false)}>
-							Cancel
-						</Button>
+									)
+								}
+							>
+								Add
+							</Button>
+						</div>
 					</CardContent>
 				</Card>
 			)}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Eye } from 'lucide-react'
 
 import { BlockRenderer } from '@/components/BlockRenderer'
+import { FileDescription } from '@/components/FileDescription'
 import { ModuleOutline } from '@/components/ModuleOutline'
 import { RosterPicker } from '@/components/RosterPicker'
 import { QueryState } from '@/components/QueryState'
@@ -138,14 +139,17 @@ function ItemContent({ item, offering }: { item: OutlineItem; offering: string }
 					lmsUrl={content.lms_url}
 				/>
 			) : 'file' in content ? (
-				<a
-					href={content.file ?? '#'}
-					target="_blank"
-					rel="noreferrer noopener"
-					className="text-primary text-sm underline"
-				>
-					{content.title}
-				</a>
+				<>
+					<a
+						href={content.file ?? '#'}
+						target="_blank"
+						rel="noreferrer noopener"
+						className="text-primary text-sm underline"
+					>
+						{content.title}
+					</a>
+					<FileDescription text={content.description} className="mt-2" />
+				</>
 			) : 'points_possible' in content ? (
 				<>
 					<div className="mb-1 text-sm font-medium">{content.title}</div>

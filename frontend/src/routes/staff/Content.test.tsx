@@ -337,6 +337,7 @@ describe('a course file', () => {
 				course_offering: OFFERING,
 				name: 'CFL-00001',
 				title: 'Week one reading',
+				description: 'Chapters 1-3',
 			}),
 		)
 	})
@@ -365,6 +366,7 @@ describe('a course file', () => {
 				course_offering: OFFERING,
 				name: 'CFL-00001',
 				title: 'Reading list',
+				description: 'Chapters 1-3',
 				file: '/private/files/week2.pdf',
 			}),
 		)
@@ -385,6 +387,48 @@ describe('a course file', () => {
 		expect(await screen.findByRole('link', { name: 'Preview Reading list' })).toHaveAttribute(
 			'href',
 			'/private/files/reading.pdf',
+		)
+	})
+})
+
+describe('describing a file for students', () => {
+	it('saves the description written for it', async () => {
+		await renderContent({ data: outline({ files: [READING] }) })
+		await userEvent.click(await screen.findByRole('button', { name: 'Edit Reading list' }))
+
+		const description = screen.getByLabelText('Description')
+		expect(description).toHaveValue('Chapters 1-3')
+		await userEvent.clear(description)
+		await userEvent.type(description, 'Read before Tuesday')
+		await userEvent.click(screen.getByRole('button', { name: 'Save file' }))
+
+		await waitFor(() =>
+			expect(post).toHaveBeenCalledWith(
+				'sibbcs.api.content.save_file',
+				expect.objectContaining({ name: 'CFL-00001', description: 'Read before Tuesday' }),
+			),
+		)
+	})
+
+	it('takes a description as the file is added', async () => {
+		await renderContent()
+		await userEvent.click(await screen.findByRole('button', { name: /Add file/ }))
+
+		await userEvent.upload(
+			screen.getByLabelText('File'),
+			new File(['%PDF'], 'week1.pdf', { type: 'application/pdf' }),
+		)
+		await screen.findByText('Uploaded week1.pdf')
+		await userEvent.type(screen.getByLabelText('Description'), 'For the first seminar')
+		await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+		await waitFor(() =>
+			expect(post).toHaveBeenCalledWith('sibbcs.api.content.save_file', {
+				course_offering: OFFERING,
+				title: 'week1.pdf',
+				file: '/private/files/week1.pdf',
+				description: 'For the first seminar',
+			}),
 		)
 	})
 })

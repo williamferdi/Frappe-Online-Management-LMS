@@ -24,6 +24,7 @@ import { toast } from 'sonner'
 import { AssignmentMeta } from '@/components/AssignmentMeta'
 import { BlockRenderer } from '@/components/BlockRenderer'
 import { QueryState } from '@/components/QueryState'
+import { FileDescription } from '@/components/FileDescription'
 import { RichText } from '@/components/RichText'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -469,11 +470,14 @@ function ItemBody({
 			) : content && 'points_possible' in content ? (
 				<AssignmentPanel content={content} registration={registration} />
 			) : content && 'file' in content ? (
-				<Button asChild>
-					<a href={content.file ?? '#'} target="_blank" rel="noreferrer noopener">
-						<Download className="size-4" /> {content.title}
-					</a>
-				</Button>
+				<div className="space-y-3">
+					<FileDescription text={content.description} />
+					<Button asChild>
+						<a href={content.file ?? '#'} target="_blank" rel="noreferrer noopener">
+							<Download className="size-4" /> {content.title}
+						</a>
+					</Button>
+				</div>
 			) : content && 'body' in content ? (
 				<RichText html={content.body ?? ''} />
 			) : item.item_type === 'URL' && item.url ? (
@@ -583,6 +587,12 @@ function Resources({
 							<span className="min-w-0 flex-1 truncate">{resource.title}</span>
 							<Download className="text-muted-foreground size-3.5 shrink-0" />
 						</a>
+						{/* Beside the link rather than in it, so the link is still
+						    named by its title alone. */}
+						<FileDescription
+							text={resource.description}
+							className="-mt-1 line-clamp-3 px-3 pb-2 pl-9 text-xs"
+						/>
 					</li>
 				))}
 			</ul>
