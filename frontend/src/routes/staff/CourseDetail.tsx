@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { plainText } from '@/lib/text'
 import { Content } from '@/routes/staff/Content'
 import { Gradebook } from '@/routes/staff/Gradebook'
 import { Groups } from '@/routes/staff/Groups'
@@ -405,6 +406,9 @@ function AssignmentRow({
 	const publish = useSetPublished(offering)
 	const remove = useDeleteAssignment(offering)
 	const [preview, setPreview] = useState(false)
+	// The start of the brief, so pieces can be told apart without opening
+	// each one. Preview and Edit still hold the whole of it.
+	const brief = row.description ? plainText(row.description) : ''
 
 	return (
 		<Card>
@@ -421,6 +425,9 @@ function AssignmentRow({
 						{row.component} · {row.points_possible} points · {row.submission_type}
 						{row.due_date ? ` · due ${row.due_date.slice(0, 16).replace('T', ' ')}` : ' · no due date'}
 					</div>
+					{brief && (
+						<p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{brief}</p>
+					)}
 				</div>
 
 				<div className="flex gap-1">

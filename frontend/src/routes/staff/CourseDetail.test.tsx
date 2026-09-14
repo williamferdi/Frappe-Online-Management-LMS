@@ -120,6 +120,29 @@ afterEach(() => {
 	vi.restoreAllMocks()
 })
 
+describe('the brief in the list of assignments', () => {
+	const briefed = (description: string | null): CourseDetailData => ({
+		...withScheme,
+		assignments: [{ ...withScheme.assignments[0], description }],
+	})
+
+	it('shows the start of each brief under its row', async () => {
+		await renderCourse(
+			briefed('<p>1500 words on <strong>Romans 8</strong>.</p><p>Due Friday.</p>'),
+			'?tab=assignments',
+		)
+
+		expect(await screen.findByText('1500 words on Romans 8. Due Friday.')).toBeInTheDocument()
+	})
+
+	it('adds no line for a piece with no brief', async () => {
+		await renderCourse(briefed(null), '?tab=assignments')
+
+		await screen.findByText('Essay One')
+		expect(screen.queryByText(/Romans/)).toBeNull()
+	})
+})
+
 describe('building a course', () => {
 	it('will not save a scheme whose weights do not total a hundred', async () => {
 		// The server refuses it too. Refusing here as well means the teacher
