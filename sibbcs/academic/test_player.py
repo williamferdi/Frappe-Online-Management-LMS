@@ -158,6 +158,42 @@ class TestCoursePlayer(FrappeTestCase):
 		data = player.course(self.registration)
 		self.assertEqual(data["progress"]["done"], 1)
 
+	def _assignment_item(self, published):
+		from sibbcs.academic.test_gradebook import make_assignment, make_scheme
+
+		make_scheme(self.offering, [{"component": "Assignment", "weight_pct": 100}])
+		essay = make_assignment(
+			self.offering,
+			title="Essay",
+			published=published,
+			description="<p>1500 words on Romans 8.</p>",
+		).name
+		return make_item(
+			self.module,
+			item_type="Assignment",
+			assignment=essay,
+			title="Essay",
+			course_offering=self.offering,
+		)
+
+	def test_an_assignment_opens_with_its_brief(self):
+		item = self._assignment_item(published=1)
+
+		frappe.set_user(self.email)
+		content = player.item(self.registration, item.name)["content"]
+
+		self.assertEqual(content["description"], "<p>1500 words on Romans 8.</p>")
+		self.assertNotIn("published", content)
+
+	def test_an_unpublished_assignment_shows_nothing_in_the_player(self):
+		"""A module item can be published while the work it points at is not.
+		The coursework list and hand-in already hid it; the player handed its
+		brief to anyone who opened the item."""
+		item = self._assignment_item(published=0)
+
+		frappe.set_user(self.email)
+		self.assertIsNone(player.item(self.registration, item.name)["content"])
+
 	def test_a_locked_item_cannot_be_opened(self):
 		locked_module = make_module(
 			self.offering, "Later", unlock_at=add_days(now_datetime(), 7)

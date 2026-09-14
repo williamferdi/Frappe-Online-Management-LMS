@@ -175,12 +175,21 @@ def item(course_registration, module_item):
 			"Course File", item_row["file"], ["title", "file", "description"], as_dict=True
 		)
 	elif item_row["item_type"] == "Assignment" and item_row.get("assignment"):
-		payload["content"] = frappe.db.get_value(
+		assignment = frappe.db.get_value(
 			"Course Assignment",
 			item_row["assignment"],
-			["name", "title", "description", "points_possible", "due_date", "submission_type"],
+			[
+				"name", "title", "description", "points_possible", "due_date",
+				"submission_type", "published",
+			],
 			as_dict=True,
 		)
+		# As for a page. A module item can be published while the work it
+		# points at is not, and unpublished work is invisible to students --
+		# the coursework list and hand-in both say so; this said otherwise.
+		if assignment and cint(assignment.published):
+			assignment.pop("published")
+			payload["content"] = assignment
 
 	payload["resources"] = _resources_for(registration, row["module"], module_item)
 
