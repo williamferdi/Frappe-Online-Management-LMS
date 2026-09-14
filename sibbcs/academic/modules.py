@@ -152,15 +152,41 @@ def _module_is_complete(items, progress):
 	return all(_item_is_complete(item, progress) for item in items)
 
 
+def _file_descriptions(items):
+	"""What each file's teacher wrote about it, keyed by Course File.
+
+	A row names the Course File; the description lives on the file. Fetched
+	for the whole course at once rather than once per row.
+	"""
+	files = {
+		item["file"]
+		for rows in items.values()
+		for item in rows
+		if item["item_type"] == "File" and item.get("file")
+	}
+	if not files:
+		return {}
+	return dict(
+		frappe.get_all(
+			"Course File",
+			filters={"name": ("in", list(files))},
+			fields=["name", "description"],
+			as_list=True,
+		)
+	)
+
+
 def outline(course_offering, course_registration=None, for_staff=False):
 	"""The whole course as a student sees it, locks and reasons included.
 
-	Four queries whatever the size of the course: modules, their items, their
-	prerequisites, and this student's progress.
+	Five queries whatever the size of the course: modules, their items, their
+	prerequisites, what the files among them are about, and this student's
+	progress.
 	"""
 	modules = modules_for(course_offering, published_only=not for_staff)
 	names = [module.name for module in modules]
 	items = items_for(names, published_only=not for_staff)
+	descriptions = _file_descriptions(items)
 
 	needed = _prerequisites(names)
 	for module in modules:
@@ -210,6 +236,9 @@ def outline(course_offering, course_registration=None, for_staff=False):
 				"items": [
 					{
 						**item,
+						"description": (
+							descriptions.get(item["file"]) if item["item_type"] == "File" else None
+						),
 						"progress": progress.get(item["name"]),
 						"complete": _item_is_complete(item, progress),
 						"locked": bool(

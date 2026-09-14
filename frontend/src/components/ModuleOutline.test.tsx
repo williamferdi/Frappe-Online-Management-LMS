@@ -73,6 +73,23 @@ function Harness({
 	)
 }
 
+describe('a file in the outline', () => {
+	it('says what the file is about under its title', () => {
+		const reading = item({
+			item_type: 'File',
+			lesson: null,
+			file: 'CFL-1',
+			title: 'Reading list',
+			description: 'Read chapters 1-3 before Tuesday.',
+		})
+		render(<Harness modules={[unit({ items: [reading] })]} itemHref={() => '/portal/read'} />)
+
+		expect(screen.getByText('Read chapters 1-3 before Tuesday.')).toBeInTheDocument()
+		// Beside the link, not in it, so the link is still named by its title.
+		expect(screen.getByRole('link', { name: 'Reading list' })).toBeInTheDocument()
+	})
+})
+
 describe('the course outline a student meets', () => {
 	it('opens a row into whatever the caller puts there', async () => {
 		render(<Harness modules={[unit()]} />)

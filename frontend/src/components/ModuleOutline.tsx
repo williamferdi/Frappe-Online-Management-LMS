@@ -14,6 +14,7 @@ import {
 	type LucideIcon,
 } from 'lucide-react'
 
+import { FileDescription } from '@/components/FileDescription'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -227,6 +228,9 @@ function ItemRow({
 							` · ${item.completion_requirement}`}
 						{item.completion_requirement === 'Score at least' && ` ${item.min_score}`}
 					</span>
+
+					{/* Outside the control too, for the same reason. */}
+					<FileDescription text={item.description} className="mt-0.5 line-clamp-2 text-xs" />
 				</div>
 
 				{item.locked && (

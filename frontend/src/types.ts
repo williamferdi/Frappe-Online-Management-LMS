@@ -1260,6 +1260,8 @@ export interface OutlineItem {
 	complete: boolean
 	locked: boolean
 	lock_reason: string | null
+	/** Only a file row carries one: what its teacher wrote about the file. */
+	description?: string | null
 }
 
 export interface OutlineModule {

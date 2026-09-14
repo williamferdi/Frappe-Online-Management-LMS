@@ -106,6 +106,36 @@ class TestModules(FrappeTestCase):
 		self.assertIsNone(outline[0]["state"]["reason"])
 		self.assertFalse(outline[0]["items"][0]["locked"])
 
+	def test_a_file_row_carries_what_its_teacher_wrote_about_it(self):
+		"""So the module list can say what a file is before anyone opens it."""
+		module = make_module(self.offering).name
+		reading = (
+			frappe.get_doc(
+				{
+					"doctype": "Course File",
+					"course": self.course,
+					"title": "Reading",
+					"description": "Chapters 1-3",
+				}
+			)
+			.insert(ignore_permissions=True)
+			.name
+		)
+		make_item(
+			module,
+			item_type="File",
+			file=reading,
+			title="Reading",
+			position=0,
+			course_offering=self.offering,
+		)
+		make_item(module, title="A heading", position=1)
+
+		items = modules.outline(self.offering, self.registration)[0]["items"]
+
+		self.assertEqual(items[0]["description"], "Chapters 1-3")
+		self.assertIsNone(items[1]["description"], "only a file row carries one")
+
 	# --- the three ways a module stays shut -------------------------------
 
 	def test_a_module_with_a_future_date_says_when_it_opens(self):
