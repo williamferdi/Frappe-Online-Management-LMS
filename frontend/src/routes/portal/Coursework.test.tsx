@@ -120,6 +120,24 @@ describe('a student looking at their coursework', () => {
 		expect(screen.getByText('17 / 20')).toBeInTheDocument()
 	})
 
+	it('shows the start of each brief under its row', async () => {
+		await renderWork(response())
+
+		const row = screen.getByRole('link', { name: /Essay One/ })
+		expect(row).toHaveTextContent('Write about Genesis.')
+		// Heard as the link's description, not as part of its name.
+		expect(row).toHaveAccessibleDescription('Write about Genesis.')
+		expect(row).not.toHaveAccessibleName(/Genesis/)
+	})
+
+	it('adds no line for a piece with no brief', async () => {
+		await renderWork(response({ assignment: { ...assignment, description: null } }))
+
+		const row = screen.getByRole('link', { name: /Essay One/ })
+		expect(row).not.toHaveTextContent('Genesis')
+		expect(row).not.toHaveAttribute('aria-describedby')
+	})
+
 	it('says when nothing is set yet', async () => {
 		await renderWork({ ...response(), rows: [] })
 

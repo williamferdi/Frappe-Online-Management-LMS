@@ -16,6 +16,7 @@ import {
 	DialogTrigger,
 } from '@/components/ui/dialog'
 import { useGradebook } from '@/hooks/useMarking'
+import { plainText } from '@/lib/text'
 import { cn } from '@/lib/utils'
 import type { GradebookGrid, SubmissionSummary } from '@/types'
 
@@ -162,13 +163,6 @@ function Grid({ data, offering }: { data: GradebookGrid; offering: string }) {
 		</Card>
 		</>
 	)
-}
-
-/** A description without its markup, for the hover text, which cannot draw
- *  any. Parsed rather than regexed; a parsed document is inert. */
-function plainText(html: string) {
-	const text = new DOMParser().parseFromString(html, 'text/html').body.textContent ?? ''
-	return text.replace(/\s+/g, ' ').trim()
 }
 
 /**

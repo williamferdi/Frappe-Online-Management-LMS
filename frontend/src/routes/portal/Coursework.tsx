@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CircleCheck } from 'lucide-react'
 
@@ -6,6 +7,7 @@ import { QueryState } from '@/components/QueryState'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { useCoursework } from '@/hooks/useCoursework'
+import { plainText } from '@/lib/text'
 import type { CourseworkResponse, CourseworkRow } from '@/types'
 
 /**
@@ -74,12 +76,19 @@ function Loaded({
 function Row({ row, registration }: { row: CourseworkRow; registration: string }) {
 	const submission = row.submission
 	const marked = submission && submission.posted && submission.score !== undefined
+	// The start of the brief, so a student can tell the pieces apart before
+	// opening one. The whole of it, formatted, is on the piece's own page.
+	const brief = row.assignment.description ? plainText(row.assignment.description) : ''
+	const briefId = useId()
 
 	return (
 		<li>
 			<Link
 				to={`/portal/courses/${encodeURIComponent(registration)}/work/${encodeURIComponent(row.assignment.name)}`}
 				className="hover:bg-muted/60 flex flex-wrap items-center gap-3 px-4 py-3"
+				// Read out as the link's description, not folded into its name:
+				// "Essay One, due Friday" is what anyone looking for it would say.
+				aria-describedby={brief ? briefId : undefined}
 			>
 				<div className="min-w-0 flex-1">
 					<div className="truncate text-sm font-medium">{row.assignment.title}</div>
@@ -90,6 +99,15 @@ function Row({ row, registration }: { row: CourseworkRow; registration: string }
 						{' · '}
 						<span className="tabular-nums">{row.assignment.points_possible}</span> points
 					</div>
+					{brief && (
+						<p
+							id={briefId}
+							aria-hidden
+							className="text-muted-foreground mt-1 line-clamp-2 text-xs"
+						>
+							{brief}
+						</p>
+					)}
 				</div>
 
 				{marked ? (
