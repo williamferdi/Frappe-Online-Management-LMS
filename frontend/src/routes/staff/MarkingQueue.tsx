@@ -29,6 +29,14 @@ function message(error: unknown) {
 	return error instanceof FrappeError ? error.message : 'Something went wrong.'
 }
 
+/** Whether a Text Editor value says anything. Frappe's editor saves an
+ *  emptied field as markup with nothing in it, which is not a brief. */
+function hasContent(html: string | null) {
+	if (!html) return false
+	const body = new DOMParser().parseFromString(html, 'text/html').body
+	return Boolean(body.textContent?.trim() || body.querySelector('img, iframe, video'))
+}
+
 /**
  * One piece of work at a time, with the next student a keystroke away.
  *
@@ -108,6 +116,18 @@ function Loaded({
 				<Badge variant="secondary">{data.unposted} marked, not posted</Badge>
 				<Badge variant="secondary">{data.missing} nothing handed in</Badge>
 			</div>
+
+			{/* What the work asked for, beside the work. Open to begin with; a
+			    marker who knows it by heart can fold it away. */}
+			{hasContent(data.assignment.description) && (
+				<details open className="bg-card mb-4 rounded-lg border">
+					<summary className="cursor-pointer px-4 py-2.5 text-sm font-medium">Brief</summary>
+					<RichText
+						html={data.assignment.description ?? ''}
+						className="max-h-72 overflow-y-auto border-t px-4 py-3"
+					/>
+				</details>
+			)}
 
 			{rows.length === 0 ? (
 				<Card>

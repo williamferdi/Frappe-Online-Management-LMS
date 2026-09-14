@@ -125,6 +125,34 @@ afterEach(() => {
 	vi.restoreAllMocks()
 })
 
+describe('the brief beside the marking', () => {
+	const briefed = (description: string | null): Queue => ({
+		...queue,
+		assignment: { ...queue.assignment, description },
+	})
+
+	it('shows what the work asked for, formatting and all', async () => {
+		await renderQueue(briefed('<p>1500 words on <strong>Romans 8</strong>.</p>'))
+
+		const brief = screen.getByText('Brief').closest('details')!
+		expect(brief).toHaveAttribute('open')
+		expect(within(brief).getByText('Romans 8').tagName).toBe('STRONG')
+	})
+
+	it('shows no panel for a brief that was emptied', async () => {
+		// What Frappe's editor saves when the text is deleted.
+		await renderQueue(briefed('<div class="ql-editor read-mode"><p><br></p></div>'))
+
+		expect(screen.queryByText('Brief')).toBeNull()
+	})
+
+	it('shows no panel when there is no brief', async () => {
+		await renderQueue()
+
+		expect(screen.queryByText('Brief')).toBeNull()
+	})
+})
+
 describe('the marking queue', () => {
 	it('says how much is waiting, marked and missing', async () => {
 		await renderQueue()
