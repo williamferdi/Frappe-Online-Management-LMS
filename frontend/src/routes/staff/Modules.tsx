@@ -21,6 +21,7 @@ import { toast } from 'sonner'
 
 import { QueryState } from '@/components/QueryState'
 import { Badge } from '@/components/ui/badge'
+import { FileDescription } from '@/components/FileDescription'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -756,6 +757,8 @@ function ItemRow({
 								` ${item.min_score}`}
 						</span>
 					)}
+					{/* What students will read under it, so the teacher sees it too. */}
+					<FileDescription text={item.description} className="mt-0.5 line-clamp-2 text-xs" />
 				</div>
 
 				<PublishToggle

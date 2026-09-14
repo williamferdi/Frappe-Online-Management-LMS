@@ -113,6 +113,30 @@ afterEach(() => {
 	vi.restoreAllMocks()
 })
 
+describe('a file in the builder', () => {
+	it('shows under its row what students will read about it', async () => {
+		await renderModules(
+			outline([
+				unit({
+					items: [
+						item({
+							item_type: 'File',
+							lesson: null,
+							file: 'CFL-1',
+							title: 'Reading list',
+							description: 'Chapters 1-3, before Tuesday.',
+						}),
+					],
+				}),
+			]),
+		)
+
+		expect(screen.getByText('Chapters 1-3, before Tuesday.')).toBeInTheDocument()
+		// Still named by its title alone.
+		expect(screen.getByRole('button', { name: 'More for Reading list' })).toBeInTheDocument()
+	})
+})
+
 describe('the module builder', () => {
 	it('renders a sub-header as a heading rather than as a thing to open', async () => {
 		// It names the rows under it and points at nothing, so it gets no type
