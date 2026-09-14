@@ -198,6 +198,72 @@ class TestContentAuthoring(FrappeTestCase):
 		offered = syllabus.outline(self.offering)["choices"]["files"]
 		self.assertEqual([row["title"] for row in offered], ["Reading list"])
 
+	# --- changing a file -------------------------------------------------------
+
+	def _upload(self):
+		"""A private upload, as Frappe's upload endpoint stores one. The content
+		differs every time, or Frappe would hand back the same address. Text,
+		not PDF: Frappe parses every PDF upload for scripts, and random bytes
+		are not a PDF."""
+		return (
+			frappe.get_doc(
+				{
+					"doctype": "File",
+					"file_name": f"reading-{frappe.generate_hash(length=6)}.txt",
+					"content": frappe.generate_hash().encode(),
+					"is_private": 1,
+				}
+			)
+			.insert(ignore_permissions=True)
+			.file_url
+		)
+
+	def test_replacing_a_file_keeps_the_record_its_module_items_point_at(self):
+		name = content.save_file(self.offering, "Reading", file=self._upload())["file"]
+		new = self._upload()
+
+		content.save_file(self.offering, "Reading", file=new, name=name)
+
+		self.assertEqual(frappe.db.get_value("Course File", name, "file"), new)
+		self.assertEqual(frappe.db.count("Course File", {"course": self.course}), 1)
+
+	def test_the_replacement_is_attached_so_students_can_open_it(self):
+		"""A private file is served to whoever can read what it is attached to."""
+		name = content.save_file(self.offering, "Reading", file=self._upload())["file"]
+		new = self._upload()
+
+		content.save_file(self.offering, "Reading", file=new, name=name)
+
+		self.assertTrue(
+			frappe.db.exists(
+				"File",
+				{"file_url": new, "attached_to_doctype": "Course File", "attached_to_name": name},
+			)
+		)
+
+	def test_renaming_a_file_leaves_its_attachment_and_description_alone(self):
+		upload = self._upload()
+		name = content.save_file(
+			self.offering, "Reading", file=upload, description="Chapters 1-3"
+		)["file"]
+
+		content.save_file(self.offering, "Reading list", name=name)
+
+		row = frappe.db.get_value(
+			"Course File", name, ["title", "file", "description"], as_dict=True
+		)
+		self.assertEqual(
+			(row.title, row.file, row.description), ("Reading list", upload, "Chapters 1-3")
+		)
+
+	def test_somebody_elses_private_upload_cannot_be_attached(self):
+		"""Attaching it would serve it to everyone who can read the course's files."""
+		theirs = self._upload()
+		frappe.set_user(self._user(["Academic Coordinator"]))
+
+		with self.assertRaises(frappe.PermissionError):
+			content.save_file(self.offering, "Not mine", file=theirs)
+
 	# --- scoping ------------------------------------------------------------
 
 	def test_content_cannot_be_written_onto_another_teachers_course(self):

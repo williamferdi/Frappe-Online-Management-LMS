@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import { BookText, FileText, LoaderCircle, Paperclip, Plus, Trash2 } from 'lucide-react'
+import {
+	BookText,
+	ExternalLink,
+	FileText,
+	LoaderCircle,
+	Paperclip,
+	Plus,
+	Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { QueryState } from '@/components/QueryState'
@@ -513,13 +521,216 @@ function PageEditor({
 // files
 // ---------------------------------------------------------------------------
 
+type CourseFile = ContentOutline['files'][number]
+
+/** What the browser can draw in the page itself, judged by the file's ending. */
+function previewKind(url: string | null): 'image' | 'pdf' | null {
+	const ending = url?.split(/[?#]/)[0].split('.').pop()?.toLowerCase()
+	if (ending === 'pdf') return 'pdf'
+	if (ending && ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ending)) return 'image'
+	return null
+}
+
+function fileName(url: string) {
+	const last = url.split(/[?#]/)[0].split('/').pop() || url
+	try {
+		return decodeURIComponent(last)
+	} catch {
+		return last
+	}
+}
+
+/**
+ * Uploads the chosen file straight away, so Save only has to record where it
+ * went. The parent holds `busy`, because its Save must wait for the upload.
+ */
+function FilePicker({
+	id,
+	label,
+	busy,
+	onBusy,
+	onUploaded,
+}: {
+	id: string
+	label: string
+	busy: boolean
+	onBusy: (busy: boolean) => void
+	onUploaded: (url: string, chosen: File) => void
+}) {
+	return (
+		<div>
+			<Label htmlFor={id}>{label}</Label>
+			<Input
+				id={id}
+				type="file"
+				className="mt-1"
+				disabled={busy}
+				onChange={async (event) => {
+					const chosen = event.target.files?.[0]
+					if (!chosen) return
+					onBusy(true)
+					try {
+						const stored = await frappeUpload(chosen)
+						onUploaded(stored.file_url, chosen)
+					} catch (error) {
+						toast.error(message(error))
+					} finally {
+						onBusy(false)
+					}
+				}}
+			/>
+			{busy && <p className="text-muted-foreground mt-1 text-xs">Uploading…</p>}
+		</div>
+	)
+}
+
+/** The file itself where the browser can draw it, and a way to open it either way. */
+function FilePreview({ url, title }: { url: string | null; title: string }) {
+	if (!url) {
+		return (
+			<p className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
+				No file is attached yet.
+			</p>
+		)
+	}
+
+	const kind = previewKind(url)
+
+	return (
+		<div className="space-y-2">
+			{kind === 'image' ? (
+				<img
+					src={url}
+					alt={`Preview of ${title}`}
+					className="bg-muted mx-auto max-h-96 rounded-md border object-contain"
+				/>
+			) : kind === 'pdf' ? (
+				<iframe
+					src={url}
+					title={`Preview of ${title}`}
+					className="h-[28rem] w-full rounded-md border"
+				/>
+			) : (
+				<p className="text-muted-foreground text-sm">
+					This kind of file cannot be shown here. Open it to check it.
+				</p>
+			)}
+			<a
+				href={url}
+				target="_blank"
+				rel="noreferrer noopener"
+				className="text-primary inline-flex max-w-full items-center gap-1 text-sm hover:underline"
+			>
+				<ExternalLink className="size-3.5 shrink-0" />
+				<span className="truncate">{fileName(url)}</span>
+			</a>
+		</div>
+	)
+}
+
+/**
+ * Renames a file or replaces what is attached to it.
+ *
+ * A replacement is uploaded at once but recorded only on Save, so Cancel
+ * leaves the file students see exactly as it was.
+ */
+function FileEditor({
+	file,
+	offering,
+	onDone,
+}: {
+	file: CourseFile
+	offering: string
+	onDone: () => void
+}) {
+	const [title, setTitle] = useState(file.title)
+	const [replacement, setReplacement] = useState<{ url: string; name: string } | null>(null)
+	const [uploading, setUploading] = useState(false)
+	const save = useSaveFile(offering)
+	const shown = replacement?.url ?? file.file
+
+	return (
+		<Card>
+			<CardContent className="space-y-4 p-4">
+				<FilePreview url={shown} title={title || file.title} />
+
+				<div className="grid gap-3 sm:grid-cols-2">
+					<div>
+						<Label htmlFor="file-edit-title">Title</Label>
+						<Input
+							id="file-edit-title"
+							className="mt-1"
+							value={title}
+							onChange={(event) => setTitle(event.target.value)}
+						/>
+					</div>
+					<FilePicker
+						id="file-replace"
+						label={file.file ? 'Replace file' : 'Attach a file'}
+						busy={uploading}
+						onBusy={setUploading}
+						onUploaded={(url, chosen) => setReplacement({ url, name: chosen.name })}
+					/>
+				</div>
+
+				{replacement && (
+					<p className="text-muted-foreground text-sm">
+						{replacement.name} takes the old file's place when you save. Every module
+						that offers this file will offer the new one.
+					</p>
+				)}
+
+				<div className="flex justify-end gap-2">
+					<Button variant="outline" size="sm" onClick={onDone}>
+						Cancel
+					</Button>
+					<Button
+						size="sm"
+						disabled={!title || uploading || save.isPending}
+						onClick={() =>
+							save.mutate(
+								{
+									name: file.name,
+									title,
+									...(replacement ? { file: replacement.url } : {}),
+								},
+								{
+									onSuccess: () => {
+										toast.success(replacement ? 'File replaced' : 'File saved')
+										onDone()
+									},
+									onError: (error) => toast.error(message(error)),
+								},
+							)
+						}
+					>
+						{save.isPending ? <LoaderCircle className="animate-spin" /> : null}
+						Save file
+					</Button>
+				</div>
+			</CardContent>
+		</Card>
+	)
+}
+
 function Files({ data, offering }: { data: ContentOutline; offering: string }) {
 	const [adding, setAdding] = useState(false)
+	const [editing, setEditing] = useState<string | null>(null)
 	const [title, setTitle] = useState('')
 	const [url, setUrl] = useState('')
 	const [uploading, setUploading] = useState(false)
 	const save = useSaveFile(offering)
 	const remove = useDeleteFile(offering)
+	const open = data.files.find((file) => file.name === editing)
+
+	if (open) {
+		return (
+			<section>
+				<h3 className="mb-3 text-sm font-semibold">Files</h3>
+				<FileEditor file={open} offering={offering} onDone={() => setEditing(null)} />
+			</section>
+		)
+	}
 
 	return (
 		<section>
@@ -546,32 +757,21 @@ function Files({ data, offering }: { data: ContentOutline; offering: string }) {
 						</div>
 
 						<div className="min-w-64 flex-1">
-							<Label htmlFor="file-upload">File</Label>
-							<Input
+							<FilePicker
 								id="file-upload"
-								type="file"
-								className="mt-1"
-								disabled={uploading}
-								onChange={async (event) => {
-									const chosen = event.target.files?.[0]
-									if (!chosen) return
-									setUploading(true)
-									try {
-										const stored = await frappeUpload(chosen)
-										setUrl(stored.file_url)
-										// The file's own name is the obvious title, and
-										// retyping it is work nobody asked for.
-										if (!title) setTitle(chosen.name)
-									} catch (error) {
-										toast.error(message(error))
-									} finally {
-										setUploading(false)
-									}
+								label="File"
+								busy={uploading}
+								onBusy={setUploading}
+								onUploaded={(stored, chosen) => {
+									setUrl(stored)
+									// The file's own name is the obvious title, and
+									// retyping it is work nobody asked for.
+									setTitle((current) => current || chosen.name)
 								}}
 							/>
-							{url && (
+							{url && !uploading && (
 								<p className="text-muted-foreground mt-1 truncate text-xs">
-									{uploading ? 'Uploading…' : `Stored at ${url}`}
+									Uploaded {fileName(url)}
 								</p>
 							)}
 						</div>
@@ -623,6 +823,28 @@ function Files({ data, offering }: { data: ContentOutline; offering: string }) {
 								>
 									<Paperclip className="text-muted-foreground size-4 shrink-0" />
 									<span className="min-w-0 flex-1 truncate">{file.title}</span>
+									{file.file ? (
+										<Button variant="ghost" size="sm" asChild>
+											<a href={file.file} target="_blank" rel="noreferrer noopener">
+												<span className="sr-only">
+													{previewKind(file.file) ? 'Preview' : 'Download'} {file.title}
+												</span>
+												<span aria-hidden>
+													{previewKind(file.file) ? 'Preview' : 'Download'}
+												</span>
+											</a>
+										</Button>
+									) : (
+										<span className="text-muted-foreground text-xs">No file attached</span>
+									)}
+									<Button
+										variant="ghost"
+										size="sm"
+										aria-label={`Edit ${file.title}`}
+										onClick={() => setEditing(file.name)}
+									>
+										Edit
+									</Button>
 									<Button
 										variant="ghost"
 										size="icon"

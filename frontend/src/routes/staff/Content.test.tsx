@@ -39,6 +39,18 @@ function page(over: Record<string, unknown> = {}) {
 }
 
 const post = vi.fn(async (_path: string, _args?: Record<string, unknown>) => ({}))
+const upload = vi.fn(async (file: File) => ({
+	file_url: `/private/files/${file.name}`,
+	file_name: file.name,
+}))
+
+const READING = {
+	name: 'CFL-00001',
+	title: 'Reading list',
+	file: '/private/files/reading.pdf',
+	is_folder: 0,
+	description: 'Chapters 1-3',
+}
 
 /** Answers each read by what it asks for: the outline, one page, one lesson. */
 async function renderContent({
@@ -65,6 +77,7 @@ async function renderContent({
 						: data,
 			),
 			frappePost: post,
+			frappeUpload: upload,
 		}
 	})
 
@@ -85,6 +98,7 @@ async function renderContent({
 beforeEach(() => {
 	vi.resetModules()
 	post.mockClear()
+	upload.mockClear()
 })
 afterEach(() => {
 	vi.doUnmock('@/lib/frappe')
@@ -273,5 +287,104 @@ describe('editing a lesson', () => {
 
 		expect(await screen.findByText('This lesson could not be opened')).toBeInTheDocument()
 		expect(screen.queryByRole('button', { name: 'Save lesson' })).toBeNull()
+	})
+})
+
+describe('a course file', () => {
+	it('can be previewed in a new tab', async () => {
+		await renderContent({ data: outline({ files: [READING] }) })
+
+		const link = await screen.findByRole('link', { name: 'Preview Reading list' })
+
+		expect(link).toHaveAttribute('href', '/private/files/reading.pdf')
+		expect(link).toHaveAttribute('target', '_blank')
+	})
+
+	it('offers a download where the browser cannot show the file', async () => {
+		await renderContent({
+			data: outline({ files: [{ ...READING, file: '/private/files/notes.docx' }] }),
+		})
+
+		expect(await screen.findByRole('link', { name: 'Download Reading list' })).toHaveAttribute(
+			'href',
+			'/private/files/notes.docx',
+		)
+	})
+
+	it('opens for editing with its title and a preview of what is attached', async () => {
+		await renderContent({ data: outline({ files: [READING] }) })
+
+		await userEvent.click(await screen.findByRole('button', { name: 'Edit Reading list' }))
+
+		expect(screen.getByLabelText('Title')).toHaveValue('Reading list')
+		expect(screen.getByTitle('Preview of Reading list')).toHaveAttribute(
+			'src',
+			'/private/files/reading.pdf',
+		)
+	})
+
+	it('saves a new title without touching the attachment', async () => {
+		await renderContent({ data: outline({ files: [READING] }) })
+		await userEvent.click(await screen.findByRole('button', { name: 'Edit Reading list' }))
+
+		const title = screen.getByLabelText('Title')
+		await userEvent.clear(title)
+		await userEvent.type(title, 'Week one reading')
+		await userEvent.click(screen.getByRole('button', { name: 'Save file' }))
+
+		await waitFor(() =>
+			expect(post).toHaveBeenCalledWith('sibbcs.api.content.save_file', {
+				course_offering: OFFERING,
+				name: 'CFL-00001',
+				title: 'Week one reading',
+			}),
+		)
+	})
+
+	it('replaces the attachment, showing the new file before it is saved', async () => {
+		await renderContent({ data: outline({ files: [READING] }) })
+		await userEvent.click(await screen.findByRole('button', { name: 'Edit Reading list' }))
+
+		await userEvent.upload(
+			screen.getByLabelText('Replace file'),
+			new File(['%PDF'], 'week2.pdf', { type: 'application/pdf' }),
+		)
+
+		await waitFor(() =>
+			expect(screen.getByTitle('Preview of Reading list')).toHaveAttribute(
+				'src',
+				'/private/files/week2.pdf',
+			),
+		)
+		expect(post).not.toHaveBeenCalled()
+
+		await userEvent.click(screen.getByRole('button', { name: 'Save file' }))
+
+		await waitFor(() =>
+			expect(post).toHaveBeenCalledWith('sibbcs.api.content.save_file', {
+				course_offering: OFFERING,
+				name: 'CFL-00001',
+				title: 'Reading list',
+				file: '/private/files/week2.pdf',
+			}),
+		)
+	})
+
+	it('leaves the file as it was when the replacement is cancelled', async () => {
+		await renderContent({ data: outline({ files: [READING] }) })
+		await userEvent.click(await screen.findByRole('button', { name: 'Edit Reading list' }))
+
+		await userEvent.upload(
+			screen.getByLabelText('Replace file'),
+			new File(['%PDF'], 'week2.pdf', { type: 'application/pdf' }),
+		)
+		await screen.findByText(/week2\.pdf takes the old file's place/)
+		await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+		expect(post).not.toHaveBeenCalled()
+		expect(await screen.findByRole('link', { name: 'Preview Reading list' })).toHaveAttribute(
+			'href',
+			'/private/files/reading.pdf',
+		)
 	})
 })

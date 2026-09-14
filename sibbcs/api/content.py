@@ -413,10 +413,14 @@ def delete_page(course_offering, name):
 
 @frappe.whitelist(methods=["POST"])
 def save_file(course_offering, title, file=None, description=None, name=None):
-	"""Register a file against the course.
+	"""Register a file against the course, or change one already registered.
 
 	The bytes are uploaded by Frappe's own upload endpoint, which stores a
 	`File` and hands back its URL; this records what that file is for.
+
+	Replacing the attachment keeps the record, so every module item that
+	offers this file offers the new one. What is not sent is left as it was:
+	renaming a file must not drop its attachment or its description.
 	"""
 	_require_teaching()
 	course = _course_of(course_offering)
@@ -427,12 +431,29 @@ def save_file(course_offering, title, file=None, description=None, name=None):
 
 	doc.course = course
 	doc.title = title
-	if file is not None:
+	if file is not None and file != doc.file:
+		_assert_may_attach(file)
 		doc.file = file
-	doc.description = description
+	if description is not None:
+		doc.description = description
 	doc.save()
 	frappe.db.commit()
-	return {"file": doc.name}
+	return {"file": doc.name, "url": doc.file}
+
+
+def _assert_may_attach(file_url):
+	"""A private file may only be attached by the person who uploaded it.
+
+	Saving a Course File attaches a copy of whatever address it holds --
+	Frappe's `attach_files_to_document`, which skips permissions -- and a
+	private file is served to anyone who can read a record it is attached to.
+	Naming somebody else's private upload here, an admission document or a
+	marked script, would hand it to the teacher and every student on the course.
+	"""
+	if not (file_url or "").startswith("/private/"):
+		return
+	if not frappe.db.exists("File", {"file_url": file_url, "owner": frappe.session.user}):
+		frappe.throw(_("Upload the file here before attaching it."), frappe.PermissionError)
 
 
 @frappe.whitelist(methods=["POST"])
