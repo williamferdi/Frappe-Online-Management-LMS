@@ -392,6 +392,14 @@ describe('a course file', () => {
 })
 
 describe('describing a file for students', () => {
+	it('shows it under the file in the Files list', async () => {
+		await renderContent({ data: outline({ files: [READING] }) })
+
+		expect(await screen.findByText('Chapters 1-3')).toBeInTheDocument()
+		// Under the title, not in the controls: they are still named by it.
+		expect(screen.getByRole('button', { name: 'Edit Reading list' })).toBeInTheDocument()
+	})
+
 	it('saves the description written for it', async () => {
 		await renderContent({ data: outline({ files: [READING] }) })
 		await userEvent.click(await screen.findByRole('button', { name: 'Edit Reading list' }))

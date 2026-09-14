@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { FileDescription } from '@/components/FileDescription'
 import { QueryState } from '@/components/QueryState'
 import { RichTextEditor } from '@/components/RichTextEditor'
 import { Badge } from '@/components/ui/badge'
@@ -865,7 +866,13 @@ function Files({ data, offering }: { data: ContentOutline; offering: string }) {
 									className="flex flex-wrap items-center gap-2 px-4 py-2 text-sm"
 								>
 									<Paperclip className="text-muted-foreground size-4 shrink-0" />
-									<span className="min-w-0 flex-1 truncate">{file.title}</span>
+									<div className="min-w-0 flex-1">
+										<span className="block truncate">{file.title}</span>
+										<FileDescription
+											text={file.description}
+											className="mt-0.5 line-clamp-2 text-xs"
+										/>
+									</div>
 									{file.file ? (
 										<Button variant="ghost" size="sm" asChild>
 											<a href={file.file} target="_blank" rel="noreferrer noopener">
