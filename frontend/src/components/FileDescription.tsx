@@ -5,7 +5,8 @@ import { cn } from '@/lib/utils'
  *
  * The Course File keeps it as plain text, so it is drawn as text -- never as
  * HTML -- with the teacher's line breaks kept. Nothing is drawn when there is
- * nothing to say.
+ * nothing to say. A module row hands an assignment's brief here too, already
+ * flattened to plain text by the server.
  */
 export function FileDescription({
 	text,

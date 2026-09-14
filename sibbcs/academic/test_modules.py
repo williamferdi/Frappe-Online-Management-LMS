@@ -134,7 +134,42 @@ class TestModules(FrappeTestCase):
 		items = modules.outline(self.offering, self.registration)[0]["items"]
 
 		self.assertEqual(items[0]["description"], "Chapters 1-3")
-		self.assertIsNone(items[1]["description"], "only a file row carries one")
+		self.assertIsNone(items[1]["description"], "a heading carries none")
+
+	def _assignment_row(self, published, description):
+		make_scheme(self.offering, [{"component": "Assignment", "weight_pct": 100}])
+		module = make_module(self.offering).name
+		essay = make_assignment(
+			self.offering, title="Essay", published=published, description=description
+		).name
+		make_item(
+			module,
+			item_type="Assignment",
+			assignment=essay,
+			title="Essay",
+			course_offering=self.offering,
+		)
+
+	def test_an_assignment_row_carries_its_brief_as_plain_text(self):
+		"""The brief is HTML; a row's description is always one line of text."""
+		self._assignment_row(
+			1, "<p>1500 words on <strong>Romans&nbsp;8</strong>.</p><p>Due Friday.</p>"
+		)
+
+		items = modules.outline(self.offering, self.registration)[0]["items"]
+
+		self.assertEqual(items[0]["description"], "1500 words on Romans 8. Due Friday.")
+
+	def test_an_unpublished_assignments_brief_stays_off_a_students_outline(self):
+		"""A module item can be published while the work it points at is not,
+		and unpublished work is invisible to students -- its brief included."""
+		self._assignment_row(0, "<p>Next week's exam questions.</p>")
+
+		student = modules.outline(self.offering, self.registration)[0]["items"]
+		staff = modules.outline(self.offering, for_staff=True)[0]["items"]
+
+		self.assertIsNone(student[0]["description"])
+		self.assertEqual(staff[0]["description"], "Next week's exam questions.")
 
 	# --- the three ways a module stays shut -------------------------------
 

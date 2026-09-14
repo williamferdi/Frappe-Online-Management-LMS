@@ -23,6 +23,7 @@ progress is worth marks is the gradebook's business, and the two never meet.
 """
 
 import frappe
+from bs4 import BeautifulSoup
 from frappe import _
 from frappe.utils import cint, flt, get_datetime, now_datetime
 
@@ -152,41 +153,89 @@ def _module_is_complete(items, progress):
 	return all(_item_is_complete(item, progress) for item in items)
 
 
-def _file_descriptions(items):
-	"""What each file's teacher wrote about it, keyed by Course File.
+def _descriptions(items, for_staff=False):
+	"""What each file or assignment row is about, as plain text, keyed by row.
 
-	A row names the Course File; the description lives on the file. Fetched
-	for the whole course at once rather than once per row.
+	A row only names its Course File or Course Assignment; the description
+	lives there. One query per kind for the whole course, not one per row.
+
+	An assignment's brief is HTML from a Text Editor, so it is flattened here:
+	a row's description is plain text whatever it came from. And an
+	unpublished assignment's brief stays off a student's outline -- a module
+	item can be published while the work it points at is not, and unpublished
+	work is invisible to students, its brief included.
 	"""
-	files = {
-		item["file"]
-		for rows in items.values()
-		for item in rows
-		if item["item_type"] == "File" and item.get("file")
+	rows = [item for group in items.values() for item in group]
+	files = {row["file"] for row in rows if row["item_type"] == "File" and row.get("file")}
+	assignments = {
+		row["assignment"]
+		for row in rows
+		if row["item_type"] == "Assignment" and row.get("assignment")
 	}
-	if not files:
-		return {}
-	return dict(
-		frappe.get_all(
-			"Course File",
-			filters={"name": ("in", list(files))},
-			fields=["name", "description"],
-			as_list=True,
+
+	file_text = (
+		dict(
+			frappe.get_all(
+				"Course File",
+				filters={"name": ("in", list(files))},
+				fields=["name", "description"],
+				as_list=True,
+			)
 		)
+		if files
+		else {}
 	)
+
+	brief_text = {}
+	if assignments:
+		for assignment in frappe.get_all(
+			"Course Assignment",
+			filters={"name": ("in", list(assignments))},
+			fields=["name", "description", "published"],
+		):
+			if for_staff or cint(assignment.published):
+				brief_text[assignment.name] = plain_text(assignment.description)
+
+	out = {}
+	for row in rows:
+		if row["item_type"] == "File":
+			out[row["name"]] = file_text.get(row.get("file"))
+		elif row["item_type"] == "Assignment":
+			out[row["name"]] = brief_text.get(row.get("assignment"))
+	return out
+
+
+# Elements whose end is a break in the reading, so their text is not run into
+# the next element's.
+_BREAKS = ["p", "div", "li", "br", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "tr"]
+
+
+def plain_text(html):
+	"""A Text Editor value as one line of text, or None when it says nothing.
+
+	Not `frappe.utils.strip_html`, which only deletes tags: two paragraphs
+	would run together ("One.Two.") and entities such as `&nbsp;` would
+	survive into the text.
+	"""
+	if not html:
+		return None
+	soup = BeautifulSoup(html, "html.parser")
+	for tag in soup.find_all(_BREAKS):
+		tag.insert_after(" ")
+	return " ".join(soup.get_text().split()) or None
 
 
 def outline(course_offering, course_registration=None, for_staff=False):
 	"""The whole course as a student sees it, locks and reasons included.
 
-	Five queries whatever the size of the course: modules, their items, their
-	prerequisites, what the files among them are about, and this student's
-	progress.
+	Six queries whatever the size of the course: modules, their items, their
+	prerequisites, what the files and the assignments among them are about,
+	and this student's progress.
 	"""
 	modules = modules_for(course_offering, published_only=not for_staff)
 	names = [module.name for module in modules]
 	items = items_for(names, published_only=not for_staff)
-	descriptions = _file_descriptions(items)
+	descriptions = _descriptions(items, for_staff)
 
 	needed = _prerequisites(names)
 	for module in modules:
@@ -236,9 +285,7 @@ def outline(course_offering, course_registration=None, for_staff=False):
 				"items": [
 					{
 						**item,
-						"description": (
-							descriptions.get(item["file"]) if item["item_type"] == "File" else None
-						),
+						"description": descriptions.get(item["name"]),
 						"progress": progress.get(item["name"]),
 						"complete": _item_is_complete(item, progress),
 						"locked": bool(

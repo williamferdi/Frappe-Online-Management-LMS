@@ -88,6 +88,20 @@ describe('a file in the outline', () => {
 		// Beside the link, not in it, so the link is still named by its title.
 		expect(screen.getByRole('link', { name: 'Reading list' })).toBeInTheDocument()
 	})
+
+	it('says what an assignment asks for under its title', () => {
+		const essay = item({
+			item_type: 'Assignment',
+			lesson: null,
+			assignment: 'CA-1',
+			title: 'Essay One',
+			description: '1500 words on Romans 8. Due Friday.',
+		})
+		render(<Harness modules={[unit({ items: [essay] })]} itemHref={() => '/portal/work'} />)
+
+		expect(screen.getByText('1500 words on Romans 8. Due Friday.')).toBeInTheDocument()
+		expect(screen.getByRole('link', { name: 'Essay One' })).toBeInTheDocument()
+	})
 })
 
 describe('the course outline a student meets', () => {

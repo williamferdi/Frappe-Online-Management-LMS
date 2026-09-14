@@ -1262,7 +1262,8 @@ export interface OutlineItem {
 	complete: boolean
 	locked: boolean
 	lock_reason: string | null
-	/** Only a file row carries one: what its teacher wrote about the file. */
+	/** A file or assignment row: what its teacher wrote about it, as plain
+	 *  text -- an assignment's brief is flattened from HTML on the server. */
 	description?: string | null
 }
 
