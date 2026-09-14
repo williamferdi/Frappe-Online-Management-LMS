@@ -154,6 +154,25 @@ describe('a file in the player', () => {
 		expect(said.querySelector('b')).toBeNull()
 	})
 
+	it('says what a file is about in the sidebar, under its row', async () => {
+		// Nothing in the pane says it here, so the only place it can come from
+		// is the sidebar row.
+		await renderPlayer(
+			item({
+				item_type: 'File',
+				lesson: null,
+				file: 'CFL-00001',
+				description: 'Read before Tuesday.',
+			}),
+			readingList(null),
+		)
+
+		const said = screen.getByText('Read before Tuesday.')
+		expect(
+			within(said.closest('li')!).getByRole('link', { name: 'What Scripture is' }),
+		).toBeInTheDocument()
+	})
+
 	it('shows each resource with what was written about it', async () => {
 		await renderPlayer(item(), {
 			resources: [

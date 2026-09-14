@@ -323,6 +323,12 @@ function SidebarItem({
 					{inner}
 				</Link>
 			)}
+			{/* Under the row rather than in the link, so the link is still named
+			    by its title; indented to line up with it. */}
+			<FileDescription
+				text={item.description}
+				className="-mt-0.5 line-clamp-2 pr-3 pb-1.5 pl-[2.125rem] text-xs"
+			/>
 		</li>
 	)
 }
