@@ -1,70 +1,31 @@
 import { useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import {
 	ArrowLeft,
-	ClipboardList,
-	Eye,
-	EyeOff,
-	FileText,
-	Layers,
 	LoaderCircle,
-	Percent,
 	Plus,
 	Save,
-	Table2,
 	Trash2,
-	Users,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { AssignmentDetail } from '@/components/AssignmentDetail'
-import { RosterPicker } from '@/components/RosterPicker'
 import { PageHeader } from '@/components/PageHeader'
 import { QueryState } from '@/components/QueryState'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { plainText } from '@/lib/text'
-import { Content } from '@/routes/staff/Content'
-import { Gradebook } from '@/routes/staff/Gradebook'
-import { Groups } from '@/routes/staff/Groups'
-import { Modules } from '@/routes/staff/Modules'
-import { StudentView } from '@/routes/staff/StudentView'
-import { TabsContent } from '@/components/ui/tabs'
-import { CourseWorkspace, type CourseSection } from '@/routes/staff/CourseWorkspace'
-import { Textarea } from '@/components/ui/textarea'
 import {
-	useAssignmentPreview,
 	useCourse,
-	useDeleteAssignment,
 	useDeleteScheme,
-	useSaveAssignment,
 	useSaveScheme,
-	useSetPublished,
 } from '@/hooks/useCourses'
 import { FrappeError } from '@/lib/frappe'
 import { cn } from '@/lib/utils'
 import type {
-	CourseAssignment,
 	CourseDetail as CourseDetailData,
 	GradeSchemeRow,
 } from '@/types'
-
-/** The sections of a course, in the order somebody builds one.
- *
- *  Only sections that exist. A nav row that goes nowhere is worse than no row:
- *  it reads as a feature somebody has not found yet. */
-const SECTIONS: CourseSection[] = [
-	{ value: 'scheme', label: 'Grade scheme', icon: Percent },
-	{ value: 'assignments', label: 'Assignments', icon: ClipboardList },
-	{ value: 'content', label: 'Content', icon: FileText },
-	{ value: 'modules', label: 'Modules', icon: Layers },
-	{ value: 'student-view', label: 'Student view', icon: Eye },
-	{ value: 'gradebook', label: 'Gradebook', icon: Table2 },
-	{ value: 'groups', label: 'Groups', icon: Users },
-]
 
 /** What a course is weighted by before anyone has said otherwise. */
 const STARTER: GradeSchemeRow[] = [
@@ -92,65 +53,33 @@ export function CourseDetail() {
 function Loaded({ data, offering }: { data: CourseDetailData; offering: string }) {
 	const course = data.offering
 
-	// The tab lives in the address, so "set one on the Assignments tab" can be
-	// a link to the Assignments tab rather than a description of where it is.
-	const [params, setParams] = useSearchParams()
-	const tab = params.get('tab') || 'scheme'
-	const setTab = (next: string) =>
-		setParams(next === 'scheme' ? {} : { tab: next }, { replace: true })
-
 	return (
 		<>
 			<PageHeader
 				title={course.course_title || course.course}
 				description={`${course.course} · ${course.term} · ${course.enrolled_count ?? 0} registered`}
 				actions={
-					<Button variant="outline" size="sm" asChild>
-						<Link to="/staff/courses">
-							<ArrowLeft /> Courses
-						</Link>
-					</Button>
+					<div className="flex gap-2">
+						<Button variant="outline" size="sm" asChild>
+							<Link to={`/staff/academic/offerings/${encodeURIComponent(offering)}`}>
+								Grade sheet
+							</Link>
+						</Button>
+						<Button variant="outline" size="sm" asChild>
+							<Link to="/staff/courses">
+								<ArrowLeft /> Courses
+							</Link>
+						</Button>
+					</div>
 				}
 			/>
 
-			<CourseWorkspace
-				sections={SECTIONS.map((section) =>
-					section.value === 'assignments'
-						? { ...section, count: data.assignments.length }
-						: section,
-				)}
-				value={tab}
-				onValueChange={setTab}
-			>
-
-				<TabsContent value="scheme">
-					<SchemeEditor data={data} offering={offering} />
-				</TabsContent>
-
-				<TabsContent value="assignments">
-					<Assignments data={data} offering={offering} />
-				</TabsContent>
-
-				<TabsContent value="content">
-					<Content offering={offering} />
-				</TabsContent>
-
-				<TabsContent value="modules">
-					<Modules offering={offering} />
-				</TabsContent>
-
-				<TabsContent value="student-view">
-					<StudentView offering={offering} />
-				</TabsContent>
-
-				<TabsContent value="gradebook">
-					<Gradebook offering={offering} />
-				</TabsContent>
-
-				<TabsContent value="groups">
-					<Groups offering={offering} />
-				</TabsContent>
-			</CourseWorkspace>
+			{/* Assignments, content, modules, the student view, the gradebook
+			    grid and groups were tabs here. Teaching is done in Campus LMS
+			    Lite now, so what is left is the one thing this system still
+			    owns about a course: the shape a released mark lands in. The
+			    marks themselves are on the grade sheet, linked above. */}
+			<SchemeEditor data={data} offering={offering} />
 		</>
 	)
 }
@@ -314,414 +243,5 @@ function SchemeEditor({ data, offering }: { data: CourseDetailData; offering: st
 				)}
 			</CardContent>
 		</Card>
-	)
-}
-
-// ---------------------------------------------------------------------------
-// the work
-// ---------------------------------------------------------------------------
-
-const BLANK: Partial<CourseAssignment> = {
-	title: '',
-	component: 'Assignment',
-	points_possible: 100,
-	submission_type: 'Text Entry',
-	grading_type: 'Points',
-	late_policy: 'Accept',
-	late_penalty_pct_per_day: 0,
-	allowed_attempts: 1,
-	due_date: null,
-	description: '',
-}
-
-function Assignments({ data, offering }: { data: CourseDetailData; offering: string }) {
-	const [editing, setEditing] = useState<Partial<CourseAssignment> | null>(null)
-
-	if (!data.scheme) {
-		return (
-			<Card>
-				<CardContent className="py-14 text-center">
-					<div className="font-medium">Set the grade scheme first</div>
-					<p className="text-muted-foreground mx-auto mt-1 max-w-md text-sm">
-						An assignment counts towards one component of the scheme. Without a scheme
-						there is nothing for a score to count towards.
-					</p>
-				</CardContent>
-			</Card>
-		)
-	}
-
-	return (
-		<div className="space-y-4">
-			{editing ? (
-				<AssignmentEditor
-					data={data}
-					offering={offering}
-					initial={editing}
-					onDone={() => setEditing(null)}
-				/>
-			) : (
-				<div className="flex justify-end">
-					<Button size="sm" onClick={() => setEditing({ ...BLANK })}>
-						<Plus /> New assignment
-					</Button>
-				</div>
-			)}
-
-			{data.assignments.length === 0 ? (
-				<Card>
-					<CardContent className="py-14 text-center">
-						<div className="font-medium">Nothing set yet</div>
-						<p className="text-muted-foreground mx-auto mt-1 max-w-md text-sm">
-							Work you create stays unpublished until you publish it, so students see
-							nothing while you draft.
-						</p>
-					</CardContent>
-				</Card>
-			) : (
-				<div className="space-y-2">
-					{data.assignments.map((row) => (
-						<AssignmentRow
-							key={row.name}
-							row={row}
-							offering={offering}
-							onEdit={() => setEditing(row)}
-						/>
-					))}
-				</div>
-			)}
-		</div>
-	)
-}
-
-function AssignmentRow({
-	row,
-	offering,
-	onEdit,
-}: {
-	row: CourseAssignment
-	offering: string
-	onEdit: () => void
-}) {
-	const publish = useSetPublished(offering)
-	const remove = useDeleteAssignment(offering)
-	const [preview, setPreview] = useState(false)
-	// The start of the brief, so pieces can be told apart without opening
-	// each one. Preview and Edit still hold the whole of it.
-	const brief = row.description ? plainText(row.description) : ''
-
-	return (
-		<Card>
-			<CardContent className="p-0">
-			<div className="flex flex-wrap items-center gap-3 p-4">
-				<div className="min-w-0 flex-1">
-					<div className="flex items-center gap-2">
-						<span className="truncate font-medium">{row.title}</span>
-						<Badge variant={row.published ? 'default' : 'secondary'}>
-							{row.published ? 'Published' : 'Draft'}
-						</Badge>
-					</div>
-					<div className="text-muted-foreground mt-0.5 text-xs">
-						{row.component} · {row.points_possible} points · {row.submission_type}
-						{row.due_date ? ` · due ${row.due_date.slice(0, 16).replace('T', ' ')}` : ' · no due date'}
-					</div>
-					{brief && (
-						<p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{brief}</p>
-					)}
-				</div>
-
-				<div className="flex gap-1">
-					<Button
-						variant="ghost"
-						size="sm"
-						aria-expanded={preview}
-						onClick={() => setPreview(!preview)}
-					>
-						<Eye className="size-4" /> Preview
-					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={() =>
-							publish.mutate(
-								{ assignment: row.name, published: !row.published },
-								{ onError: (error) => toast.error(message(error)) },
-							)
-						}
-						disabled={publish.isPending}
-					>
-						{row.published ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-						{row.published ? 'Unpublish' : 'Publish'}
-					</Button>
-					<Button variant="ghost" size="sm" asChild>
-						<Link
-							to={`/staff/courses/${encodeURIComponent(offering)}/grade/${encodeURIComponent(row.name)}`}
-						>
-							Mark
-						</Link>
-					</Button>
-					<Button variant="ghost" size="sm" onClick={onEdit}>
-						Edit
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon"
-						aria-label={`Delete ${row.title}`}
-						onClick={() =>
-							remove.mutate(row.name, {
-								onSuccess: () => toast.success('Assignment deleted'),
-								onError: (error) => toast.error(message(error)),
-							})
-						}
-						disabled={remove.isPending}
-					>
-						<Trash2 className="size-4" />
-					</Button>
-				</div>
-			</div>
-
-			{preview && <PreviewPanel row={row} offering={offering} />}
-			</CardContent>
-		</Card>
-	)
-}
-
-/**
- * The assignment as a student meets it, with a name to choose.
- *
- * Without a name it is a student who has just arrived. With one, the dates
- * are that student's real ones and their own submission is shown -- minus
- * anything they cannot see themselves, because the server builds these rows
- * with the same code the portal reads.
- */
-function PreviewPanel({ row, offering }: { row: CourseAssignment; offering: string }) {
-	const [registration, setRegistration] = useState<string | null>(null)
-	const query = useAssignmentPreview(offering, row.name, registration, true)
-
-	return (
-		<div className="bg-muted/40 space-y-3 border-t p-4">
-			<div className="flex flex-wrap items-center gap-3">
-				<RosterPicker
-					roster={query.data?.roster ?? []}
-					value={registration}
-					onChange={setRegistration}
-				/>
-
-				{!row.published && (
-					<span className="text-muted-foreground text-xs">
-						A draft: no student can see this at all yet.
-					</span>
-				)}
-			</div>
-
-			{query.isPending ? (
-				<p className="text-muted-foreground text-sm">Opening…</p>
-			) : query.data?.row ? (
-				<AssignmentDetail row={query.data.row} preview />
-			) : (
-				<p className="text-muted-foreground text-sm">
-					{message(query.error) }
-				</p>
-			)}
-		</div>
-	)
-}
-
-function AssignmentEditor({
-	data,
-	offering,
-	initial,
-	onDone,
-}: {
-	data: CourseDetailData
-	offering: string
-	initial: Partial<CourseAssignment>
-	onDone: () => void
-}) {
-	const [values, setValues] = useState<Partial<CourseAssignment>>(initial)
-	const save = useSaveAssignment(offering)
-
-	// Only the components the scheme actually has: a score counting towards a
-	// bucket that does not exist reaches nobody's grade, and the server
-	// refuses it anyway.
-	const components = data.scheme?.rows.map((row) => row.component) ?? []
-
-	const set = (patch: Partial<CourseAssignment>) => setValues({ ...values, ...patch })
-
-	const onSave = () =>
-		save.mutate(
-			{ values, assignment: initial.name },
-			{
-				onSuccess: () => {
-					toast.success(initial.name ? 'Assignment saved' : 'Assignment created')
-					onDone()
-				},
-				onError: (error) => toast.error(message(error)),
-			},
-		)
-
-	return (
-		<Card>
-			<CardHeader>
-				<CardTitle className="text-base">
-					{initial.name ? 'Edit assignment' : 'New assignment'}
-				</CardTitle>
-			</CardHeader>
-			<CardContent className="space-y-4">
-				<div>
-					<Label htmlFor="title">Title</Label>
-					<Input
-						id="title"
-						className="mt-1"
-						value={values.title ?? ''}
-						onChange={(event) => set({ title: event.target.value })}
-					/>
-				</div>
-
-				<div className="grid gap-3 sm:grid-cols-3">
-					<Field label="Counts towards">
-						<select
-							className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
-							value={values.component ?? ''}
-							onChange={(event) => set({ component: event.target.value })}
-						>
-							{components.map((option) => (
-								<option key={option} value={option}>
-									{option}
-								</option>
-							))}
-						</select>
-					</Field>
-
-					<Field label="Points possible">
-						<Input
-							type="number"
-							value={values.points_possible ?? 100}
-							onChange={(event) => set({ points_possible: Number(event.target.value) })}
-						/>
-					</Field>
-
-					<Field label="Grading">
-						<select
-							className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
-							value={values.grading_type ?? 'Points'}
-							onChange={(event) => set({ grading_type: event.target.value })}
-						>
-							{data.choices.grading_types.map((option) => (
-								<option key={option} value={option}>
-									{option}
-								</option>
-							))}
-						</select>
-					</Field>
-				</div>
-
-				<div className="grid gap-3 sm:grid-cols-3">
-					<Field label="Available from">
-						<Input
-							type="datetime-local"
-							value={(values.available_from ?? '').slice(0, 16)}
-							onChange={(event) => set({ available_from: event.target.value || null })}
-						/>
-					</Field>
-					<Field label="Due">
-						<Input
-							type="datetime-local"
-							value={(values.due_date ?? '').slice(0, 16)}
-							onChange={(event) => set({ due_date: event.target.value || null })}
-						/>
-					</Field>
-					<Field label="Closes">
-						<Input
-							type="datetime-local"
-							value={(values.available_until ?? '').slice(0, 16)}
-							onChange={(event) => set({ available_until: event.target.value || null })}
-						/>
-					</Field>
-				</div>
-
-				<div className="grid gap-3 sm:grid-cols-3">
-					<Field label="Submission type">
-						<select
-							className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
-							value={values.submission_type ?? ''}
-							onChange={(event) => set({ submission_type: event.target.value })}
-						>
-							{data.choices.submission_types.map((option) => (
-								<option key={option} value={option}>
-									{option}
-								</option>
-							))}
-						</select>
-					</Field>
-
-					<Field label="Late policy">
-						<select
-							className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
-							value={values.late_policy ?? ''}
-							onChange={(event) => set({ late_policy: event.target.value })}
-						>
-							{data.choices.late_policies.map((option) => (
-								<option key={option} value={option}>
-									{option}
-								</option>
-							))}
-						</select>
-					</Field>
-
-					{values.late_policy === 'Accept with penalty' && (
-						<Field label="Penalty % per day">
-							<Input
-								type="number"
-								value={values.late_penalty_pct_per_day ?? 0}
-								onChange={(event) =>
-									set({ late_penalty_pct_per_day: Number(event.target.value) })
-								}
-							/>
-						</Field>
-					)}
-				</div>
-
-				<div>
-					<Label htmlFor="description">Brief</Label>
-					<Textarea
-						id="description"
-						className="mt-1 font-mono text-xs"
-						rows={5}
-						value={values.description ?? ''}
-						onChange={(event) => set({ description: event.target.value })}
-					/>
-					<p className="text-muted-foreground mt-1 text-xs">
-						HTML, shown to students as written. There is no rich-text editor here yet.
-					</p>
-				</div>
-
-				<div className="flex justify-end gap-2">
-					<Button variant="outline" size="sm" onClick={onDone}>
-						Cancel
-					</Button>
-					<Button size="sm" onClick={onSave} disabled={save.isPending || !values.title}>
-						{save.isPending ? <LoaderCircle className="animate-spin" /> : <Save />}
-						Save
-					</Button>
-				</div>
-			</CardContent>
-		</Card>
-	)
-}
-
-/**
- * A labelled control.
- *
- * A native <label> wrapping its control, rather than a <Label> beside one: the
- * association is then implicit and needs no id, which matters because several
- * of these render more than once on the page.
- */
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-	return (
-		<label className="block">
-			<span className="text-xs font-medium">{label}</span>
-			<div className="mt-1">{children}</div>
-		</label>
 	)
 }

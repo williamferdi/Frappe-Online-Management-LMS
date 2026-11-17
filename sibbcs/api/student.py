@@ -65,43 +65,26 @@ def _enrollment_header(enrollment):
 
 
 def _lms_links(registrations):
-	"""Where each registration's course lives in the LMS, and how far along.
+	"""Where each registration's course lives, and how far along the student is.
 
-	The portal deliberately does not render lessons -- it links out to the LMS
-	course player, which already runs quizzes, assignments and progress.
-	Course.lms_course is written by `lms_sync.ensure_lms_course`.
+	Teaching is Campus LMS Lite's. A student opens their course over there, and
+	this only has to hand them the address -- so every row gets the same one:
+	the LMS shows a person the courses they are enrolled on and nothing else,
+	which is the same boundary that keeps an applicant to their entrance exam.
+
+	Progress is deliberately not fetched here. It is one call per course to
+	another system over a 265ms link, on a screen that draws every registration
+	a student has; `my_courses` would go from one query to forty round trips.
+	The LMS shows progress on the course itself, which is where somebody is
+	when they want it.
 	"""
-	courses = {row["course"] for row in registrations if row.get("course")}
-	if not courses:
-		return
+	from sibbcs.integrations import campus_lms
 
-	lms_course_by_course = {
-		row.name: row.lms_course
-		for row in frappe.get_all(
-			"Course",
-			filters={"name": ("in", list(courses))},
-			fields=["name", "lms_course"],
-		)
-		if row.lms_course
-	}
-
-	progress_by_course = {}
-	if lms_course_by_course:
-		for row in frappe.get_all(
-			"LMS Enrollment",
-			filters={
-				"member": frappe.session.user,
-				"course": ("in", list(lms_course_by_course.values())),
-			},
-			fields=["course", "progress"],
-		):
-			progress_by_course[row.course] = row.progress or 0
-
+	url = campus_lms.base_url() if campus_lms.configured() else None
 	for row in registrations:
-		lms_course = lms_course_by_course.get(row.get("course"))
-		row["lms_course"] = lms_course or None
-		row["lms_url"] = f"/lms/courses/{lms_course}" if lms_course else None
-		row["progress"] = progress_by_course.get(lms_course, 0) if lms_course else 0
+		row["lms_course"] = None
+		row["lms_url"] = url
+		row["progress"] = 0
 
 
 @frappe.whitelist()

@@ -56,85 +56,6 @@ MATRIX = {
 		full(SM), full(COORDINATOR), full(FACULTY),
 		read(REGISTRAR), read(FACILITATOR),
 	],
-	"Course Assignment": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR),
-	],
-	# No Student row on Assignment Submission, deliberately. Permlevel cannot
-	# say "your own score, once it is posted" -- Student holds level-1 read on
-	# Course Registration and would inherit it here. The portal reads through
-	# session-scoped endpoints that filter on `posted` instead.
-	"Assignment Submission": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR),
-		level(SM, 1), level(COORDINATOR, 1), level(FACULTY, 1),
-		level(REGISTRAR, 1, write=0), level(FACILITATOR, 1, write=0),
-	],
-	"Course Rubric": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR),
-	],
-	# Modules, pages and files are the shape of a course rather than anything
-	# confidential, so Student gets read. What a student may *reach* is
-	# decided by the unlock rules in `academic.modules`, not by row
-	# permissions -- and every endpoint that hands over content asks.
-	"Course Module": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR), read(STUDENT),
-	],
-	"Course Module Item": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR), read(STUDENT),
-	],
-	"Course Page": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR), read(STUDENT),
-	],
-	"Course File": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR), read(STUDENT),
-	],
-	# No Student row: progress is written by the endpoints a student's own
-	# session reaches. With generic CRUD, completing somebody else's course
-	# would be one POST away.
-	"Module Item Progress": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR),
-	],
-	# The question banks, quizzes and attempts were here, with no Student row on
-	# any of them: a bank readable through /api/resource would have been the
-	# answer key. Quizzes are sat in Campus LMS Lite now.
-	# A group a student is in and a discussion prompt are the shape of the
-	# course, so Student reads them.
-	"Course Group Set": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR), read(STUDENT),
-	],
-	"Course Group": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR), read(STUDENT),
-	],
-	"Course Discussion": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR), read(STUDENT),
-	],
-	# No Student row: a list of everyone's extensions is nobody's business,
-	# and a student's own payload already carries the dates that apply to them.
-	"Assignment Override": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR),
-	],
-	# No Student row: a peer's suggested mark is a mark.
-	"Peer Review": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR),
-		level(SM, 1), level(COORDINATOR, 1), level(FACULTY, 1),
-		level(REGISTRAR, 1, write=0), level(FACILITATOR, 1, write=0),
-	],
-	"Rubric Criterion": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR),
-	],
 	"Grade Scale": [full(SM), edit(REGISTRAR), read(COORDINATOR), read(FACULTY)],
 	"Weekday": [full(SM), read(COORDINATOR), read(REGISTRAR)],
 
@@ -195,20 +116,6 @@ FORBIDDEN_CREATE = {
 	"Program Enrollment": [STUDENT, FACULTY, FACILITATOR],
 	"Course Registration": [STUDENT],
 	"Course Grade Scheme": [STUDENT],
-	"Course Assignment": [STUDENT],
-	"Assignment Submission": [STUDENT],
-	"Course Rubric": [STUDENT, FACILITATOR],
-	"Course Module": [STUDENT, FACILITATOR],
-	"Course Module Item": [STUDENT, FACILITATOR],
-	"Course Page": [STUDENT, FACILITATOR],
-	"Course File": [STUDENT, FACILITATOR],
-	"Module Item Progress": [STUDENT, FACILITATOR],
-	"Course Group Set": [STUDENT, FACILITATOR],
-	"Course Group": [STUDENT, FACILITATOR],
-	"Course Discussion": [STUDENT, FACILITATOR],
-	"Assignment Override": [STUDENT, FACILITATOR],
-	"Peer Review": [STUDENT, FACILITATOR],
-	"Rubric Criterion": [STUDENT, FACILITATOR],
 	"Fee Invoice": [STUDENT],
 	"Payment Entry": [STUDENT],
 	"Reading Manual": [STUDENT, FACULTY, FACILITATOR],

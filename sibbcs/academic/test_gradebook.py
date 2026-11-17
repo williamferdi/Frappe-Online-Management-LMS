@@ -38,19 +38,6 @@ def make_scheme(offering, rows):
 	return doc.save(ignore_permissions=True)
 
 
-def make_assignment(offering, **kw):
-	values = {
-		"doctype": "Course Assignment",
-		"course_offering": offering,
-		"title": kw.pop("title", "Essay One"),
-		"component": kw.pop("component", "Assignment"),
-		"points_possible": kw.pop("points_possible", 20),
-		"submission_type": kw.pop("submission_type", "Text Entry"),
-		"late_policy": kw.pop("late_policy", "Accept"),
-	}
-	values.update(kw)
-	return frappe.get_doc(values).insert(ignore_permissions=True)
-
 
 class TestGradeScheme(FrappeTestCase):
 	@classmethod
@@ -334,7 +321,6 @@ class TestGradeScheme(FrappeTestCase):
 	def test_deleting_a_scheme_hands_the_offering_back_to_hand_marking(self):
 		registration = self._register(self.offering)
 		make_scheme(self.offering, [{"component": "Assignment", "weight_pct": 100}])
-		make_assignment(self.offering)
 
 		frappe.delete_doc("Course Grade Scheme", self.offering, ignore_permissions=True)
 
@@ -342,140 +328,6 @@ class TestGradeScheme(FrappeTestCase):
 		registration.reload()
 		for row in registration.grade_components:
 			self.assertFalse(row.auto_computed)
-
-	# --- assignments ------------------------------------------------------
-
-	def test_an_assignment_must_count_towards_a_bucket_the_scheme_has(self):
-		"""A score rolling into a bucket that does not exist reaches nobody's
-		grade."""
-		make_scheme(self.offering, [{"component": "Assignment", "weight_pct": 100}])
-
-		with self.assertRaises(frappe.ValidationError):
-			make_assignment(self.offering, component="Exam", title="Orphan")
-
-	def test_an_offering_with_no_scheme_may_still_set_work(self):
-		"""Structure is optional; setting an essay is not conditional on it."""
-		assignment = make_assignment(self.plain, title="No Scheme Essay")
-		self.assertTrue(assignment.name)
-
-	def test_dates_must_run_forwards(self):
-		make_scheme(self.offering, [{"component": "Assignment", "weight_pct": 100}])
-
-		with self.assertRaises(frappe.ValidationError):
-			make_assignment(
-				self.offering,
-				title="Backwards",
-				available_from="2026-10-10 09:00:00",
-				due_date="2026-10-01 09:00:00",
-			)
-
-	def test_it_cannot_close_before_it_is_due(self):
-		make_scheme(self.offering, [{"component": "Assignment", "weight_pct": 100}])
-
-		with self.assertRaises(frappe.ValidationError):
-			make_assignment(
-				self.offering,
-				title="Closes early",
-				due_date="2026-10-10 09:00:00",
-				available_until="2026-10-05 09:00:00",
-			)
-
-	def test_points_must_be_positive(self):
-		make_scheme(self.offering, [{"component": "Assignment", "weight_pct": 100}])
-
-		with self.assertRaises(frappe.ValidationError):
-			make_assignment(self.offering, title="Worthless", points_possible=0)
-
-	def test_a_penalty_policy_needs_a_penalty(self):
-		make_scheme(self.offering, [{"component": "Assignment", "weight_pct": 100}])
-
-		with self.assertRaises(frappe.ValidationError):
-			make_assignment(
-				self.offering,
-				title="Toothless",
-				late_policy="Accept with penalty",
-				late_penalty_pct_per_day=0,
-			)
-
-	def test_work_is_unpublished_until_somebody_publishes_it(self):
-		"""The whole phase is faculty-only, and this is what makes that true."""
-		make_scheme(self.plain, [{"component": "Assignment", "weight_pct": 100}])
-		assignment = make_assignment(self.plain, title="Draft")
-
-		self.assertEqual(assignment.published, 0)
-
-	# --- the two paths must not disagree ----------------------------------
-
-	def test_a_bucket_with_an_assignment_becomes_computed(self):
-		registration = self._register(self.offering)
-		make_scheme(
-			self.offering,
-			[
-				{"component": "Assignment", "weight_pct": 50},
-				{"component": "Attendance", "weight_pct": 50},
-			],
-		)
-		make_assignment(self.offering, component="Assignment")
-
-		registration.reload()
-		rows = {r.component: r for r in registration.grade_components}
-		self.assertTrue(rows["Assignment"].auto_computed)
-		self.assertFalse(
-			rows["Attendance"].auto_computed,
-			"a bucket with no assignment stays hand-markable",
-		)
-
-	def test_a_hand_mark_on_a_computed_bucket_is_refused(self):
-		"""The next roll-up would write over it, so losing it now is louder
-		than losing it later."""
-		registration = self._register(self.offering)
-		make_scheme(
-			self.offering,
-			[
-				{"component": "Assignment", "weight_pct": 50},
-				{"component": "Attendance", "weight_pct": 50},
-			],
-		)
-		make_assignment(self.offering, component="Assignment")
-
-		with self.assertRaises(frappe.ValidationError):
-			academic_api.save_grades(
-				registration.name,
-				[
-					{"component": "Assignment", "weight_pct": 50, "max_marks": 100,
-					 "obtained_marks": 90},
-					{"component": "Attendance", "weight_pct": 50, "max_marks": 100,
-					 "obtained_marks": 90},
-				],
-			)
-
-	def test_a_hand_mark_on_a_hand_bucket_still_works(self):
-		"""A guard that also stops the legitimate case is not a guard.
-		Attendance has no assignment, so it stays typeable."""
-		registration = self._register(self.offering)
-		make_scheme(
-			self.offering,
-			[
-				{"component": "Assignment", "weight_pct": 50},
-				{"component": "Attendance", "weight_pct": 50},
-			],
-		)
-		make_assignment(self.offering, component="Assignment")
-
-		registration.reload()
-		academic_api.save_grades(
-			registration.name,
-			[
-				{"component": "Assignment", "weight_pct": 50, "max_marks": 100,
-				 "obtained_marks": None},
-				{"component": "Attendance", "weight_pct": 50, "max_marks": 100,
-				 "obtained_marks": 75},
-			],
-		)
-
-		registration.reload()
-		marks = {r.component: r.obtained_marks for r in registration.grade_components}
-		self.assertEqual(marks["Attendance"], 75)
 
 	def test_the_scheme_options_match_the_component_options(self):
 		"""A scheme row naming a component the table cannot hold is a scheme
@@ -545,64 +397,17 @@ class TestCourseApi(FrappeTestCase):
 				self.theirs, [{"component": "Assignment", "weight_pct": 100}]
 			)
 
-	def test_a_teacher_builds_their_own_course_end_to_end(self):
-		frappe.set_user(self.mine_user)
-
-		course_api.save_scheme(
-			self.mine,
-			[
-				{"component": "Assignment", "weight_pct": 60},
-				{"component": "Exam", "weight_pct": 40},
-			],
-		)
-		saved = course_api.save_assignment(
-			self.mine,
-			{
-				"title": "Essay One",
-				"component": "Assignment",
-				"points_possible": 20,
-				"submission_type": "Text Entry",
-				"late_policy": "Accept",
-			},
-		)
-
-		payload = course_api.course(self.mine)
-
-		self.assertEqual(payload["scheme"]["total_weight"], 100.0)
-		self.assertEqual(len(payload["assignments"]), 1)
-		self.assertEqual(payload["assignments"][0]["title"], "Essay One")
-		self.assertEqual(saved["assignment"]["published"], 0)
-
-	def test_an_assignment_cannot_be_moved_to_another_course_by_payload(self):
-		"""`course_offering` is not in ASSIGNMENT_FIELDS, and the endpoint
-		checks the one it was given against the one on the record."""
-		frappe.set_user(self.mine_user)
-		course_api.save_scheme(self.mine, [{"component": "Assignment", "weight_pct": 100}])
-		created = course_api.save_assignment(
-			self.mine,
-			{"title": "Stays put", "component": "Assignment", "points_possible": 10,
-			 "submission_type": "Text Entry", "late_policy": "Accept"},
-		)["assignment"]
-
-		course_api.save_assignment(
-			self.mine,
-			{"title": "Renamed", "course_offering": self.theirs, "name": "hacked"},
-			assignment=created["name"],
-		)
-
-		self.assertEqual(
-			frappe.db.get_value("Course Assignment", created["name"], "course_offering"),
-			self.mine,
-		)
-
 	def test_the_choices_come_from_the_doctypes(self):
 		frappe.set_user(self.mine_user)
 
 		options = course_api.choices()
 
 		self.assertIn("Assignment", options["components"])
-		self.assertIn("Quiz", options["components"])
-		self.assertIn("Text Entry", options["submission_types"])
+		self.assertIn("Coursework", options["components"])
+		self.assertIn("posting_policies", options)
+		# Work is set in Campus LMS Lite, so this no longer offers the shapes a
+		# hand-in could take here.
+		self.assertNotIn("submission_types", options)
 
 
 class TestSingleComponentForLmsCourses(FrappeTestCase):
@@ -675,12 +480,6 @@ class TestSingleComponentForLmsCourses(FrappeTestCase):
 		gradebook.use_single_component(self.offering)
 		self.assertEqual(lms_bridge.post_final_mark(registration, 70)["component"], "Coursework")
 
-	def test_a_bucket_this_gradebook_owns_is_refused(self):
-		"""A component fed by a Course Assignment here is computed from posted
-		scores; a mark sent from the LMS would be refused on save anyway."""
-		make_assignment(self.offering, component="Assignment", points_possible=10)
-		with self.assertRaises(frappe.ValidationError):
-			gradebook.use_single_component(self.offering, component="Assignment")
 
 	def test_marks_already_entered_are_kept_and_reported(self):
 		"""Switching mid-term must not delete somebody's score to tidy a table."""

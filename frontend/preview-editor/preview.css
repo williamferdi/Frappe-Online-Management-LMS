@@ -1,0 +1,4 @@
+@import '../src/index.css';
+/* The app's classes live under src; this page's root is not there. */
+@source '../src';
+@source '.';

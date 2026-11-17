@@ -219,33 +219,22 @@ function CourseRow({
 							</span>
 						) : (
 							<>
-								{/* Open course goes to the player, which resumes where the
-								    student left off rather than at the top; the whole course as
-								    a list is a header away once inside it, which is where
-								    somebody is when they want it. Coursework keeps
-								    its own entrance because it is what a student checks most
-								    often, and the LMS link stays as the fallback for content
-								    we cannot render. */}
-								<Button size="sm" asChild>
-									<Link
-										to={`/portal/courses/${encodeURIComponent(registration.name)}/learn`}
-									>
-										Open course
-									</Link>
-								</Button>
-								<Button size="sm" variant="outline" asChild>
-									<Link
-										to={`/portal/courses/${encodeURIComponent(registration.name)}/work`}
-									>
-										Coursework
-									</Link>
-								</Button>
-								{registration.lms_url && (
-									<Button size="sm" variant="ghost" asChild>
+								{/* Lessons, coursework and quizzes are all in Campus LMS
+								    Lite now, so there is one way in rather than three.
+								    It opens the LMS itself and not a course address: the
+								    registration number means nothing over there, and the
+								    LMS lands a student on the courses they are enrolled
+								    on anyway. */}
+								{registration.lms_url ? (
+									<Button size="sm" asChild>
 										<a href={registration.lms_url}>
-											In the LMS <ArrowUpRight />
+											Open course <ArrowUpRight />
 										</a>
 									</Button>
+								) : (
+									<span className="text-muted-foreground text-xs">
+										The learning site is not linked yet.
+									</span>
 								)}
 							</>
 						)}

@@ -19,16 +19,6 @@ SAFE_SITE = "test.local"
 
 # Everything the suite makes, in the order it has to go.
 ORDER = (
-	"Peer Review",
-	"Assignment Override",
-	"Assignment Submission",
-	"Module Item Progress",
-	"Course Module Item",
-	"Course Module",
-	"Course Discussion",
-	"Course Group",
-	"Course Group Set",
-	"Course Assignment",
 	"Course Grade Scheme",
 	"Course Registration",
 	"Level Promotion",

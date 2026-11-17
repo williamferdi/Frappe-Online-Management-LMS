@@ -6,7 +6,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, flt, today
 
-from sibbcs.academic import gradebook, lms_sync
+from sibbcs.academic import lms_sync
 from sibbcs.academic.eligibility import evaluate, may_override
 
 
@@ -15,9 +15,10 @@ class CourseRegistration(Document):
 		self.set_defaults()
 		self.validate_override_authority()
 		self.run_eligibility()
-		# Before compute_grade, not after: a mark that is about to be thrown
-		# out should not first be folded into a total.
-		gradebook.refuse_hand_marks_on_automatic(self)
+		# A hand-typed mark used to be refused here when its bucket was
+		# computed from this app's own assignments. Those are set and marked in
+		# Campus LMS Lite now, so no bucket is computed here and there is
+		# nothing to refuse.
 		self.note_marks_entered()
 		self.compute_grade()
 

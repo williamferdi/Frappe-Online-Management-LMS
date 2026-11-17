@@ -2,8 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { frappeGet, frappePost } from '@/lib/frappe'
 import type {
-	AssignmentPreview,
-	CourseAssignment,
 	CourseDetail,
 	CoursesResponse,
 	GradeSchemeRow,
@@ -73,63 +71,4 @@ export function useDeleteScheme(offering: string) {
 			course_offering: offering,
 		}),
 	)
-}
-
-export function useSaveAssignment(offering: string) {
-	return useCourseMutation(
-		offering,
-		({ values, assignment }: { values: Partial<CourseAssignment>; assignment?: string }) =>
-			frappePost<{ assignment: CourseAssignment }>('sibbcs.api.course.save_assignment', {
-				course_offering: offering,
-				values,
-				...(assignment ? { assignment } : {}),
-			}),
-	)
-}
-
-export function useDeleteAssignment(offering: string) {
-	return useCourseMutation(offering, (assignment: string) =>
-		frappePost<{ deleted: string }>('sibbcs.api.course.delete_assignment', {
-			assignment,
-		}),
-	)
-}
-
-export function useSetPublished(offering: string) {
-	return useCourseMutation(
-		offering,
-		({ assignment, published }: { assignment: string; published: boolean }) =>
-			frappePost<{ assignment: string; published: number }>(
-				'sibbcs.api.course.set_published',
-				{ assignment, published: published ? 1 : 0 },
-			),
-	)
-}
-
-
-/**
- * One assignment as a student meets it.
- *
- * Asked of the server rather than assembled here: whether somebody may still
- * hand a thing in depends on their extensions and the late policy, and a
- * second opinion computed in the browser is one that can disagree with the
- * real one. Only fetched while the panel is open, so a course with a dozen
- * assignments does not make a dozen calls nobody asked for.
- */
-export function useAssignmentPreview(
-	offering: string,
-	assignment: string,
-	registration: string | null,
-	enabled: boolean,
-) {
-	return useQuery({
-		queryKey: ['course', 'assignment-preview', offering, assignment, registration ?? ''],
-		queryFn: () =>
-			frappeGet<AssignmentPreview>('sibbcs.api.coursework.preview', {
-				course_offering: offering,
-				assignment,
-				...(registration ? { course_registration: registration } : {}),
-			}),
-		enabled,
-	})
 }

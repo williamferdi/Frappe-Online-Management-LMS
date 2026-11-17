@@ -1,11 +1,14 @@
 # Copyright (c) 2026, South India Baptist Bible College & Seminary and contributors
 # For license information, please see license.txt
 
-"""The course shell a teacher builds: its grade scheme and its assignments.
+"""The course shell a teacher builds: its grade scheme.
 
-Everything here is faculty-facing. There is no portal route to any of it in
-this phase and `published` defaults to 0, so a student sees nothing until the
-screens that show them arrive.
+Assignments were here too, and went with Phase 7 -- work is set and marked in
+Campus LMS Lite, which releases one figure into the Coursework bucket. What is
+left is the shape that figure lands in, which is this system's to hold because
+the transcript is.
+
+Everything here is faculty-facing.
 
 Two habits carried over from the rest of the API. Reads go through
 `frappe.get_all`, which bypasses permissions, so every endpoint asks
@@ -19,45 +22,9 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt
 
-from sibbcs.academic import gradebook, lms_sync
+from sibbcs.academic import gradebook
 from sibbcs.academic import permissions as academic_permissions
 from sibbcs.api.academic_api import ACADEMIC_ROLES
-
-# What a teacher may set on a piece of work. Named rather than accepted
-# wholesale: a dict straight from the browser is how `name`, `owner` or
-# `course_offering` gets rewritten by a payload nobody looked at.
-ASSIGNMENT_FIELDS = (
-	"title",
-	"description",
-	"component",
-	"points_possible",
-	"grading_type",
-	"submission_type",
-	"due_date",
-	"available_from",
-	"available_until",
-	"late_policy",
-	"late_penalty_pct_per_day",
-	"allowed_attempts",
-	"published",
-)
-
-ASSIGNMENT_LIST_FIELDS = (
-	"name",
-	"title",
-	"component",
-	"points_possible",
-	"submission_type",
-	"grading_type",
-	"due_date",
-	"available_from",
-	"available_until",
-	"late_policy",
-	"late_penalty_pct_per_day",
-	"allowed_attempts",
-	"published",
-	"description",
-)
 
 
 def _require_teaching():
@@ -115,22 +82,11 @@ def courses(term=None):
 		)
 	)
 
-	counts, published = {}, {}
-	if names:
-		for row in frappe.get_all(
-			"Course Assignment",
-			filters={"course_offering": ("in", names)},
-			fields=["course_offering", "published", "count(name) as n"],
-			group_by="course_offering, published",
-		):
-			counts[row.course_offering] = counts.get(row.course_offering, 0) + cint(row.n)
-			if cint(row.published):
-				published[row.course_offering] = cint(row.n)
-
+	# The assignment counts were here. Work is set and marked in Campus LMS
+	# Lite now, so this screen says whether an offering has a grade scheme --
+	# the shape a released result lands in -- and nothing about the work.
 	for row in rows:
 		row["has_scheme"] = row.name in schemed
-		row["assignments"] = counts.get(row.name, 0)
-		row["published_assignments"] = published.get(row.name, 0)
 
 	return {
 		"rows": rows,
@@ -161,12 +117,6 @@ def course(course_offering):
 	return {
 		"offering": offering,
 		"scheme": _scheme_payload(course_offering),
-		"assignments": frappe.get_all(
-			"Course Assignment",
-			filters={"course_offering": course_offering},
-			fields=list(ASSIGNMENT_LIST_FIELDS),
-			order_by="due_date asc, creation asc",
-		),
 		"choices": choices(),
 	}
 
@@ -175,14 +125,14 @@ def course(course_offering):
 def choices():
 	"""The option lists, read from the DocTypes rather than repeated here.
 
-	A component added in Desk has to reach the scheme editor, or a teacher can
-	build a scheme that no assignment can ever count towards.
+	A component added in Desk has to reach the scheme editor, or the bucket a
+	released LMS mark is sent to cannot be chosen.
+
+	The submission, grading and late-policy lists went with Course Assignment:
+	work is set in Campus LMS Lite, which has its own.
 	"""
 	return {
 		"components": _options("Grade Component", "component"),
-		"submission_types": _options("Course Assignment", "submission_type"),
-		"grading_types": _options("Course Assignment", "grading_type"),
-		"late_policies": _options("Course Assignment", "late_policy"),
 		"posting_policies": _options("Grade Scheme Row", "posting_policy"),
 	}
 
@@ -269,143 +219,3 @@ def delete_scheme(course_offering):
 	frappe.delete_doc("Course Grade Scheme", course_offering)
 	frappe.db.commit()
 	return {"scheme": None}
-
-
-# ---------------------------------------------------------------------------
-# the work
-# ---------------------------------------------------------------------------
-
-
-@frappe.whitelist(methods=["POST"])
-def save_assignment(course_offering, values, assignment=None):
-	"""Set a new piece of work, or change one already set."""
-	_require_teaching()
-	academic_permissions.assert_may_teach(course_offering)
-
-	if isinstance(values, str):
-		values = frappe.parse_json(values)
-	if not isinstance(values, dict):
-		frappe.throw(_("An assignment must be a set of fields."))
-
-	if assignment:
-		doc = frappe.get_doc("Course Assignment", assignment)
-		if doc.course_offering != course_offering:
-			frappe.throw(
-				_("That assignment belongs to another course."), frappe.PermissionError
-			)
-	else:
-		doc = frappe.new_doc("Course Assignment")
-		doc.course_offering = course_offering
-
-	for field in ASSIGNMENT_FIELDS:
-		if field in values:
-			doc.set(field, values[field])
-
-	doc.save()
-	frappe.db.commit()
-
-	return {
-		"assignment": frappe.db.get_value(
-			"Course Assignment", doc.name, list(ASSIGNMENT_LIST_FIELDS), as_dict=True
-		)
-	}
-
-
-@frappe.whitelist(methods=["POST"])
-def delete_assignment(assignment):
-	_require_teaching()
-
-	offering = frappe.db.get_value("Course Assignment", assignment, "course_offering")
-	if not offering:
-		frappe.throw(_("Assignment not found."))
-	academic_permissions.assert_may_teach(offering)
-
-	frappe.delete_doc("Course Assignment", assignment)
-	frappe.db.commit()
-	return {"deleted": assignment}
-
-
-@frappe.whitelist(methods=["POST"])
-def set_published(assignment, published):
-	"""Publish or withdraw one piece of work.
-
-	Its own endpoint because it is the one change a teacher makes without
-	opening the editor, and because publishing is the moment work becomes
-	visible to a student.
-	"""
-	_require_teaching()
-
-	offering = frappe.db.get_value("Course Assignment", assignment, "course_offering")
-	if not offering:
-		frappe.throw(_("Assignment not found."))
-	academic_permissions.assert_may_teach(offering)
-
-	doc = frappe.get_doc("Course Assignment", assignment)
-	doc.published = cint(published)
-	doc.save()
-	frappe.db.commit()
-
-	return {"assignment": assignment, "published": cint(doc.published)}
-
-
-@frappe.whitelist(methods=["POST"])
-def create_content_space(course_offering):
-	"""Make sure this course has an LMS course to write lessons into.
-
-	Calls the same `ensure_lms_course` that registration calls, so there is one
-	definition of what an LMS course for a Course looks like and doing it early
-	only means registration finds it already made.
-
-	Idempotent, and returns the address to write at either way.
-	"""
-	_require_teaching()
-	academic_permissions.assert_may_teach(course_offering)
-
-	course = frappe.db.get_value("Course Offering", course_offering, "course")
-	if not course:
-		frappe.throw(_("Course Offering not found."))
-
-	lms_course = lms_sync.ensure_lms_course(course)
-	frappe.db.commit()
-
-	return {
-		"course": course,
-		"lms_course": lms_course,
-		# The course's own page in the LMS, which is where chapters and lessons
-		# are added -- Frappe LMS has no separate edit route, and inventing one
-		# sends a teacher to "Page not found".
-		"authoring_url": f"/lms/courses/{lms_course}",
-	}
-
-
-@frappe.whitelist()
-def content_space(course_offering):
-	"""Whether this course has anywhere to write lessons yet, and where."""
-	_require_teaching()
-	academic_permissions.assert_may_teach(course_offering)
-
-	course = frappe.db.get_value("Course Offering", course_offering, "course")
-	lms_course = frappe.db.get_value("Course", course, "lms_course") if course else None
-
-	if lms_course and not frappe.db.exists("LMS Course", lms_course):
-		# The link outlived what it pointed at -- a restored backup, or a
-		# course removed in the LMS. Say so rather than linking into nothing.
-		lms_course = None
-
-	lessons = 0
-	if lms_course:
-		for chapter in frappe.get_all(
-			"Chapter Reference",
-			filters={"parent": lms_course, "parenttype": "LMS Course"},
-			pluck="chapter",
-		):
-			lessons += frappe.db.count(
-				"Lesson Reference", {"parent": chapter, "parenttype": "Course Chapter"}
-			)
-
-	return {
-		"course": course,
-		"lms_course": lms_course,
-		"lessons": lessons,
-		"authoring_url": f"/lms/courses/{lms_course}" if lms_course else None,
-	}

@@ -361,44 +361,21 @@ website_route_rules = [
 # (2026-09-11): scoped to the courses a teacher teaches an offering of, with a
 # rubric or bank that has no course readable by every teacher and changed
 # only by the office.
+# What is left to scope is what the registrar still owns. The assignment,
+# module, page, file, rubric, group and discussion conditions went with the
+# teaching layer in Phase 7 -- a hook naming a deleted function fails on every
+# request that touches the DocType, not only on the screen that used it, so
+# these come out in the same commit as the functions.
 permission_query_conditions = {
 	"Course Registration": "sibbcs.academic.permissions.course_registration_query",
-	"Course Assignment": "sibbcs.academic.permissions.course_assignment_query",
-	"Assignment Submission": "sibbcs.academic.permissions.assignment_submission_query",
-	"Course Module": "sibbcs.academic.permissions.course_module_query",
-	"Course Module Item": "sibbcs.academic.permissions.course_module_item_query",
-	"Module Item Progress": "sibbcs.academic.permissions.module_item_progress_query",
-	"Course Group Set": "sibbcs.academic.permissions.course_group_set_query",
-	"Course Group": "sibbcs.academic.permissions.course_group_query",
-	"Course Discussion": "sibbcs.academic.permissions.course_discussion_query",
-	"Assignment Override": "sibbcs.academic.permissions.assignment_override_query",
-	"Peer Review": "sibbcs.academic.permissions.peer_review_query",
 	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_query",
 	"Student": "sibbcs.academic.permissions.student_query",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_query",
-	"Course Page": "sibbcs.academic.permissions.course_page_query",
-	"Course File": "sibbcs.academic.permissions.course_file_query",
-	"Course Rubric": "sibbcs.academic.permissions.course_rubric_query",
-	"Rubric Criterion": "sibbcs.academic.permissions.rubric_criterion_query",
 }
 
 has_permission = {
 	"Course Registration": "sibbcs.academic.permissions.course_registration_permission",
-	"Course Assignment": "sibbcs.academic.permissions.course_assignment_permission",
-	"Assignment Submission": "sibbcs.academic.permissions.assignment_submission_permission",
-	"Course Module": "sibbcs.academic.permissions.course_module_permission",
-	"Course Module Item": "sibbcs.academic.permissions.course_module_item_permission",
-	"Module Item Progress": "sibbcs.academic.permissions.module_item_progress_permission",
-	"Course Group Set": "sibbcs.academic.permissions.course_group_set_permission",
-	"Course Group": "sibbcs.academic.permissions.course_group_permission",
-	"Course Discussion": "sibbcs.academic.permissions.course_discussion_permission",
-	"Assignment Override": "sibbcs.academic.permissions.assignment_override_permission",
-	"Peer Review": "sibbcs.academic.permissions.peer_review_permission",
 	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_permission",
 	"Student": "sibbcs.academic.permissions.student_permission",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_permission",
-	"Course Page": "sibbcs.academic.permissions.course_page_permission",
-	"Course File": "sibbcs.academic.permissions.course_file_permission",
-	"Course Rubric": "sibbcs.academic.permissions.course_rubric_permission",
-	"Rubric Criterion": "sibbcs.academic.permissions.rubric_criterion_permission",
 }

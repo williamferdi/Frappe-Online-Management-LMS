@@ -27,11 +27,10 @@ Grade Scheme for its offering. That is the whole migration: opt-in, per
 offering, and reversed by deleting the scheme. Hand-typed marking goes on
 working for attendance and offline papers, which is how it has to stay.
 
-**Deferred on purpose.** `Course Assignment` carries no `rubric` or
-`course_quiz` link yet -- Course Rubric arrives in Phase 2 and Course Quiz in
-Phase 4, and a Link field pointing at a DocType that does not exist fails on
-insert. Those phases add their own field with `add_fields`, which is what that
-helper is for.
+**`Course Assignment` was built here and is not any more.** Assignments are set
+and marked in Campus LMS Lite, which releases one figure into the Coursework
+bucket. What stays is the scheme itself -- the shape a result lands in -- and
+`gradebook.use_single_component` is what puts an offering into that shape.
 """
 
 import frappe
@@ -201,77 +200,15 @@ def _course_grade_scheme():
 	)
 
 
-# ---------------------------------------------------------------------------
-# the assignments
-# ---------------------------------------------------------------------------
-
-
-def _course_assignment():
-	return ensure_doctype(
-		"Course Assignment",
-		MODULE,
-		autoname="naming_series:",
-		naming_rule='By "Naming Series" field',
-		title_field="title",
-		fields=[
-			section("sb_what"),
-			select("naming_series", "Series", ["CA-.#####"], default="CA-.#####",
-				   hidden=1, print_hide=1),
-			link("course_offering", "Course Offering", "Course Offering", reqd=1),
-			fetched("course_title", "Course", "course_offering.course_title"),
-			f("title", "Title", "Data", reqd=1, in_list_view=1),
-			column("cb_what"),
-			select("component", "Counts Towards", component_choices(), reqd=1,
-				   in_list_view=1,
-				   description="Which row of the grade scheme this score rolls into."),
-			f("points_possible", "Points Possible", "Float", default="100", reqd=1,
-			  in_list_view=1),
-			select("grading_type", "Grading Type", GRADING_TYPES, default="Points"),
-
-			section("sb_brief", "Brief"),
-			f("description", "Description", "Text Editor"),
-
-			section("sb_when", "Dates"),
-			f("available_from", "Available From", "Datetime"),
-			f("due_date", "Due", "Datetime", in_list_view=1),
-			column("cb_when"),
-			f("available_until", "Closes", "Datetime",
-			  description="After this nothing is accepted, late policy or not."),
-
-			section("sb_how", "Submission"),
-			select("submission_type", "Submission Type", SUBMISSION_TYPES,
-				   default="Text Entry", reqd=1),
-			f("allowed_attempts", "Allowed Attempts", "Int", default="1",
-			  description="0 means no limit."),
-			column("cb_how"),
-			select("late_policy", "Late Policy", LATE_POLICIES, default="Accept with penalty"),
-			f("late_penalty_pct_per_day", "Late Penalty % per Day", "Float", default="0",
-			  depends_on="eval:doc.late_policy=='Accept with penalty'"),
-
-			section("sb_state"),
-			check("published", "Published", 0,
-				  description="Unpublished work is invisible to students."),
-		],
-		permissions=[
-			full(SM), full(COORDINATOR), full(FACULTY),
-			read(REGISTRAR), read(FACILITATOR),
-		],
-	)
-
-
-# ---------------------------------------------------------------------------
-
-
 def build():
 	appended = _extend_grade_component()
 	_grade_scheme_row()
 	_course_grade_scheme()
-	_course_assignment()
 
 	frappe.db.commit()
 	frappe.clear_cache()
 
 	print("Grade Component:", "options appended" if appended else "options already present")
-	for name in ("Grade Scheme Row", "Course Grade Scheme", "Course Assignment"):
+	for name in ("Grade Scheme Row", "Course Grade Scheme"):
 		print(f"  {name}: {'ok' if frappe.db.exists('DocType', name) else 'MISSING'}")
 	print("Components now:", ", ".join(component_choices()))

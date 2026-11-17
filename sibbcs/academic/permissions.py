@@ -400,7 +400,7 @@ def course_registration_permission(doc, ptype="read", user=None):
 	return True
 
 
-# --- Course Assignment and Course Grade Scheme ----------------------------
+# --- Course Grade Scheme ---------------------------------------------------
 # Both hang off an offering, so both scope the same way the roster does. A
 # teacher who may not see who is enrolled has no business editing what they
 # are set.
@@ -422,14 +422,6 @@ def _offering_scoped_permission(doc, user):
 	return True
 
 
-def course_assignment_query(user=None):
-	return _offering_scoped_query("Course Assignment", user or frappe.session.user)
-
-
-def course_assignment_permission(doc, ptype="read", user=None):
-	return _offering_scoped_permission(doc, user or frappe.session.user)
-
-
 def course_grade_scheme_query(user=None):
 	return _offering_scoped_query("Course Grade Scheme", user or frappe.session.user)
 
@@ -437,131 +429,6 @@ def course_grade_scheme_query(user=None):
 def course_grade_scheme_permission(doc, ptype="read", user=None):
 	return _offering_scoped_permission(doc, user or frappe.session.user)
 
-
-
-def assignment_submission_query(user=None):
-	"""Scoped on the offering the submission carries.
-
-	`course_offering` is fetched onto the submission rather than looked up
-	through the assignment, so this filters without a join on every list.
-	"""
-	return _offering_scoped_query("Assignment Submission", user or frappe.session.user)
-
-
-def assignment_submission_permission(doc, ptype="read", user=None):
-	return _offering_scoped_permission(doc, user or frappe.session.user)
-
-
-def course_module_query(user=None):
-	return _offering_scoped_query("Course Module", user or frappe.session.user)
-
-
-def course_module_permission(doc, ptype="read", user=None):
-	return _offering_scoped_permission(doc, user or frappe.session.user)
-
-
-def course_module_item_query(user=None):
-	return _offering_scoped_query("Course Module Item", user or frappe.session.user)
-
-
-def course_module_item_permission(doc, ptype="read", user=None):
-	return _offering_scoped_permission(doc, user or frappe.session.user)
-
-
-def course_group_query(user=None):
-	return _offering_scoped_query("Course Group", user or frappe.session.user)
-
-
-def course_group_permission(doc, ptype="read", user=None):
-	return _offering_scoped_permission(doc, user or frappe.session.user)
-
-
-def course_group_set_query(user=None):
-	return _offering_scoped_query("Course Group Set", user or frappe.session.user)
-
-
-def course_group_set_permission(doc, ptype="read", user=None):
-	return _offering_scoped_permission(doc, user or frappe.session.user)
-
-
-def course_discussion_query(user=None):
-	return _offering_scoped_query("Course Discussion", user or frappe.session.user)
-
-
-def course_discussion_permission(doc, ptype="read", user=None):
-	return _offering_scoped_permission(doc, user or frappe.session.user)
-
-
-def assignment_override_query(user=None):
-	return _offering_scoped_query("Assignment Override", user or frappe.session.user)
-
-
-def assignment_override_permission(doc, ptype="read", user=None):
-	return _offering_scoped_permission(doc, user or frappe.session.user)
-
-
-def peer_review_query(user=None):
-	return _offering_scoped_query("Peer Review", user or frappe.session.user)
-
-
-def peer_review_permission(doc, ptype="read", user=None):
-	return _offering_scoped_permission(doc, user or frappe.session.user)
-
-
-def module_item_progress_query(user=None):
-	"""A teacher sees progress on their own courses; a student sees their own.
-
-	Progress is the one Phase 3 record that is about a person rather than
-	about the course, so it is scoped both ways.
-	"""
-	user = user or frappe.session.user
-	if is_unrestricted(user):
-		return ""
-
-	if _teaches(user):
-		return _within("Module Item Progress", "course_offering", offerings_for(user))
-
-	if _only_a_student(user):
-		student = student_for(user)
-		registrations = (
-			frappe.get_all(
-				"Course Registration", filters={"student": student}, pluck="name"
-			)
-			if student
-			else []
-		)
-		return _within("Module Item Progress", "course_registration", registrations)
-
-	return ""
-
-
-def module_item_progress_permission(doc, ptype="read", user=None):
-	user = user or frappe.session.user
-	if not doc or is_unrestricted(user):
-		return True
-
-	if _teaches(user):
-		return doc.get("course_offering") in offerings_for(user)
-
-	if _only_a_student(user):
-		student = student_for(user)
-		return bool(student) and frappe.db.get_value(
-			"Course Registration", doc.get("course_registration"), "student"
-		) == student
-
-	return True
-
-
-# --- Student and Program Enrollment ---------------------------------------
-# Both carry `read(STUDENT)`, which without a row filter is the student
-# directory and the cohort's levels handed to anyone holding the role.
-#
-# A teacher sees the students on the courses they teach, and nobody else.
-# This was once left open -- "looking a student up is ordinary teaching
-# work" -- until the college decided on 2026-09-11 that a teacher's roll is
-# their own students: a name, a telephone number and a photograph are
-# personal details, and a teacher has no reason to hold them for a student
-# they never teach.
 
 
 def student_query(user=None):
@@ -609,92 +476,3 @@ def program_enrollment_permission(doc, ptype="read", user=None):
 		return doc.get("student") == student_for(user)
 	return True
 
-
-# --- what belongs to a Course rather than to one run of it ---------------
-# Pages, files, rubrics, question banks and quizzes are the Course's, so every
-# term reuses them. Faculty hold full rights on all of them, and until
-# 2026-09-11 nothing narrowed that to *which* course: any teacher could
-# rewrite another course's quiz answers, through Desk or the API. A teacher
-# now works on the courses they teach an offering of.
-#
-# A rubric or bank with no course is shared: every teacher may read it and use
-# it, and only the office may change it -- one teacher's edit would change how
-# every course using it is examined or marked.
-
-
-def _may_touch_course(course, ptype, user, shared):
-	if not course:
-		return shared and ptype not in CHANGES
-	return course in courses_for(user)
-
-
-def _course_scoped_query(doctype, user, shared=False):
-	if is_unrestricted(user) or not _teaches(user):
-		return ""
-	condition = _within(doctype, "course", courses_for(user))
-	if shared:
-		condition = f"({condition} or ifnull(`tab{doctype}`.`course`, '') = '')"
-	return condition
-
-
-def _course_scoped_permission(doc, ptype, user, shared=False):
-	if not doc or is_unrestricted(user) or not _teaches(user):
-		return True
-	return _may_touch_course(doc.get("course"), ptype, user, shared)
-
-
-def _within_parent(child, link, parent, user):
-	"""Rows whose parent is on the teacher's courses, or is shared."""
-	inner = _within(parent, "course", courses_for(user))
-	return (
-		f"`tab{child}`.`{link}` in (select `name` from `tab{parent}` "
-		f"where {inner} or ifnull(`tab{parent}`.`course`, '') = '')"
-	)
-
-
-def _parent_scoped_permission(doc, ptype, user, link, parent):
-	if not doc or is_unrestricted(user) or not _teaches(user):
-		return True
-	course = frappe.db.get_value(parent, doc.get(link), "course")
-	return _may_touch_course(course, ptype, user, shared=True)
-
-
-def course_page_query(user=None):
-	return _course_scoped_query("Course Page", user or frappe.session.user)
-
-
-def course_page_permission(doc, ptype="read", user=None):
-	return _course_scoped_permission(doc, ptype, user or frappe.session.user)
-
-
-def course_file_query(user=None):
-	return _course_scoped_query("Course File", user or frappe.session.user)
-
-
-def course_file_permission(doc, ptype="read", user=None):
-	return _course_scoped_permission(doc, ptype, user or frappe.session.user)
-
-
-def course_rubric_query(user=None):
-	return _course_scoped_query("Course Rubric", user or frappe.session.user, shared=True)
-
-
-def course_rubric_permission(doc, ptype="read", user=None):
-	return _course_scoped_permission(doc, ptype, user or frappe.session.user, shared=True)
-
-
-def rubric_criterion_query(user=None):
-	user = user or frappe.session.user
-	if is_unrestricted(user) or not _teaches(user):
-		return ""
-	return _within_parent("Rubric Criterion", "rubric", "Course Rubric", user)
-
-
-def rubric_criterion_permission(doc, ptype="read", user=None):
-	return _parent_scoped_permission(
-		doc, ptype, user or frappe.session.user, "rubric", "Course Rubric"
-	)
-
-
-# The quiz scoping lived here -- Course Quiz, Question Bank, Bank Question and
-# Quiz Attempt. Quizzes are sat in Campus LMS Lite now, which scopes its own.

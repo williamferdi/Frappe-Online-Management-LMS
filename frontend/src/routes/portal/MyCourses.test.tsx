@@ -19,7 +19,7 @@ const paid: Registration = {
 	registration_fee_invoice: 'FEE-1',
 	fee: { invoice: 'FEE-1', status: 'Paid', outstanding: 0, settled: true, label: 'Paid' },
 	lms_course: 'intro-to-ot',
-	lms_url: '/lms/courses/intro-to-ot',
+	lms_url: 'https://lms.example.invalid',
 	progress: 42,
 }
 
@@ -102,32 +102,26 @@ describe('My Courses', () => {
 		expect(screen.getByText('3.40')).toBeInTheDocument()
 	})
 
-	it('opens the course in the player, not in the LMS', async () => {
-		// Phase 3 moved the boundary: modules, lessons and locks are read
-		// here. The player then became the way in, and it resumes where the
-		// student left off rather than starting at the top.
+	it('sends the student to the learning site, which is where teaching happens', async () => {
+		// Phase 7 moved lessons, coursework and quizzes to Campus LMS Lite, so
+		// the three ways in became one. It opens the LMS itself rather than a
+		// course address: the registration number means nothing over there.
 		await renderScreen({ enrollment, registrations: [paid] })
 
 		const link = await screen.findByRole('link', { name: /open course/i })
-		expect(link.getAttribute('href')).toContain('/learn')
+		expect(link).toHaveAttribute('href', 'https://lms.example.invalid')
 	})
 
-	it('keeps the LMS as a fallback rather than dropping it', async () => {
-		// Lesson content still lives there, and a block this app cannot
-		// render has to stay reachable.
-		await renderScreen({ enrollment, registrations: [paid] })
+	it('says so plainly when the learning site is not linked yet', async () => {
+		// Better than a button that goes nowhere, which reads as a fault.
+		await renderScreen({
+			enrollment,
+			registrations: [{ ...paid, lms_url: null }],
+		})
 
-		const link = await screen.findByRole('link', { name: /in the lms/i })
-		expect(link).toHaveAttribute('href', '/lms/courses/intro-to-ot')
+		expect(await screen.findByText(/not linked yet/i)).toBeInTheDocument()
+		expect(screen.queryByRole('link', { name: /open course/i })).toBeNull()
 	})
-
-	it('offers coursework separately, because it is what a student checks most', async () => {
-		await renderScreen({ enrollment, registrations: [paid] })
-
-		const link = await screen.findByRole('link', { name: /coursework/i })
-		expect(link.getAttribute('href')).toContain('/work')
-	})
-
 	it('asks for payment instead of a course link when the fee is outstanding', async () => {
 		// The course opens on payment. Showing "Open course" here is the reason
 		// students email to ask why the link does nothing.

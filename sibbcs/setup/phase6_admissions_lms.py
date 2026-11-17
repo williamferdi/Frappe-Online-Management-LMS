@@ -22,9 +22,48 @@ import re
 import frappe
 from frappe import _
 
-from sibbcs.api.content import _chapters_in_order, _lessons_in_order
 from sibbcs.finance import gateway
 from sibbcs.integrations import campus_lms
+
+
+# These two read the bundled LMS's own ordering. They lived in `api/content.py`,
+# which was the Content tab's backend and went with the rest of the teaching
+# screens in Phase 7 -- but the migration still has to read that app until it is
+# removed, so they moved here rather than keeping a module alive for two
+# functions.
+#
+# A chapter or lesson is ordered by its parent's reference table when there is
+# one, because that is the order somebody dragged it into. Falling back to
+# creation order matters for the courses imported from the handbooks, which have
+# no reference rows at all.
+
+
+def _chapters_in_order(lms_course):
+	referenced = frappe.get_all(
+		"Chapter Reference",
+		filters={"parent": lms_course, "parenttype": "LMS Course"},
+		fields=["chapter"],
+		order_by="idx asc",
+	)
+	if referenced:
+		return [row.chapter for row in referenced]
+	return frappe.get_all(
+		"Course Chapter", filters={"course": lms_course}, pluck="name", order_by="creation asc"
+	)
+
+
+def _lessons_in_order(chapter):
+	referenced = frappe.get_all(
+		"Lesson Reference",
+		filters={"parent": chapter, "parenttype": "Course Chapter"},
+		fields=["lesson"],
+		order_by="idx asc",
+	)
+	if referenced:
+		return [row.lesson for row in referenced]
+	return frappe.get_all(
+		"Course Lesson", filters={"chapter": chapter}, pluck="name", order_by="creation asc"
+	)
 
 # What the courses are called over there, and where they come from here.
 ORIENTATION_SOURCE = "m-div-preliminary-orientation"

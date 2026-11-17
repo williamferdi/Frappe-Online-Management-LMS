@@ -9,7 +9,6 @@ import { ApplicationDetail } from '@/routes/staff/ApplicationDetail'
 import { Academic } from '@/routes/staff/Academic'
 import { CourseDetail } from '@/routes/staff/CourseDetail'
 import { Courses } from '@/routes/staff/Courses'
-import { MarkingQueue } from '@/routes/staff/MarkingQueue'
 import { Finance } from '@/routes/staff/Finance'
 import { GradeSheet } from '@/routes/staff/GradeSheet'
 import { RecordDetail } from '@/routes/staff/RecordDetail'
@@ -22,10 +21,6 @@ import { Students } from '@/routes/staff/Students'
 import { Users } from '@/routes/staff/Users'
 import { StaffLayout } from '@/routes/staff/StaffLayout'
 import { Dashboard } from '@/routes/portal/Dashboard'
-import { Assignment } from '@/routes/portal/Assignment'
-import { Coursework } from '@/routes/portal/Coursework'
-import { CoursePlayer } from '@/routes/portal/CoursePlayer'
-import { MyCourse } from '@/routes/portal/MyCourse'
 import { Grades } from '@/routes/portal/Grades'
 import { MyCourses } from '@/routes/portal/MyCourses'
 import { PortalLayout } from '@/routes/portal/PortalLayout'
@@ -59,11 +54,6 @@ export const router = createBrowserRouter([
 					// Registration hangs off My Courses rather than taking a tenth
 					// slot in a navigation the college specified as nine.
 					{ path: 'courses/register', element: <Register /> },
-					{ path: 'courses/:name/work', element: <Coursework /> },
-					{ path: 'courses/:name/work/:assignment', element: <Assignment /> },
-					{ path: 'courses/:name/modules', element: <MyCourse /> },
-					{ path: 'courses/:name/learn', element: <CoursePlayer /> },
-					{ path: 'courses/:name/learn/:item', element: <CoursePlayer /> },
 					{ path: 'grades', element: <Grades /> },
 					{ path: 'profile', element: <Profile /> },
 					{ path: 'todo', element: <ToDo /> },
@@ -89,10 +79,6 @@ export const router = createBrowserRouter([
 					{ path: 'academic', element: <Academic /> },
 					{ path: 'courses', element: <Courses /> },
 					{ path: 'courses/:name', element: <CourseDetail /> },
-					{
-						path: 'courses/:name/grade/:assignment',
-						element: <MarkingQueue />,
-					},
 					{ path: 'students', element: <Students /> },
 					{ path: 'students/:name', element: <StudentDetail /> },
 					// The roll used to be a tab inside Academic. Anything already

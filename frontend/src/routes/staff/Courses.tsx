@@ -117,11 +117,7 @@ function CourseCard({ row }: { row: CourseShelfRow }) {
 							)}
 							{row.has_scheme ? 'Grade scheme set' : 'No grade scheme'}
 						</span>
-						<span className="text-muted-foreground">
-							{row.assignments === 1 ? '1 assignment' : `${row.assignments} assignments`}
-							{row.assignments > 0 && ` · ${row.published_assignments} published`}
-						</span>
-						<span className="text-muted-foreground">
+										<span className="text-muted-foreground">
 							{row.enrolled_count ?? 0} registered
 						</span>
 					</div>

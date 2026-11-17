@@ -1043,9 +1043,6 @@ export interface CourseAssignment {
  * the scheme editor rather than being invisible to it. */
 export interface CourseChoices {
 	components: string[]
-	submission_types: string[]
-	grading_types: string[]
-	late_policies: string[]
 	posting_policies: string[]
 }
 
@@ -1062,8 +1059,6 @@ export interface CourseShelfRow {
 	credits: number
 	course_level: string | null
 	has_scheme: boolean
-	assignments: number
-	published_assignments: number
 }
 
 export interface CoursesResponse {
@@ -1074,7 +1069,6 @@ export interface CoursesResponse {
 export interface CourseDetail {
 	offering: OfferingRow
 	scheme: CourseGradeScheme | null
-	assignments: CourseAssignment[]
 	choices: CourseChoices
 }
 
