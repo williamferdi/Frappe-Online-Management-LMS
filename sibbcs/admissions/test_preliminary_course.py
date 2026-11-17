@@ -309,3 +309,78 @@ class TestPreliminaryCourse(FrappeTestCase):
 		app.reload()
 
 		self.assertIsNone(blocked_reason(app, NO["onboarding"]))
+
+
+class TestTheMovedCourseEnrolsInCampusLms(FrappeTestCase):
+	"""The orientation course lives in Campus LMS Lite now, and progress is
+	read from over there. An applicant enrolled only in the bundled app is a
+	person that system has never heard of, which reads as nothing done --
+	forever -- so their signature could never be let through."""
+
+	LIVE = {"campus_lms_url": "https://lms.example.invalid", "campus_lms_token": "t"}
+	MOVED = "m-div-preliminary-orientation"
+
+	def setUp(self):
+		for name in frappe.get_all("Reading Manual", pluck="name"):
+			frappe.db.set_value("Reading Manual", name, "is_active", 0)
+		self.course = make_course()
+		make_manual(self.course)
+
+	def test_the_enrolment_goes_to_campus_lms_not_the_bundled_app(self):
+		app = admit(make_application())
+		with patch.dict(frappe.conf, self.LIVE):
+			with patch("sibbcs.integrations.campus_lms.enrol_in_course") as enrol:
+				manuals.enroll_in_course(app, self.MOVED)
+
+		self.assertTrue(enrol.called)
+		args = enrol.call_args.args
+		self.assertEqual(args[0], app.name)
+		self.assertEqual(args[1], "ADMISSIONS-ORIENTATION")
+		self.assertEqual(
+			frappe.db.count("LMS Enrollment", {"course": self.MOVED, "member": app.applicant_user}),
+			0,
+			"the bundled app must not be enrolled into as well",
+		)
+
+	def test_it_is_filed_under_the_application(self):
+		"""The applicant has no student number yet; the application number is
+		how they are known over there until they are converted."""
+		app = admit(make_application())
+		with patch.dict(frappe.conf, self.LIVE):
+			with patch("sibbcs.integrations.campus_lms._post") as post:
+				post.return_value = {}
+				manuals.enroll_in_course(app, self.MOVED)
+
+		enrolment = [c for c in post.call_args_list if c.args[0] == "/sync/enrollments"]
+		self.assertEqual(len(enrolment), 1)
+		sent = enrolment[0].args[1]
+		self.assertEqual(sent["personExternalId"], app.name)
+		self.assertEqual(sent["courseExternalId"], "ADMISSIONS-ORIENTATION")
+		self.assertEqual(sent["externalId"], f"ADMISSIONS-ORIENTATION-{app.name}")
+		self.assertEqual(sent["role"], "student")
+
+	def test_the_exam_keeps_its_own_enrolment_key(self):
+		"""Every candidate who has sat one already has an `EXAM-` row over
+		there; reusing this key shape for the exam would add a second rather
+		than find the first."""
+		from sibbcs.integrations import campus_lms
+
+		with patch.dict(frappe.conf, self.LIVE):
+			with patch("sibbcs.integrations.campus_lms._post") as post:
+				post.return_value = {}
+				campus_lms.enrol_applicant("APP-0001", "a@example.invalid", "A")
+
+		keys = [c.args[1]["externalId"] for c in post.call_args_list if c.args[0] == "/sync/enrollments"]
+		self.assertEqual(keys, ["EXAM-APP-0001"])
+
+	def test_a_course_that_did_not_move_still_uses_the_bundled_app(self):
+		app = admit(make_application())
+		with patch.dict(frappe.conf, self.LIVE):
+			with patch("sibbcs.integrations.campus_lms.enrol_in_course") as enrol:
+				manuals.enroll_in_course(app, self.course)
+
+		self.assertFalse(enrol.called)
+		self.assertEqual(
+			frappe.db.count("LMS Enrollment", {"course": self.course, "member": app.applicant_user}),
+			1,
+		)

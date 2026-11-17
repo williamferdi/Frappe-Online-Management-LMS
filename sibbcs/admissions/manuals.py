@@ -147,6 +147,20 @@ def enroll_in_course(doc, course):
 		user, _created = lms_account.ensure_user(doc)
 		doc.db_set("applicant_user", user, update_modified=False)
 
+	# The course moved to Campus LMS Lite, and the enrolment has to move with
+	# it. `course_progress` above reads progress from over there, and somebody
+	# enrolled only in the bundled app is a person that system has never heard
+	# of -- which reads as nothing done, forever, so their signature could
+	# never be let through. Filed under the application, as the exam is.
+	external = campus_lms.course_for(course)
+	if external:
+		try:
+			campus_lms.enrol_in_course(doc.name, external, doc.email, doc.full_name)
+		except Exception:
+			frappe.log_error(title=f"Preliminary course enrollment failed for {doc.name}")
+			return None
+		return user
+
 	if not frappe.db.exists("LMS Enrollment", {"member": user, "course": course}):
 		try:
 			frappe.get_doc(

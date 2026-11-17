@@ -105,6 +105,34 @@ def enrol_applicant(application, email, full_name):
 	return person.get("activationUrl")
 
 
+def enrol_in_course(application, course_external_id, email, full_name):
+	"""Put an applicant on one of the admissions courses, keeping their account.
+
+	`enrol_applicant` above is the entrance-exam case and keeps its own
+	`EXAM-{application}` key, which is already stored against every candidate
+	who has sat one -- reusing this key shape for the exam would make a second
+	enrolment rather than find the first. So the exam keeps its key and
+	everything else is filed by course and application.
+
+	Idempotent: both endpoints upsert on `externalId`.
+	"""
+	if not configured():
+		return None
+	_post(
+		"/sync/people",
+		{"externalId": application, "email": email, "name": full_name or email, "role": "student"},
+	)
+	return _post(
+		"/sync/enrollments",
+		{
+			"externalId": f"{course_external_id}-{application}",
+			"personExternalId": application,
+			"courseExternalId": course_external_id,
+			"role": "student",
+		},
+	)
+
+
 def _url(path):
 	return f"{_setting('campus_lms_url').rstrip('/')}/api/v1{path}"
 
