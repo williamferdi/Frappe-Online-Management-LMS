@@ -83,7 +83,9 @@ def lesson_markdown(name):
 	and the reader prefers `content` when both exist -- so this does too, or a
 	lesson edited since the import would be exported in its older form.
 	"""
-	row = frappe.db.get_value("Course Lesson", name, ["title", "content", "body"], as_dict=True)
+	row = frappe.db.get_value(
+		"Course Lesson", name, ["title", "content", "body", "instructor_content"], as_dict=True
+	)
 	if not row:
 		return None
 	markdown = ""
@@ -94,7 +96,18 @@ def lesson_markdown(name):
 			markdown = ""
 	if not markdown:
 		markdown = (row.body or "").strip()
-	return {"title": row.title, "markdown": markdown}
+
+	# The marking rubric lives here, and the LMS shows it to instructors only.
+	# A candidate reading the mark scheme is not sitting the same exam, so it
+	# travels as its own page and that page is never published.
+	rubric = ""
+	if row.instructor_content:
+		try:
+			rubric = _blocks_to_markdown(json.loads(row.instructor_content).get("blocks") or [])
+		except (ValueError, TypeError):
+			rubric = ""
+
+	return {"title": row.title, "markdown": markdown, "rubric": rubric}
 
 
 def _course_export(source):
@@ -102,8 +115,21 @@ def _course_export(source):
 	modules = []
 	for chapter in _chapters_in_order(source):
 		title = frappe.db.get_value("Course Chapter", chapter, "title")
-		pages = [lesson_markdown(lesson) for lesson in _lessons_in_order(chapter)]
-		modules.append({"title": title, "pages": [p for p in pages if p]})
+		pages = []
+		for lesson in _lessons_in_order(chapter):
+			page = lesson_markdown(lesson)
+			if not page:
+				continue
+			pages.append({"title": page["title"], "markdown": page["markdown"], "published": True})
+			if page["rubric"]:
+				pages.append(
+					{
+						"title": f"{page['title']} — marking rubric",
+						"markdown": page["rubric"],
+						"published": False,
+					}
+				)
+		modules.append({"title": title, "pages": pages})
 	return modules
 
 
@@ -140,13 +166,10 @@ def export_content(path=EXPORT_PATH):
 		},
 	}
 
+	every = [p for side in ("orientation", "exam") for m in payload[side]["modules"] for p in m["pages"]]
 	pages = sum(len(m["pages"]) for m in payload["orientation"]["modules"])
-	empty = [
-		p["title"]
-		for m in payload["orientation"]["modules"] + payload["exam"]["modules"]
-		for p in m["pages"]
-		if not p["markdown"]
-	]
+	empty = [p["title"] for p in every if not p["markdown"]]
+	rubrics = [p["title"] for p in every if not p["published"]]
 	with open(path, "w", encoding="utf-8") as handle:
 		json.dump(payload, handle, ensure_ascii=False, indent=1)
 
@@ -157,6 +180,8 @@ def export_content(path=EXPORT_PATH):
 		"exam_questions": len(payload["exam"]["quiz"]["questions"]) if payload["exam"]["quiz"] else 0,
 		# A page that came across empty is the quiet failure worth naming.
 		"empty_pages": empty,
+		# And these must stay unpublished: they are the mark schemes.
+		"unpublished_pages": rubrics,
 	}
 
 
