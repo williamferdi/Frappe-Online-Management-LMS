@@ -32,6 +32,10 @@ from frappe.utils import cint, flt
 
 DEFAULT_MAX_MARKS = 100
 
+# What a course taught in Campus LMS Lite is graded out of: one bucket covering
+# everything the LMS marked -- assignments, quizzes, discussions, participation.
+LMS_COMPONENT = "Coursework"
+
 
 def scheme_for(course_offering):
 	"""The offering's grade scheme, or None if it is graded by hand.
@@ -128,6 +132,56 @@ def sync_components(registration):
 	for row in kept:
 		registration.append("grade_components", row)
 	return True
+
+
+def use_single_component(course_offering, component=LMS_COMPONENT):
+	"""Grade an offering as one bucket worth the whole course.
+
+	The shape a course taught in Campus LMS Lite needs. The LMS marks
+	everything and releases one result, and `compute_grade` holds the letter
+	back until *every* bucket is marked -- so with several buckets a single
+	release can never finish a transcript, and somebody would have to type
+	zeroes into the rest to make it complete.
+
+	Refuses a bucket this gradebook owns: a component fed by a Course
+	Assignment here is computed from posted scores, and a mark arriving from
+	the LMS would be refused on save as a hand edit.
+
+	Marks already entered are never thrown away. `sync_components` keeps a
+	bucket that carries one, so a mid-term switch leaves those registrations
+	with more than one bucket; they are counted and returned rather than
+	quietly left for somebody to find at results time.
+	"""
+	if not frappe.db.exists("Course Offering", course_offering):
+		frappe.throw(_("Course Offering {0} not found.").format(course_offering))
+	if component in auto_components(course_offering):
+		frappe.throw(
+			_(
+				"{0} is marked from this course's own assignments here, so the LMS cannot fill it. "
+				"Remove those assignments, or choose another component."
+			).format(component)
+		)
+
+	scheme = scheme_for(course_offering)
+	if not scheme:
+		scheme = frappe.new_doc("Course Grade Scheme")
+		scheme.course_offering = course_offering
+	scheme.set("rows", [{"component": component, "weight_pct": 100}])
+	# Saving the scheme rolls it onto every registration through sync_offering.
+	scheme.save(ignore_permissions=True)
+
+	kept = [
+		name
+		for name in frappe.get_all(
+			"Course Registration", filters={"course_offering": course_offering}, pluck="name"
+		)
+		if frappe.db.count("Grade Component", {"parent": name, "parenttype": "Course Registration"}) > 1
+	]
+	return {
+		"course_offering": course_offering,
+		"component": component,
+		"registrations_with_other_marks": kept,
+	}
 
 
 def sync_offering(course_offering):

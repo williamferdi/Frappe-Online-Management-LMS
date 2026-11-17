@@ -17,7 +17,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Component",
-   "options": "Assignment\nDiscussion Forum\nAttendance\nFinal Paper\nQuiz\nExam\nParticipation\nProject\nReading",
+   "options": "Coursework\nAssignment\nDiscussion Forum\nAttendance\nFinal Paper\nQuiz\nExam\nParticipation\nProject\nReading",
    "reqd": 1
   },
   {

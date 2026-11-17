@@ -603,3 +603,98 @@ class TestCourseApi(FrappeTestCase):
 		self.assertIn("Assignment", options["components"])
 		self.assertIn("Quiz", options["components"])
 		self.assertIn("Text Entry", options["submission_types"])
+
+
+class TestSingleComponentForLmsCourses(FrappeTestCase):
+	"""A course taught in Campus LMS Lite is graded as one bucket.
+
+	`compute_grade` withholds the letter until every bucket is marked, so a
+	course with four buckets can never be finished by the single result the
+	LMS releases -- somebody would have to type zeroes into the rest.
+	"""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.term = make_term(f"TST-SC-{frappe.generate_hash(length=6)}", status="Open").name
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		suffix = frappe.generate_hash(length=6)
+		self.offering = make_offering(
+			make_course(f"TSC {suffix[:4]}").name, self.term, status="Published"
+		).name
+
+	def _register(self):
+		return frappe.get_doc(
+			{
+				"doctype": "Course Registration",
+				"program_enrollment": make_enrollment(
+					make_student(f"Single {frappe.generate_hash(length=6)}").name
+				).name,
+				"course_offering": self.offering,
+				"status": "Registered",
+			}
+		).insert(ignore_permissions=True).name
+
+	def test_coursework_is_a_component_the_doctype_accepts(self):
+		"""Guards the DocType JSON: a Select refuses a value it does not list,
+		so this failing means the option was lost in a rebuild."""
+		for doctype in ("Grade Scheme Row", "Grade Component"):
+			options = frappe.get_meta(doctype).get_field("component").options.split("\n")
+			self.assertIn(gradebook.LMS_COMPONENT, options, doctype)
+
+	def test_the_offering_ends_up_with_exactly_one_bucket(self):
+		gradebook.use_single_component(self.offering)
+
+		scheme = gradebook.scheme_for(self.offering)
+		self.assertEqual(len(scheme.rows), 1)
+		self.assertEqual(scheme.rows[0].component, "Coursework")
+		self.assertEqual(scheme.rows[0].weight_pct, 100)
+
+	def test_one_release_from_the_lms_finishes_the_transcript(self):
+		"""The whole point of the single bucket."""
+		from sibbcs.api import lms_bridge
+
+		registration = self._register()
+		gradebook.use_single_component(self.offering)
+
+		result = lms_bridge.post_final_mark(registration, 88)
+
+		self.assertEqual(result["component"], "Coursework")
+		self.assertEqual(result["final_marks"], 88.0)
+		self.assertTrue(result["grade"], "a released result must produce a letter")
+		self.assertTrue(result["passed"])
+
+	def test_the_lms_need_not_name_the_bucket(self):
+		"""With one bucket there is nothing to disambiguate, so the LMS can
+		release a result without knowing what the college calls it."""
+		from sibbcs.api import lms_bridge
+
+		registration = self._register()
+		gradebook.use_single_component(self.offering)
+		self.assertEqual(lms_bridge.post_final_mark(registration, 70)["component"], "Coursework")
+
+	def test_a_bucket_this_gradebook_owns_is_refused(self):
+		"""A component fed by a Course Assignment here is computed from posted
+		scores; a mark sent from the LMS would be refused on save anyway."""
+		make_assignment(self.offering, component="Assignment", points_possible=10)
+		with self.assertRaises(frappe.ValidationError):
+			gradebook.use_single_component(self.offering, component="Assignment")
+
+	def test_marks_already_entered_are_kept_and_reported(self):
+		"""Switching mid-term must not delete somebody's score to tidy a table."""
+		registration = self._register()
+		make_scheme(self.offering, [{"component": "Exam", "weight_pct": 100}])
+		academic_api.save_grades(
+			registration,
+			[{"component": "Exam", "weight_pct": 100, "max_marks": 100, "obtained_marks": 64}],
+		)
+
+		report = gradebook.use_single_component(self.offering)
+
+		doc = frappe.get_doc("Course Registration", registration)
+		buckets = {c.component: c for c in doc.grade_components}
+		self.assertIn("Exam", buckets, "a marked bucket must survive the switch")
+		self.assertEqual(buckets["Exam"].obtained_marks, 64)
+		self.assertIn(registration, report["registrations_with_other_marks"])

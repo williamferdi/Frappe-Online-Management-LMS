@@ -31,7 +31,21 @@ from sibbcs.setup.schema import (
 ACADEMIC = "Academic"
 LEVELS = ["1", "2", "3", "4"]
 
-GRADE_COMPONENTS = ["Assignment", "Discussion Forum", "Attendance", "Final Paper"]
+# The live DocType carries all of these; the first four were the original set.
+# "Coursework" is the single bucket a course taught in Campus LMS Lite uses --
+# see gradebook.use_single_component.
+GRADE_COMPONENTS = [
+	"Coursework",
+	"Assignment",
+	"Discussion Forum",
+	"Attendance",
+	"Final Paper",
+	"Quiz",
+	"Exam",
+	"Participation",
+	"Project",
+	"Reading",
+]
 
 REGISTRATION_STATUSES = [
 	"Draft",
