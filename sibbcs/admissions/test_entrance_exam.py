@@ -2,7 +2,9 @@
 # For license information, please see license.txt
 """The entrance exam: three essays out of 75, pass at 40%."""
 
+from contextlib import contextmanager
 import itertools
+from unittest.mock import patch
 from pathlib import Path
 
 import frappe
@@ -340,8 +342,13 @@ class TestTheExamReachesTheApplication(FrappeTestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
 
-	def an_applicant(self, marks=(20, 15, 25), out_of=25):
-		"""An application whose candidate has sat the exam, marked or not."""
+	def an_applicant(self, marks=(20, 15, 25), out_of=25, awaiting=False):
+		"""An application whose candidate sat the exam in Campus LMS Lite.
+
+		The paper is no longer a document on this site: it is read back over
+		the integration, so the fixture is what that call returns. Filed under
+		the application, which is how a candidate is known over there.
+		"""
 		from sibbcs.admissions.doctype.admission_application.test_admission_application import (
 			make_application,
 		)
@@ -359,47 +366,42 @@ class TestTheExamReachesTheApplication(FrappeTestCase):
 			).insert(ignore_permissions=True)
 
 		application = make_application(full_name=f"Exam {tag}", email=email)
-		frappe.db.set_value(
-			"Admission Application", application.name, "applicant_user", email
-		)
+		frappe.db.set_value("Admission Application", application.name, "applicant_user", email)
 
-		# The exam course is built by phase2m on the live site; a test site
-		# that has never run it still needs something with the same title,
-		# because the title is how the bridge recognises the paper.
-		quiz = bridge.quiz_names()
-		if not quiz:
-			quiz = [
-				frappe.get_doc(
-					{"doctype": "LMS Quiz", "title": bridge.QUIZ_TITLE}
-				).insert(ignore_permissions=True).name
-			]
-		submission = frappe.get_doc(
-			{
-				"doctype": "LMS Quiz Submission",
-				"quiz": quiz[0],
-				"member": email,
-				"score": sum(marks),
-				"score_out_of": out_of * len(marks),
-				"percentage": int(sum(marks) / (out_of * len(marks)) * 100),
-				"passing_percentage": 40,
-				"result": [
-					{
-						"question": f"Essay {index + 1}",
-						"answer": "<p>An answer.</p>",
-						"marks": mark,
-						"marks_out_of": out_of,
-					}
-					for index, mark in enumerate(marks)
-				],
-			}
-		)
-		submission.insert(ignore_permissions=True)
-		return application.name, submission
+		attempt = {
+			"person": {"externalId": application.name, "email": email, "name": f"Exam {tag}"},
+			"attemptNumber": 1,
+			"status": "pending_review" if awaiting else "graded",
+			"awaitingMarking": awaiting,
+			"submittedAt": "2026-11-17 10:00:00",
+			"score": None if awaiting else sum(marks),
+			"pointsPossible": out_of * len(marks),
+			"questions": [
+				{
+					"position": index + 1,
+					"prompt": f"Essay {index + 1}",
+					"answer": "An answer.",
+					"points": out_of,
+					# Nobody has marked it: not a nought, which is a mark.
+					"earned": None if awaiting else mark,
+				}
+				for index, mark in enumerate(marks)
+			],
+		}
+		return application.name, {"attempts": [attempt]}
+
+	@contextmanager
+	def lms_says(self, payload):
+		"""What the LMS would answer. The call itself has its own tests."""
+		with patch.object(bridge.campus_lms, "configured", return_value=True):
+			with patch.object(bridge.campus_lms, "quiz_results", return_value=payload):
+				yield
 
 	def test_the_marks_come_across_as_they_were_given(self):
-		application, _ = self.an_applicant()
+		application, said = self.an_applicant()
 
-		bridge.pull(application)
+		with self.lms_says(said):
+			bridge.pull(application)
 
 		result = latest_for(application)
 		self.assertEqual(result.essay_gospel, 20)
@@ -410,52 +412,64 @@ class TestTheExamReachesTheApplication(FrappeTestCase):
 		self.assertEqual(result.result, "Pass")
 
 	def test_the_score_lands_on_the_application_the_workflow_reads(self):
-		application, _ = self.an_applicant()
+		application, said = self.an_applicant()
 
-		bridge.pull(application)
+		with self.lms_says(said):
+			bridge.pull(application)
 
 		self.assertEqual(
-			frappe.db.get_value(
-				"Admission Application", application, "qualifying_exam_score"
-			),
+			frappe.db.get_value("Admission Application", application, "qualifying_exam_score"),
 			80,
 		)
 
 	def test_the_checklist_step_says_what_the_result_says(self):
 		"""The complaint this answers: an exam marked and passed, and step 7
 		still sitting at Awaiting."""
-		application, _ = self.an_applicant()
+		application, said = self.an_applicant()
 
-		bridge.pull(application)
+		with self.lms_says(said):
+			bridge.pull(application)
 
-		self.assertEqual(
-			status_of(application, NO["entrance_exam"]),
-			"Passed",
-		)
+		self.assertEqual(status_of(application, NO["entrance_exam"]), "Passed")
 
 	def test_a_failed_paper_says_so(self):
-		application, _ = self.an_applicant(marks=(5, 5, 5))
+		application, said = self.an_applicant(marks=(5, 5, 5))
 
-		bridge.pull(application)
+		with self.lms_says(said):
+			bridge.pull(application)
 
 		self.assertEqual(latest_for(application).result, "Fail")
 		self.assertEqual(status_of(application, NO["entrance_exam"]), "Failed")
 
 	def test_sat_but_unmarked_is_refused_rather_than_recorded_as_zero(self):
-		"""The LMS makes a submission the moment they press submit, every
-		open-ended answer at nought. Recording that would tell the college the
-		candidate scored nothing, which is a different statement."""
-		application, _ = self.an_applicant(marks=(0, 0, 0))
+		"""An attempt exists the moment they press submit, with every essay
+		unmarked. Recording that would tell the college they scored nothing,
+		which is a different statement -- and the LMS says which it is rather
+		than leaving us to infer it from marks that happen to be nought."""
+		application, said = self.an_applicant(marks=(0, 0, 0), awaiting=True)
 
-		with self.assertRaises(frappe.ValidationError):
-			bridge.pull(application)
+		with self.lms_says(said):
+			with self.assertRaises(frappe.ValidationError):
+				bridge.pull(application)
 
 		self.assertIsNone(latest_for(application))
 
-	def test_a_paper_marked_out_of_something_else_is_scaled(self):
-		application, _ = self.an_applicant(marks=(8, 10, 10), out_of=10)
+	def test_a_genuine_nought_is_still_a_mark(self):
+		"""The other side of it: a candidate can be read and score nothing,
+		and that must be recordable."""
+		application, said = self.an_applicant(marks=(0, 0, 0), awaiting=False)
 
-		bridge.pull(application)
+		with self.lms_says(said):
+			bridge.pull(application)
+
+		self.assertEqual(latest_for(application).total, 0)
+		self.assertEqual(latest_for(application).result, "Fail")
+
+	def test_a_paper_marked_out_of_something_else_is_scaled(self):
+		application, said = self.an_applicant(marks=(8, 10, 10), out_of=10)
+
+		with self.lms_says(said):
+			bridge.pull(application)
 
 		result = latest_for(application)
 		self.assertEqual(result.essay_gospel, 20)  # 8/10 of 25
@@ -469,28 +483,49 @@ class TestTheExamReachesTheApplication(FrappeTestCase):
 		application = make_application(
 			email=f"nosit.{frappe.generate_hash(length=6)}@example.invalid"
 		)
-		with self.assertRaises(frappe.ValidationError):
-			bridge.pull(application.name)
+		with self.lms_says({"attempts": []}):
+			with self.assertRaises(frappe.ValidationError):
+				bridge.pull(application.name)
 
-	def test_somebody_elses_submission_is_not_this_candidates_exam(self):
-		mine, _ = self.an_applicant()
-		theirs, submission = self.an_applicant(marks=(25, 25, 25))
+	def test_the_scheduled_pull_records_what_has_been_marked(self):
+		"""What makes this automatic now that nothing in the LMS calls us."""
+		application, said = self.an_applicant()
 
-		self.assertEqual(bridge.submission_for(mine).result[0].marks, 20)
-		self.assertEqual(bridge.submission_for(theirs).name, submission.name)
+		with self.lms_says(said):
+			report = bridge.pull_marked_exams()
 
-	def test_marking_in_the_course_reaches_admissions_on_the_same_save(self):
-		"""The hook, which is what makes this automatic rather than a button."""
-		application, submission = self.an_applicant(marks=(0, 0, 0))
+		self.assertIn(application, report["recorded"])
+		self.assertEqual(latest_for(application).total, 80)
+
+	def test_the_scheduled_pull_leaves_an_unmarked_paper_alone(self):
+		application, said = self.an_applicant(marks=(0, 0, 0), awaiting=True)
+
+		with self.lms_says(said):
+			report = bridge.pull_marked_exams()
+
+		self.assertNotIn(application, report["recorded"])
 		self.assertIsNone(latest_for(application))
 
-		for index, mark in enumerate((25, 25, 20)):
-			submission.result[index].marks = mark
-		submission.save(ignore_permissions=True)
+	def test_the_scheduled_pull_never_overwrites_a_mark_entered_here(self):
+		"""A correction typed by the college is the college's. A re-run must
+		not quietly replace it with the LMS's figures."""
+		application, said = self.an_applicant()
+		bridge.record(application, essay_gospel=25, essay_calling=25, essay_motivation=25)
 
-		result = latest_for(application)
-		self.assertIsNotNone(result, "marking in the LMS did not reach admissions")
-		self.assertEqual(result.total, 93.33)
+		with self.lms_says(said):
+			report = bridge.pull_marked_exams()
+
+		self.assertNotIn(application, report["recorded"])
+		self.assertEqual(latest_for(application).total, 100)
+
+	def test_an_attempt_is_read_as_the_candidate_it_is_filed_under(self):
+		mine, said_mine = self.an_applicant()
+		theirs, said_theirs = self.an_applicant(marks=(25, 25, 25))
+
+		with self.lms_says(said_mine):
+			self.assertEqual(bridge.submission_for(mine).result[0].marks, 20)
+		with self.lms_says(said_theirs):
+			self.assertEqual(bridge.submission_for(theirs).result[0].marks, 25)
 
 	def test_marks_can_be_entered_by_hand_for_a_paper_sat_elsewhere(self):
 		from sibbcs.admissions.doctype.admission_application.test_admission_application import (

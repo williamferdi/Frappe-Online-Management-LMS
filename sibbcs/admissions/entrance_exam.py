@@ -26,6 +26,7 @@ from frappe import _
 from frappe.utils import flt, getdate
 
 from sibbcs.admissions import checklist
+from sibbcs.integrations import campus_lms
 from sibbcs.admissions.doctype.qualifying_exam_result.qualifying_exam_result import (
 	ESSAY_MAX,
 	ESSAYS,
@@ -41,8 +42,42 @@ QUIZ_TITLE = "Entrance Exam — Essays"
 ESSAY_ORDER = ESSAYS
 
 
-def quiz_names():
-	return frappe.get_all("LMS Quiz", filters={"title": QUIZ_TITLE}, pluck="name")
+def exam_available():
+	"""Whether the exam can be reached at all.
+
+	It lives in Campus LMS Lite now. Until this site is pointed at it there is
+	no paper to read, which is a different thing from a candidate not sitting.
+	"""
+	return campus_lms.configured()
+
+
+class _Essay:
+	"""One essay as the rest of this module expects to see it.
+
+	The marks used to arrive as `LMS Quiz Submission` child rows. They now
+	arrive as JSON from another system, and everything downstream -- the
+	positional mapping, the scaling, the pass rule -- is worth keeping exactly
+	as it was, so the shape is kept and only its source has changed.
+	"""
+
+	def __init__(self, question, answer, marks, marks_out_of):
+		self.question = question
+		self.answer = answer
+		self.marks = marks
+		self.marks_out_of = marks_out_of
+
+
+class _Attempt:
+	def __init__(self, name, member, creation, score, score_out_of, rows, awaiting):
+		self.name = name
+		self.member = member
+		self.creation = creation
+		self.score = score
+		self.score_out_of = score_out_of
+		self.result = rows
+		# The LMS says so outright, which is better than inferring it from marks
+		# that happen to be zero.
+		self.awaiting = awaiting
 
 
 def _application(name, permission="read"):
@@ -58,21 +93,41 @@ def submission_for(application):
 	makes their login. A submission by anyone else is not this candidate's exam
 	whatever else it may be.
 	"""
-	user = frappe.db.get_value("Admission Application", application, "applicant_user")
-	if not user:
+	if not exam_available():
 		return None
 
-	quizzes = quiz_names()
-	if not quizzes:
-		return None
+	data = campus_lms.quiz_results(campus_lms.EXAM_COURSE, application)
+	return _attempt_from(((data or {}).get("attempts") or [])[-1:])
 
-	name = frappe.db.get_value(
-		"LMS Quiz Submission",
-		{"quiz": ("in", quizzes), "member": user},
-		"name",
-		order_by="creation desc",
+
+def _attempt_from(attempts):
+	"""The candidate's latest attempt, or None.
+
+	Keyed on the application, which is how the candidate is filed in the LMS.
+	An attempt by anybody else is not this candidate's exam.
+	"""
+	if not attempts:
+		return None
+	attempt = attempts[-1]
+	rows = [
+		_Essay(
+			question=essay.get("prompt"),
+			answer=essay.get("answer"),
+			marks=flt(essay.get("earned")),
+			marks_out_of=int(essay.get("points") or ESSAY_MAX),
+		)
+		for essay in attempt.get("questions") or []
+	]
+	person = attempt.get("person") or {}
+	return _Attempt(
+		name=f"{person.get('externalId')} attempt {attempt.get('attemptNumber')}",
+		member=person.get("email"),
+		creation=attempt.get("submittedAt"),
+		score=flt(attempt.get("score")),
+		score_out_of=flt(attempt.get("pointsPossible")),
+		rows=rows,
+		awaiting=bool(attempt.get("awaitingMarking")),
 	)
-	return frappe.get_doc("LMS Quiz Submission", name) if name else None
 
 
 def _essays_from(submission):
@@ -105,8 +160,12 @@ def _marked(submission):
 	college the candidate scored nothing, which is a different statement from
 	"nobody has marked this yet".
 	"""
-	rows = submission.result or []
-	return any(flt(row.marks) > 0 for row in rows)
+	awaiting = getattr(submission, "awaiting", None)
+	if awaiting is not None:
+		return not awaiting
+	# Older path, kept for a submission object that does not say: a mark above
+	# zero is the only evidence of a reader it had.
+	return any(flt(row.marks) > 0 for row in submission.result or [])
 
 
 def state(application):
@@ -128,7 +187,7 @@ def state(application):
 
 	return {
 		"application": application,
-		"quiz_exists": bool(quiz_names()),
+		"quiz_exists": exam_available(),
 		"submission": {
 			"name": submission.name,
 			"member": submission.member,
@@ -250,54 +309,34 @@ def record(application, **marks):
 	return state(application)
 
 
-def on_quiz_submission(doc, method=None):
-	"""An entrance exam was submitted or marked in the LMS.
+def pull_marked_exams():
+	"""Bring across every exam that has been marked and not yet recorded.
 
-	Hooked rather than polled: a mark entered in the course reaches the
-	admissions record on the same save, which is the whole complaint this
-	answers. Everything is best-effort -- an admissions bookkeeping problem
-	must never stop somebody submitting or marking a quiz.
+	Scheduled, because the LMS does not call us. Nothing of ours has to live
+	over there, and a run that fails is simply run again.
+
+	A candidate who already has a result is skipped. Marks corrected by hand
+	here are the college's, and a re-run must not quietly replace them with
+	the LMS's figures.
 	"""
-	try:
-		if doc.quiz not in quiz_names():
-			return
+	if not exam_available():
+		return {"recorded": [], "skipped": []}
 
-		if not _marked(doc):
-			return  # sat, not yet marked
+	by_application = {}
+	for attempt in (campus_lms.quiz_results(campus_lms.EXAM_COURSE) or {}).get("attempts") or []:
+		external = (attempt.get("person") or {}).get("externalId") or ""
+		by_application.setdefault(external, []).append(attempt)
 
-		application = frappe.db.get_value(
-			"Admission Application", {"applicant_user": doc.member}, "name"
-		)
-		if not application:
-			return
-
-		marks = _essays_from(doc)
-		if marks is None:
-			return
-
-		_save_result(application, marks, conducted_on=doc.creation)
-	except Exception:
-		frappe.log_error(title="Entrance exam sync failed")
-
-
-def backfill():
-	"""Pull every marked entrance exam that has never been recorded.
-
-	For the exams sat before the two sides were joined. Returns what it did so
-	the patch can print it.
-	"""
-	done, skipped = [], []
-	for name in frappe.get_all(
-		"LMS Quiz Submission", filters={"quiz": ("in", quiz_names() or [""])}, pluck="name"
-	):
-		submission = frappe.get_doc("LMS Quiz Submission", name)
-		application = frappe.db.get_value(
-			"Admission Application", {"applicant_user": submission.member}, "name"
-		)
-		if not application:
-			skipped.append((submission.member, "no application"))
+	recorded, skipped = [], []
+	for application, attempts in by_application.items():
+		if not frappe.db.exists("Admission Application", application):
+			skipped.append((application, "no application"))
 			continue
-		if not _marked(submission):
+		if latest_for(application):
+			skipped.append((application, "already recorded"))
+			continue
+		submission = _attempt_from(attempts)
+		if not submission or not _marked(submission):
 			skipped.append((application, "not marked"))
 			continue
 		marks = _essays_from(submission)
@@ -306,9 +345,9 @@ def backfill():
 			continue
 
 		_save_result(application, marks, conducted_on=submission.creation)
-		done.append(application)
+		recorded.append(application)
 
-	return {"recorded": done, "skipped": skipped}
+	return {"recorded": recorded, "skipped": skipped}
 
 
 def sync_step(application, result):

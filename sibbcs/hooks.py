@@ -260,6 +260,13 @@ scheduler_events = {
 		"*/5 * * * *": [
 			"sibbcs.academic.quizzes.close_expired",
 		],
+		# The entrance exam is marked in Campus LMS Lite, which never calls us.
+		# Pulling keeps every credential on this side; a run that fails simply
+		# runs again. An officer may wait a few minutes after marking, which is
+		# the price of not storing a key to this system over there.
+		"*/15 * * * *": [
+			"sibbcs.admissions.entrance_exam.pull_marked_exams",
+		],
 	},
 	"hourly": [
 		# Registered-but-not-in-LMS is exactly the state a student reports as
@@ -269,13 +276,9 @@ scheduler_events = {
 }
 
 doc_events = {
-	"LMS Quiz Submission": {
-		# A mark entered in the entrance exam course reaches the admissions
-		# record on the same save. Before this it stayed in the LMS and the
-		# application went on saying the score was zero.
-		"after_insert": "sibbcs.admissions.entrance_exam.on_quiz_submission",
-		"on_update": "sibbcs.admissions.entrance_exam.on_quiz_submission",
-	},
+	# The entrance exam moved to Campus LMS Lite, so there is no longer an
+	# `LMS Quiz Submission` here to hook. The marks are pulled on a schedule
+	# instead -- see scheduler_events below.
 	"Course Registration": {
 		"on_update": [
 			"sibbcs.finance.hooks_handlers.course_registration_on_update",

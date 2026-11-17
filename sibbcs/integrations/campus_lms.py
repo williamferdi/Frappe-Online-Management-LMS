@@ -31,6 +31,20 @@ TIMEOUT = 20
 EXAM_COURSE = "ADMISSIONS-ENTRANCE-EXAM"
 ORIENTATION_COURSE = "ADMISSIONS-ORIENTATION"
 
+# What a `Reading Manual` still names, and where that course now lives. Those
+# records hold the old slug, and rewriting stored data to match a move is how
+# a restored backup stops working.
+MOVED_COURSES = {
+	"entrance-exam": EXAM_COURSE,
+	"m-div-preliminary-orientation": ORIENTATION_COURSE,
+	"orientation-to-online-study": ORIENTATION_COURSE,
+}
+
+
+def course_for(source):
+	"""The LMS course a stored slug refers to, or None if it did not move."""
+	return MOVED_COURSES.get((source or "").strip())
+
 # Registrar status -> what it means in the LMS.
 OFFERING_STATUS = {
 	"Draft": "unpublished",

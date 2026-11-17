@@ -28,6 +28,7 @@ from frappe.utils import now_datetime
 from sibbcs.admissions.checklist import NO
 from sibbcs.admissions.doctype.admission_application.admission_application import token_url
 from sibbcs.finance.gateway import public_url
+from sibbcs.integrations import campus_lms
 
 STEP = NO["manual_reading"]
 FORM_KEY = "manual-reading"
@@ -98,8 +99,25 @@ def course_progress(application, course):
 	completed lessons against the lessons that exist cannot.
 	"""
 	user = frappe.db.get_value("Admission Application", application, "applicant_user")
-	total = frappe.db.count("Course Lesson", {"course": course})
 
+	# The course lives in Campus LMS Lite now, and it is asked rather than
+	# counted here: it knows which items ask something of a candidate and which
+	# are only there to be read past.
+	external = campus_lms.course_for(course)
+	if external:
+		answer = campus_lms.progress(application, external)
+		if not answer:
+			# Unconfigured, so nothing can be known. Not complete, because a
+			# signature must never be let through on an absence of evidence.
+			return {"user": user, "total": 0, "done": 0, "complete": False}
+		return {
+			"user": user,
+			"total": int(answer.get("required") or 0),
+			"done": int(answer.get("completed") or 0),
+			"complete": bool(answer.get("complete")),
+		}
+
+	total = frappe.db.count("Course Lesson", {"course": course})
 	if not user or not total:
 		return {"user": user, "total": total, "done": 0, "complete": False}
 
