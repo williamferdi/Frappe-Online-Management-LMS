@@ -152,7 +152,16 @@ def lesson_markdown(name, found=None, private=None):
 	}
 
 
-def _course_export(source, found=None, private=None):
+# What `instructor_content` is called on the page it travels as. On the entrance
+# exam it is the mark scheme, which is why that is the default. On a taught
+# course it is the lecturer's own notes -- and on `church-history` it is where
+# the material actually is, 7.6 KB of it under a lesson with nothing
+# student-facing at all. Calling that a marking rubric would mislabel the
+# college's teaching notes, so Phase 7 passes its own word for it.
+NOTES_LABEL = "marking rubric"
+
+
+def _course_export(source, found=None, private=None, notes_label=NOTES_LABEL):
 	"""A course as modules of pages, in the order a student meets them."""
 	modules = []
 	for chapter in _chapters_in_order(source):
@@ -166,7 +175,7 @@ def _course_export(source, found=None, private=None):
 			if page["rubric"]:
 				pages.append(
 					{
-						"title": f"{page['title']} — marking rubric",
+						"title": f"{page['title']} — {notes_label}",
 						"markdown": page["rubric"],
 						"published": False,
 					}
