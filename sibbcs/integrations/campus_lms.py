@@ -25,6 +25,12 @@ from frappe.utils import cint
 
 TIMEOUT = 20
 
+# The admissions courses over there, by the id this system files them under.
+# Applicants are enrolled in these and in nothing else, which is the whole of
+# their isolation: the LMS shows a student only the courses they are on.
+EXAM_COURSE = "ADMISSIONS-ENTRANCE-EXAM"
+ORIENTATION_COURSE = "ADMISSIONS-ORIENTATION"
+
 # Registrar status -> what it means in the LMS.
 OFFERING_STATUS = {
 	"Draft": "unpublished",
@@ -97,6 +103,46 @@ def check():
 	}
 
 
+def _get(path, params):
+	"""Read something back. Raises on refusal, as `_post` does."""
+	import requests
+
+	response = requests.get(_url(path), params=params, headers=_headers(), timeout=TIMEOUT)
+	if response.status_code >= 400:
+		frappe.throw(
+			_("Campus LMS refused {0}: {1} {2}").format(path, response.status_code, response.text[:400])
+		)
+	return response.json()
+
+
+def progress(person_external_id, course_external_id):
+	"""How far one person has got through one course, or None when unconfigured.
+
+	`complete` is the LMS's answer, not ours: it counts the items that ask
+	something of the student against the ones they have done.
+	"""
+	if not configured():
+		return None
+	return _get(
+		"/sync/progress",
+		{"personExternalId": person_external_id, "courseExternalId": course_external_id},
+	)
+
+
+def quiz_results(course_external_id, person_external_id=None):
+	"""Attempts on a course's quizzes, newest marking included.
+
+	Each attempt says whether anybody has marked it yet, which is the
+	distinction the entrance exam turns on.
+	"""
+	if not configured():
+		return None
+	params = {"courseExternalId": course_external_id}
+	if person_external_id:
+		params["personExternalId"] = person_external_id
+	return _get("/sync/quiz-results", params)
+
+
 def _post(path, payload):
 	"""One call to the LMS. Raises on refusal, so a queued job records it."""
 	import requests
@@ -120,9 +166,9 @@ def person_payload(doctype, name):
 	No email means no account: the LMS identifies people by address, and a
 	placeholder would be a second account for somebody who already has one.
 	"""
-	row = frappe.db.get_value(
-		doctype, name, ["name", "full_name", "email", "user", "status" if doctype == "Student" else "is_active"], as_dict=True
-	)
+	fields = ["name", "full_name", "email", "user"]
+	fields += ["status", "admission_application"] if doctype == "Student" else ["is_active"]
+	row = frappe.db.get_value(doctype, name, fields, as_dict=True)
 	if not row:
 		return None
 	email = (row.get("email") or "").strip() or (row.get("user") or "").strip()
@@ -138,6 +184,12 @@ def person_payload(doctype, name):
 	if doctype == "Student":
 		if row.get("status") in CLOSED_STUDENT_STATUS:
 			payload["status"] = "deactivated"
+		# An admitted applicant keeps the account they sat the entrance exam
+		# with. Over there they are still filed under their application, so the
+		# key has to be moved deliberately -- the LMS refuses to adopt an
+		# address that is already linked unless we say it is the same person.
+		if row.get("admission_application"):
+			payload["replacesExternalId"] = row.admission_application
 	elif not cint(row.get("is_active")):
 		payload["status"] = "deactivated"
 	return payload

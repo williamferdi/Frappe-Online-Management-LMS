@@ -240,3 +240,68 @@ class TestTheHandshake(FrappeTestCase):
 
 		self.assertFalse(result["ok"])
 		self.assertIn("OSError", result["detail"])
+
+
+class TestReadingBack(FrappeTestCase):
+	"""Frappe pulls; the LMS never calls us. No second credential, and a pull
+	that fails simply runs again."""
+
+	def test_a_pull_does_nothing_until_configured(self):
+		with patch.dict(frappe.conf, {"campus_lms_url": "", "campus_lms_token": ""}):
+			self.assertIsNone(campus_lms.progress("APP-1", campus_lms.ORIENTATION_COURSE))
+			self.assertIsNone(campus_lms.quiz_results(campus_lms.EXAM_COURSE))
+
+	def test_progress_asks_about_one_person_on_one_course(self):
+		with patch.dict(frappe.conf, LIVE):
+			with patch("requests.get") as get:
+				get.return_value.status_code = 200
+				get.return_value.json.return_value = {"required": 49, "completed": 49, "complete": True}
+				result = campus_lms.progress("APP-0001", campus_lms.ORIENTATION_COURSE)
+
+		self.assertTrue(result["complete"])
+		self.assertEqual(get.call_args.args[0], "https://lms.example.invalid/api/v1/sync/progress")
+		self.assertEqual(
+			get.call_args.kwargs["params"],
+			{"personExternalId": "APP-0001", "courseExternalId": campus_lms.ORIENTATION_COURSE},
+		)
+
+	def test_exam_results_can_be_asked_for_one_candidate(self):
+		with patch.dict(frappe.conf, LIVE):
+			with patch("requests.get") as get:
+				get.return_value.status_code = 200
+				get.return_value.json.return_value = {"attempts": []}
+				campus_lms.quiz_results(campus_lms.EXAM_COURSE, "APP-0001")
+
+		self.assertEqual(get.call_args.kwargs["params"]["personExternalId"], "APP-0001")
+
+	def test_a_refusal_is_raised_rather_than_returned_as_data(self):
+		with patch.dict(frappe.conf, LIVE):
+			with patch("requests.get") as get:
+				get.return_value.status_code = 404
+				get.return_value.text = "no such course"
+				with self.assertRaises(frappe.ValidationError):
+					campus_lms.quiz_results(campus_lms.EXAM_COURSE)
+
+
+class TestAnAdmittedApplicantKeepsTheirAccount(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+		suffix = frappe.generate_hash(length=6)
+		self.student = make_student(
+			f"Admitted {suffix}", email=f"admitted.{suffix}@example.invalid"
+		).name
+
+	def test_a_student_made_from_an_application_carries_the_old_key(self):
+		"""Over there they are still filed under their application. Without
+		this the LMS refuses the address as already linked, and the candidate
+		would need a second account -- losing the exam they had already sat."""
+		frappe.db.set_value("Student", self.student, "admission_application", "APP-2026-09999")
+
+		payload = campus_lms.person_payload("Student", self.student)
+
+		self.assertEqual(payload["externalId"], self.student)
+		self.assertEqual(payload["replacesExternalId"], "APP-2026-09999")
+
+	def test_a_student_who_never_applied_carries_no_old_key(self):
+		payload = campus_lms.person_payload("Student", self.student)
+		self.assertNotIn("replacesExternalId", payload)
