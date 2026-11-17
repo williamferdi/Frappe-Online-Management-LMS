@@ -160,6 +160,21 @@ def export_content(path=EXPORT_PATH):
 	}
 
 
+def _markers():
+	"""Instructors who can actually sign in, and so can actually mark.
+
+	Every active instructor is the wrong rule: the demo fixtures are active and
+	carry `@example.invalid` addresses with no login, so the first run of this
+	made them accounts nobody could activate and put them on the real entrance
+	exam as teachers. A marker is somebody with a working account.
+	"""
+	markers = []
+	for row in frappe.get_all("Instructor", filters={"is_active": 1}, fields=["name", "user"]):
+		if row.user and frappe.db.get_value("User", row.user, "enabled"):
+			markers.append(row.name)
+	return markers
+
+
 def ensure_courses():
 	"""The two courses over there, and the marker on them.
 
@@ -179,7 +194,7 @@ def ensure_courses():
 			{"externalId": external_id, "code": code, "name": name, "status": "unpublished"},
 		)
 
-	markers = frappe.get_all("Instructor", filters={"is_active": 1}, pluck="name")
+	markers = _markers()
 	enrolled = []
 	for instructor in markers:
 		person = campus_lms.person_payload("Instructor", instructor)
