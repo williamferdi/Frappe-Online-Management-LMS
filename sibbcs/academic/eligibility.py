@@ -234,6 +234,28 @@ def check_enrollment_active(program_enrollment):
 	return Decision.allow()
 
 
+def _blocks_on_overdue():
+	"""Whether an overdue invoice should stop a registration outright.
+
+	Site config is the switch. A System Settings field of the same name is
+	honoured as well if the college ever adds one -- but asked for through the
+	meta first, because `get_single_value` *raises* on a field that does not
+	exist, and no such field does.
+
+	That raise was reached only once a student actually owed money, and then
+	it failed every save of their Course Registration -- grading them by hand
+	in Desk included, since `run_eligibility` runs on every validate. A fee
+	warning must never be able to stop a mark being recorded.
+	"""
+	if cint(frappe.conf.get("block_registration_on_overdue")):
+		return True
+	if frappe.get_meta("System Settings").has_field("block_registration_on_overdue"):
+		return bool(
+			cint(frappe.db.get_single_value("System Settings", "block_registration_on_overdue"))
+		)
+	return False
+
+
 def check_fees(program_enrollment):
 	"""Overdue fees.
 
@@ -259,9 +281,7 @@ def check_fees(program_enrollment):
 
 	reason = _("{0} overdue invoice(s): {1}").format(len(overdue), ", ".join(overdue[:5]))
 
-	if cint(frappe.db.get_single_value("System Settings", "block_registration_on_overdue")) or cint(
-		frappe.conf.get("block_registration_on_overdue")
-	):
+	if _blocks_on_overdue():
 		return Decision.block(reason, code="fees_overdue")
 
 	return Decision(True, reason=reason, code="fees_overdue_warning")

@@ -2,9 +2,11 @@
 # For license information, please see license.txt
 """The eligibility rule engine -- architecture doc §3."""
 
+from unittest.mock import patch
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import today
+from frappe.utils import add_days, today
 
 from sibbcs.academic.doctype.academic_term.test_academic_term import make_term
 from sibbcs.academic.doctype.course.test_course import make_course
@@ -237,3 +239,76 @@ class TestEligibilityGates(FrappeTestCase):
 		decision = check_duplicate(enrollment.name, course.name)
 		self.assertFalse(decision)
 		self.assertEqual(decision.code, "already_registered")
+
+
+class TestOverdueFeesDoNotBreakTheSave(FrappeTestCase):
+	"""An overdue invoice is a warning, and a warning must never stop a mark.
+
+	`check_fees` asked System Settings for a field that does not exist there,
+	and `get_single_value` raises on one. The branch is reached only once a
+	student actually owes money -- and from then on every save of their Course
+	Registration failed, including a registrar grading them by hand, because
+	`run_eligibility` runs on every validate.
+	"""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.term = make_term(
+			f"TST-FEE-{frappe.generate_hash(length=6)}", status="Open"
+		).name
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		suffix = frappe.generate_hash(length=6)
+		self.student = make_student(
+			full_name=f"Overdue {suffix}", email=f"overdue.{suffix}@example.invalid"
+		).name
+		self.enrollment = make_enrollment(self.student).name
+		self.offering = make_offering(
+			make_course(f"TFE {suffix[:4]}").name, self.term, status="Published"
+		).name
+		fee_type = frappe.db.get_value("Fee Type", {}, "name")
+		if fee_type:
+			frappe.get_doc(
+				{
+					"doctype": "Fee Invoice",
+					"student": self.student,
+					"fee_type": fee_type,
+					"gross_amount": 350,
+					"due_date": add_days(today(), -30),
+				}
+			).insert(ignore_permissions=True)
+
+	def test_the_field_this_guards_against_really_is_absent(self):
+		"""If the college ever adds it, this test says so and the guard is
+		still correct -- it is the raise on a missing field that was the bug."""
+		self.assertFalse(
+			frappe.get_meta("System Settings").has_field("block_registration_on_overdue")
+		)
+
+	def test_a_student_who_owes_money_is_warned_not_refused(self):
+		decision, warnings = evaluate(self.enrollment, self.offering)
+		self.assertTrue(decision, decision.reason)
+
+	def test_their_registration_can_still_be_saved_and_graded(self):
+		registration = frappe.get_doc(
+			{
+				"doctype": "Course Registration",
+				"program_enrollment": self.enrollment,
+				"course_offering": self.offering,
+				"status": "Registered",
+			}
+		).insert(ignore_permissions=True)
+
+		# The save that used to fail: an ordinary re-save of a registration
+		# belonging to somebody with an overdue invoice.
+		registration.reload()
+		registration.save(ignore_permissions=True)
+		self.assertEqual(registration.status, "Registered")
+
+	def test_site_config_can_still_make_it_a_hard_gate(self):
+		with patch.dict(frappe.conf, {"block_registration_on_overdue": 1}):
+			decision, _warnings = evaluate(self.enrollment, self.offering)
+		self.assertFalse(decision)
+		self.assertEqual(decision.code, "fees_overdue")
