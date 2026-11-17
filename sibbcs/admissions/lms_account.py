@@ -38,6 +38,7 @@ from frappe.utils import now_datetime
 
 from sibbcs.admissions.checklist import NO
 from sibbcs.finance.gateway import public_url
+from sibbcs.integrations import campus_lms
 
 LMS_ROLE = "LMS Student"
 STEP = NO["lms_account"]
@@ -67,6 +68,11 @@ def exam_link():
 	override = (frappe.conf.get("entrance_exam_url") or "").strip()
 	if override:
 		return override
+
+	# The exam lives in Campus LMS Lite now. No course address is needed: they
+	# sign in and the only course they are on is the exam.
+	if campus_lms.configured():
+		return campus_lms.base_url()
 
 	course = exam_course()
 	if course:
@@ -149,8 +155,22 @@ def set_password_link(user_name):
 	return public_url(tail)
 
 
-def enroll_in_exam(user_name):
-	"""Put the applicant into the exam course, if there is one. Idempotent."""
+def enroll_in_exam(user_name, doc=None):
+	"""Put the applicant into the exam course, if there is one. Idempotent.
+
+	The exam moved to Campus LMS Lite, so this enrols them there and hands back
+	the activation link for the invitation -- the LMS sends no email of its own.
+	The older path below remains for a site still pointed at the bundled LMS.
+	"""
+	if doc is not None and campus_lms.configured():
+		try:
+			link = campus_lms.enrol_applicant(doc.name, (doc.email or "").strip().lower(), doc.full_name)
+			return {"course": campus_lms.EXAM_COURSE, "activation_link": link}
+		except Exception:
+			# A misconfigured LMS must not cost the applicant their account.
+			frappe.log_error(title=f"Campus LMS enrolment failed for {doc.name}")
+			return None
+
 	course = exam_course()
 	if not course:
 		return None
@@ -254,7 +274,14 @@ def create_and_send(application, send=True):
 	if not doc.lms_account_created_on:
 		doc.db_set("lms_account_created_on", now_datetime(), update_modified=False)
 
-	report["enrolled_in"] = enroll_in_exam(user_name)
+	enrolled = enroll_in_exam(user_name, doc=doc)
+	if isinstance(enrolled, dict):
+		report["enrolled_in"] = enrolled["course"]
+		# Shown to the officer so they can pass it on if the email does not
+		# arrive; the LMS issues it only once, when the account is made.
+		report["activation_link"] = enrolled.get("activation_link")
+	else:
+		report["enrolled_in"] = enrolled
 
 	link = exam_link()
 	report["exam_link"] = link

@@ -74,6 +74,37 @@ def configured():
 	return bool(_setting("campus_lms_url") and _setting("campus_lms_token"))
 
 
+def base_url():
+	"""Where a person signs in. Their courses are whatever they are enrolled on."""
+	return _setting("campus_lms_url").rstrip("/")
+
+
+def enrol_applicant(application, email, full_name):
+	"""Give an applicant an account and a place in the entrance exam.
+
+	Filed under the application, which is how they are known over there until
+	they are admitted and re-filed as a student. Returns the activation link
+	when the account was new -- the LMS sends no email, so the invitation goes
+	out from here.
+	"""
+	if not configured():
+		return None
+	person = _post(
+		"/sync/people",
+		{"externalId": application, "email": email, "name": full_name or email, "role": "student"},
+	)
+	_post(
+		"/sync/enrollments",
+		{
+			"externalId": f"EXAM-{application}",
+			"personExternalId": application,
+			"courseExternalId": EXAM_COURSE,
+			"role": "student",
+		},
+	)
+	return person.get("activationUrl")
+
+
 def _url(path):
 	return f"{_setting('campus_lms_url').rstrip('/')}/api/v1{path}"
 

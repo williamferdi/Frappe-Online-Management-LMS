@@ -281,3 +281,64 @@ class TestLMSAccount(FrappeTestCase):
 		roles = [r.role for r in frappe.get_doc("User", APPLICANT_EMAIL).roles]
 		self.assertIn("Student", roles)
 		self.assertIn(lms_account.LMS_ROLE, roles)
+
+
+class TestTheExamAccountInCampusLms(FrappeTestCase):
+	"""The exam moved, so the account an applicant needs is over there.
+
+	The Frappe user is still made: conversion adopts it when they are admitted,
+	so one person keeps one login either side.
+	"""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def _application(self):
+		from sibbcs.admissions.doctype.admission_application.test_admission_application import (
+			make_application,
+		)
+
+		tag = frappe.generate_hash(length=6)
+		return make_application(full_name=f"Campus {tag}", email=f"campus.{tag}@example.invalid")
+
+	def test_the_applicant_is_filed_under_their_application(self):
+		"""Not under an email or a student number they do not have yet. It is
+		how the exam result finds its way back to this record."""
+		doc = self._application()
+		sent = []
+		with patch.object(lms_account.campus_lms, "configured", return_value=True):
+			with patch.object(lms_account.campus_lms, "_post", side_effect=lambda path, body: sent.append((path, body)) or {"activationUrl": "https://lms.test/activate?token=x"}):
+				report = lms_account.create_and_send(doc.name, send=False)
+
+		people = [body for path, body in sent if path == "/sync/people"]
+		enrolments = [body for path, body in sent if path == "/sync/enrollments"]
+		self.assertEqual(people[0]["externalId"], doc.name)
+		self.assertEqual(people[0]["role"], "student")
+		self.assertEqual(enrolments[0]["courseExternalId"], lms_account.campus_lms.EXAM_COURSE)
+		self.assertEqual(report["enrolled_in"], lms_account.campus_lms.EXAM_COURSE)
+
+	def test_the_activation_link_comes_back_for_the_invitation(self):
+		"""The LMS sends no email, so the invitation goes out from here -- and
+		an officer can pass the link on if it does not arrive."""
+		doc = self._application()
+		with patch.object(lms_account.campus_lms, "configured", return_value=True):
+			with patch.object(lms_account.campus_lms, "_post", return_value={"activationUrl": "https://lms.test/activate?token=abc"}):
+				report = lms_account.create_and_send(doc.name, send=False)
+
+		self.assertEqual(report["activation_link"], "https://lms.test/activate?token=abc")
+
+	def test_an_lms_that_is_down_does_not_cost_the_applicant_their_account(self):
+		doc = self._application()
+		with patch.object(lms_account.campus_lms, "configured", return_value=True):
+			with patch.object(lms_account.campus_lms, "_post", side_effect=OSError("unreachable")):
+				report = lms_account.create_and_send(doc.name, send=False)
+
+		self.assertTrue(report["user"], "the Frappe account must still be made")
+		self.assertIsNone(report["enrolled_in"])
+
+	def test_the_exam_link_is_the_lms_itself(self):
+		"""No course address: they sign in and the only course they are on is
+		the exam."""
+		with patch.object(lms_account.campus_lms, "configured", return_value=True):
+			with patch.object(lms_account.campus_lms, "base_url", return_value="https://lms.test"):
+				self.assertEqual(lms_account.exam_link(), "https://lms.test")
