@@ -6,7 +6,8 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from sibbcs.setup.phase6_admissions_lms import _blocks_to_markdown
+from sibbcs.finance import gateway
+from sibbcs.setup.phase6_admissions_lms import _absolutise, _blocks_to_markdown
 
 
 class TestLessonToMarkdown(FrappeTestCase):
@@ -111,3 +112,83 @@ class TestWhoMarksTheExam(FrappeTestCase):
 		user.save(ignore_permissions=True)
 
 		self.assertNotIn(leaver, _markers())
+
+
+class TestHandbookLinks(FrappeTestCase):
+	"""Every orientation page links to its handbook PDF, and the link was
+	site-relative -- which is 49 broken links the moment the page is served
+	from lms.sibbc.org instead of from here."""
+
+	def test_a_relative_file_link_is_made_absolute(self):
+		found, private = [], []
+		out = _absolutise(
+			"*[Open the full handbook](/files/program_manual.pdf).*", found, private
+		)
+		self.assertIn(gateway.public_url("/files/program_manual.pdf"), out)
+		self.assertNotIn("](/files/", out)
+		self.assertEqual(found, ["/files/program_manual.pdf"])
+		self.assertEqual(private, [])
+
+	def test_the_absolute_link_carries_no_dev_port(self):
+		"""gateway.public_url, not frappe.utils.get_url -- see its docstring."""
+		out = _absolutise("[h](/files/program_manual.pdf)", [], [])
+		self.assertNotIn(":8000", out)
+
+	def test_a_link_already_absolute_is_left_alone(self):
+		found = []
+		text = "[h](https://example.org/files/program_manual.pdf)"
+		self.assertEqual(_absolutise(text, found, []), text)
+		self.assertEqual(found, [])
+
+	def test_a_private_file_link_is_reported_not_just_rewritten(self):
+		"""Fetching one needs a session on this site, which a candidate working
+		in the LMS has not got, so an absolute link sends them to the wrong
+		login page. The export has to say so."""
+		found, private = [], []
+		_absolutise("[x](/private/files/secret.pdf)", found, private)
+		self.assertEqual(private, ["/private/files/secret.pdf"])
+		self.assertEqual(found, [])
+
+	def test_every_occurrence_is_rewritten_not_only_the_first(self):
+		found = []
+		out = _absolutise(
+			"[a](/files/program_manual.pdf) and [b](/files/formation_handbook.pdf)",
+			found,
+			[],
+		)
+		self.assertNotIn("](/files/", out)
+		self.assertEqual(len(found), 2)
+
+	def test_nothing_to_rewrite_is_not_an_error(self):
+		self.assertEqual(_absolutise("", [], []), "")
+		self.assertEqual(_absolutise(None, [], []), "")
+
+
+class TestTheBuilderStaysRunnable(FrappeTestCase):
+	"""It is a builder, so re-running it must work. It stopped working once
+	already, silently: `entrance_exam.quiz_names` was removed when the exam
+	moved to the LMS and this module went on importing it, so `export_content`
+	raised ImportError on the next run."""
+
+	def test_the_quiz_is_found_without_a_helper_from_another_module(self):
+		from sibbcs.setup import phase6_admissions_lms as p6
+
+		quiz = p6._exam_quiz()
+		# Either the bundled quiz is still here with its essays, or it is gone
+		# and we say so -- never an exception.
+		if quiz is not None:
+			self.assertTrue(quiz["questions"])
+			self.assertTrue(all("prompt" in q and "points" in q for q in quiz["questions"]))
+
+	def test_export_content_runs_twice(self):
+		import os
+		import tempfile
+
+		from sibbcs.setup import phase6_admissions_lms as p6
+
+		with tempfile.TemporaryDirectory() as box:
+			path = os.path.join(box, "export.json")
+			first = p6.export_content(path)
+			second = p6.export_content(path)
+		self.assertEqual(first["orientation_pages"], second["orientation_pages"])
+		self.assertEqual(first["linked_files"], second["linked_files"])

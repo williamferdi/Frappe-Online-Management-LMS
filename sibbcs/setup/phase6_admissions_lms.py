@@ -17,17 +17,50 @@ Idempotent, like every builder here: run it twice and nothing doubles.
 """
 
 import json
+import re
 
 import frappe
 from frappe import _
 
 from sibbcs.api.content import _chapters_in_order, _lessons_in_order
+from sibbcs.finance import gateway
 from sibbcs.integrations import campus_lms
 
 # What the courses are called over there, and where they come from here.
 ORIENTATION_SOURCE = "m-div-preliminary-orientation"
 EXAM_SOURCE = "entrance-exam"
 EXPORT_PATH = "/tmp/sibbcs-work/admissions-content.json"
+
+
+# A lesson written here links to its handbook as `/files/program_manual.pdf`.
+# Relative to this site, and so broken over there: the page is served from
+# lms.sibbc.org while the file sits on the registrar's host. Every one of the 49
+# orientation pages carries one of these.
+_SITE_FILE = re.compile(r"\]\((/(?:private/)?files/[^)\s]+)\)")
+
+
+def _absolutise(markdown, found, private):
+	"""Point site-relative file links at this site, and say which ones moved.
+
+	Absolute rather than copied: the handbooks are revised, and a second copy of
+	a 9.5 MB PDF is a second copy to keep in step. `gateway.public_url` and not
+	`frappe.utils.get_url`, which appends :8000 on this deployment -- see its
+	docstring.
+
+	A `/private/files/` link is recorded in `private` as well as rewritten:
+	fetching one needs a session on *this* site, which a candidate working in
+	the LMS does not have, so the link would only send them to a login page for
+	the wrong system. There are none today; this is here so that the day a
+	lesson gains one, the export reports it rather than shipping a dead link
+	across 49 pages.
+	"""
+
+	def swap(match):
+		path = match.group(1)
+		(private if path.startswith("/private/") else found).append(path)
+		return "](" + gateway.public_url(path) + ")"
+
+	return _SITE_FILE.sub(swap, markdown or "")
 
 
 def _inline(value):
@@ -75,8 +108,11 @@ def _blocks_to_markdown(blocks):
 	return "\n\n".join(part for part in out if part)
 
 
-def lesson_markdown(name):
+def lesson_markdown(name, found=None, private=None):
 	"""One lesson as Markdown, from whichever half of it is filled in.
+
+	`found` and `private` collect the file links rewritten on the way out, so
+	the export can report them; pass neither when the counts are not wanted.
 
 	`content` is the EditorJS document the LMS editor writes; `body` is the
 	plain text the handbook importer left. Most of these lessons are body only,
@@ -107,17 +143,23 @@ def lesson_markdown(name):
 		except (ValueError, TypeError):
 			rubric = ""
 
-	return {"title": row.title, "markdown": markdown, "rubric": rubric}
+	found = found if found is not None else []
+	private = private if private is not None else []
+	return {
+		"title": row.title,
+		"markdown": _absolutise(markdown, found, private),
+		"rubric": _absolutise(rubric, found, private),
+	}
 
 
-def _course_export(source):
+def _course_export(source, found=None, private=None):
 	"""A course as modules of pages, in the order a student meets them."""
 	modules = []
 	for chapter in _chapters_in_order(source):
 		title = frappe.db.get_value("Course Chapter", chapter, "title")
 		pages = []
 		for lesson in _lessons_in_order(chapter):
-			page = lesson_markdown(lesson)
+			page = lesson_markdown(lesson, found, private)
 			if not page:
 				continue
 			pages.append({"title": page["title"], "markdown": page["markdown"], "published": True})
@@ -138,10 +180,19 @@ def _exam_quiz():
 
 	Read from the quiz itself rather than restated here, so a reworded prompt
 	moves across with everything else.
-	"""
-	from sibbcs.admissions.entrance_exam import QUIZ_TITLE, quiz_names
 
-	names = quiz_names()
+	The quiz is found by title, in one query here rather than through a helper
+	in `entrance_exam` or `phase2m_entrance_exam`. The first of those lost its
+	copy when the exam moved to the LMS -- which left this builder raising
+	`ImportError` and so not re-runnable at all -- and the second is one of the
+	modules Phase 7 deletes. Returns None once the bundled quiz is gone, which
+	leaves the import to keep the quiz it already has.
+	"""
+	from sibbcs.admissions.entrance_exam import QUIZ_TITLE
+
+	if not frappe.db.exists("DocType", "LMS Quiz"):
+		return None
+	names = sorted(frappe.get_all("LMS Quiz", filters={"title": QUIZ_TITLE}, pluck="name"))
 	if not names:
 		return None
 	doc = frappe.get_doc("LMS Quiz", names[0])
@@ -154,14 +205,15 @@ def _exam_quiz():
 
 def export_content(path=EXPORT_PATH):
 	"""Write what the LMS importer needs, and say what is in it."""
+	found, private = [], []
 	payload = {
 		"orientation": {
 			"externalId": campus_lms.ORIENTATION_COURSE,
-			"modules": _course_export(ORIENTATION_SOURCE),
+			"modules": _course_export(ORIENTATION_SOURCE, found, private),
 		},
 		"exam": {
 			"externalId": campus_lms.EXAM_COURSE,
-			"modules": _course_export(EXAM_SOURCE),
+			"modules": _course_export(EXAM_SOURCE, found, private),
 			"quiz": _exam_quiz(),
 		},
 	}
@@ -182,6 +234,13 @@ def export_content(path=EXPORT_PATH):
 		"empty_pages": empty,
 		# And these must stay unpublished: they are the mark schemes.
 		"unpublished_pages": rubrics,
+		# Links made absolute, by file, so a handbook that stopped being linked
+		# is visible as a count that moved rather than as a 404 a candidate
+		# finds first.
+		"linked_files": {path: found.count(path) for path in sorted(set(found))},
+		# These would need a session on this site, which the candidate has not
+		# got. None today; non-empty means somebody must look.
+		"private_links": sorted(set(private)),
 	}
 
 
