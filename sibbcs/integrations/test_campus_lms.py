@@ -275,12 +275,28 @@ class TestReadingBack(FrappeTestCase):
 		self.assertEqual(get.call_args.kwargs["params"]["personExternalId"], "APP-0001")
 
 	def test_a_refusal_is_raised_rather_than_returned_as_data(self):
+		"""A 500, or a refused token, is a misconfiguration somebody must see."""
+		with patch.dict(frappe.conf, LIVE):
+			with patch("requests.get") as get:
+				get.return_value.status_code = 500
+				get.return_value.text = "boom"
+				with self.assertRaises(frappe.ValidationError):
+					campus_lms.quiz_results(campus_lms.EXAM_COURSE)
+
+	def test_a_person_the_lms_has_never_heard_of_is_an_answer_not_a_fault(self):
+		"""An applicant has no account over there until an officer makes one,
+		and an admitted one is re-filed under their student number -- so asking
+		by application number stops resolving the moment they convert. Left
+		raising, it put a Frappe validation error on the officer screen for
+		every application on the site."""
 		with patch.dict(frappe.conf, LIVE):
 			with patch("requests.get") as get:
 				get.return_value.status_code = 404
-				get.return_value.text = "no such course"
-				with self.assertRaises(frappe.ValidationError):
-					campus_lms.quiz_results(campus_lms.EXAM_COURSE)
+				get.return_value.text = "{}"
+				self.assertIsNone(campus_lms.quiz_results(campus_lms.EXAM_COURSE, "APP-0001"))
+				self.assertIsNone(
+					campus_lms.progress("APP-0001", campus_lms.ORIENTATION_COURSE)
+				)
 
 
 class TestAnAdmittedApplicantKeepsTheirAccount(FrappeTestCase):

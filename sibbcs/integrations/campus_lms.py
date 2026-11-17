@@ -148,11 +148,26 @@ def check():
 	}
 
 
-def _get(path, params):
-	"""Read something back. Raises on refusal, as `_post` does."""
+def _get(path, params, allow_missing=False):
+	"""Read something back. Raises on refusal, as `_post` does.
+
+	`allow_missing` turns a 404 into None, and only the caller knows whether
+	that is an answer or a fault. For both reads here it is an answer: the LMS
+	has never heard of this person, so they have got nowhere and have sat
+	nothing. It is the ordinary case, not the exceptional one -- an applicant
+	has no account there until an officer makes one, and an admitted one is
+	re-filed under their student number, so asking by application number stops
+	resolving the moment they are converted. Left raising, it put a Frappe
+	validation error on the officer's screen for every application on the site.
+
+	A 500, or a refused token, still raises: that is a misconfiguration and
+	somebody has to see it.
+	"""
 	import requests
 
 	response = requests.get(_url(path), params=params, headers=_headers(), timeout=TIMEOUT)
+	if allow_missing and response.status_code == 404:
+		return None
 	if response.status_code >= 400:
 		frappe.throw(
 			_("Campus LMS refused {0}: {1} {2}").format(path, response.status_code, response.text[:400])
@@ -171,6 +186,7 @@ def progress(person_external_id, course_external_id):
 	return _get(
 		"/sync/progress",
 		{"personExternalId": person_external_id, "courseExternalId": course_external_id},
+		allow_missing=True,
 	)
 
 
@@ -185,7 +201,7 @@ def quiz_results(course_external_id, person_external_id=None):
 	params = {"courseExternalId": course_external_id}
 	if person_external_id:
 		params["personExternalId"] = person_external_id
-	return _get("/sync/quiz-results", params)
+	return _get("/sync/quiz-results", params, allow_missing=True)
 
 
 def _post(path, payload):
