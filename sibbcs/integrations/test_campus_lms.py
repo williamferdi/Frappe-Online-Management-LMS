@@ -197,3 +197,46 @@ class TestFinalMarkComingBack(FrappeTestCase):
 		)
 		with self.assertRaises(frappe.ValidationError):
 			lms_bridge.post_final_mark(self.registration, 90)
+
+
+class TestTheHandshake(FrappeTestCase):
+	"""`check()` is what somebody runs when the sync looks wrong, so it has to
+	tell them which of the three things is broken, not merely that it failed."""
+
+	def test_an_unconfigured_site_says_so_rather_than_failing(self):
+		with patch.dict(frappe.conf, {"campus_lms_url": "", "campus_lms_token": ""}):
+			result = campus_lms.check()
+		self.assertFalse(result["configured"])
+		self.assertFalse(result["ok"])
+
+	def test_a_reachable_lms_reports_which_token_it_recognised(self):
+		with patch.dict(frappe.conf, LIVE):
+			with patch("requests.get") as get:
+				get.return_value.status_code = 200
+				get.return_value.json.return_value = {"service": {"label": "Frappe registrar"}}
+				result = campus_lms.check()
+
+		self.assertTrue(result["ok"])
+		self.assertEqual(result["service"], "Frappe registrar")
+		self.assertEqual(get.call_args.args[0], "https://lms.example.invalid/api/v1/sync/whoami")
+		self.assertIn("Bearer", get.call_args.kwargs["headers"]["Authorization"])
+
+	def test_a_refused_token_is_reported_with_its_reason(self):
+		with patch.dict(frappe.conf, LIVE):
+			with patch("requests.get") as get:
+				get.return_value.status_code = 401
+				get.return_value.text = '{"error":{"code":"unauthorized"}}'
+				result = campus_lms.check()
+
+		self.assertTrue(result["configured"])
+		self.assertFalse(result["ok"])
+		self.assertIn("401", result["detail"])
+
+	def test_an_unreachable_lms_does_not_raise_into_the_caller(self):
+		"""A diagnostic that throws is a diagnostic nobody can read."""
+		with patch.dict(frappe.conf, LIVE):
+			with patch("requests.get", side_effect=OSError("name or service not known")):
+				result = campus_lms.check()
+
+		self.assertFalse(result["ok"])
+		self.assertIn("OSError", result["detail"])

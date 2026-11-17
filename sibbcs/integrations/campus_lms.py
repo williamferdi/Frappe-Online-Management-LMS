@@ -54,17 +54,54 @@ def configured():
 	return bool(_setting("campus_lms_url") and _setting("campus_lms_token"))
 
 
+def _url(path):
+	return f"{_setting('campus_lms_url').rstrip('/')}/api/v1{path}"
+
+
+def _headers():
+	return {"Authorization": f"Bearer {_setting('campus_lms_token')}"}
+
+
+def check():
+	"""Can we reach the LMS, and does it accept our token? Writes nothing.
+
+	For `bench execute sibbcs.integrations.campus_lms.check` when something
+	looks wrong. Deliberately not whitelisted: it is a diagnostic for whoever
+	administers the site, not an endpoint.
+	"""
+	if not configured():
+		return {
+			"configured": False,
+			"ok": False,
+			"detail": "campus_lms_url and campus_lms_token are not both set.",
+		}
+
+	import requests
+
+	try:
+		response = requests.get(_url("/sync/whoami"), headers=_headers(), timeout=TIMEOUT)
+	except Exception as exc:
+		return {"configured": True, "ok": False, "detail": f"{type(exc).__name__}: {exc}"[:300]}
+
+	if response.status_code != 200:
+		return {
+			"configured": True,
+			"ok": False,
+			"detail": f"{response.status_code} {response.text[:200]}",
+		}
+	return {
+		"configured": True,
+		"ok": True,
+		"url": _setting("campus_lms_url"),
+		"service": (response.json().get("service") or {}).get("label"),
+	}
+
+
 def _post(path, payload):
 	"""One call to the LMS. Raises on refusal, so a queued job records it."""
 	import requests
 
-	url = f"{_setting('campus_lms_url').rstrip('/')}/api/v1{path}"
-	response = requests.post(
-		url,
-		json=payload,
-		headers={"Authorization": f"Bearer {_setting('campus_lms_token')}"},
-		timeout=TIMEOUT,
-	)
+	response = requests.post(_url(path), json=payload, headers=_headers(), timeout=TIMEOUT)
 	if response.status_code >= 400:
 		frappe.throw(
 			_("Campus LMS refused {0}: {1} {2}").format(path, response.status_code, response.text[:400])
