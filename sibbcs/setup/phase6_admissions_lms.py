@@ -161,26 +161,52 @@ def lesson_markdown(name, found=None, private=None):
 NOTES_LABEL = "marking rubric"
 
 
-def _course_export(source, found=None, private=None, notes_label=NOTES_LABEL):
-	"""A course as modules of pages, in the order a student meets them."""
+def _course_export(source, found=None, private=None, notes_label=NOTES_LABEL, renamed=None):
+	"""A course as modules of pages, in the order a student meets them.
+
+	`renamed` collects any page title this had to number to keep it distinct --
+	see `unique` below.
+	"""
 	modules = []
+	seen = {}
+
+	def unique(title):
+		"""A title no other page in this course is using.
+
+		The importer keys a page on (course, title), so two lessons sharing one
+		title land on the same page and the second quietly overwrites the
+		first. It is not hypothetical: `church-history` carries two lessons
+		both called "Delete", and the first import of it wrote 144 pages where
+		145 were offered. Numbering the repeat keeps the archive complete, and
+		`renamed` means nobody has to notice the arithmetic to find out.
+		"""
+		count = seen.get(title, 0) + 1
+		seen[title] = count
+		if count == 1:
+			return title
+		numbered = f"{title} ({count})"
+		if renamed is not None:
+			renamed.append(numbered)
+		return numbered
+
 	for chapter in _chapters_in_order(source):
-		title = frappe.db.get_value("Course Chapter", chapter, "title")
+		chapter_title = frappe.db.get_value("Course Chapter", chapter, "title")
 		pages = []
 		for lesson in _lessons_in_order(chapter):
 			page = lesson_markdown(lesson, found, private)
 			if not page:
 				continue
-			pages.append({"title": page["title"], "markdown": page["markdown"], "published": True})
+			title = unique(page["title"])
+			pages.append({"title": title, "markdown": page["markdown"], "published": True})
 			if page["rubric"]:
 				pages.append(
 					{
-						"title": f"{page['title']} — {notes_label}",
+						"title": unique(f"{title} — {notes_label}"),
 						"markdown": page["rubric"],
 						"published": False,
 					}
 				)
-		modules.append({"title": title, "pages": pages})
+		modules.append({"title": chapter_title, "pages": pages})
 	return modules
 
 

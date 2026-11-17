@@ -104,7 +104,7 @@ def export_content(path=EXPORT_PATH):
 	same import script reads it with no changes.
 	"""
 	payload = {}
-	found, private = [], []
+	found, private, renamed = [], [], []
 	missing = []
 
 	for source, (external_id, _code, _name) in LEGACY_COURSES.items():
@@ -113,7 +113,9 @@ def export_content(path=EXPORT_PATH):
 			continue
 		payload[source] = {
 			"externalId": external_id,
-			"modules": _course_export(source, found, private, notes_label=NOTES_LABEL),
+			"modules": _course_export(
+				source, found, private, notes_label=NOTES_LABEL, renamed=renamed
+			),
 		}
 
 	with open(path, "w", encoding="utf-8") as handle:
@@ -136,6 +138,10 @@ def export_content(path=EXPORT_PATH):
 
 	report["linked_files"] = {p: found.count(p) for p in sorted(set(found))}
 	report["private_links"] = sorted(set(private))
+	# Titles that had to be numbered to stay distinct. A collision is otherwise
+	# silent: the importer keys a page on (course, title), so the second lesson
+	# overwrites the first.
+	report["renamed_pages"] = renamed
 	return report
 
 

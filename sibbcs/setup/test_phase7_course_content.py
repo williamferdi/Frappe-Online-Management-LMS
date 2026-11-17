@@ -155,3 +155,49 @@ class TestInstructorContentIsLabelledForWhatItIs(FrappeTestCase):
 		notes = [p for p in modules[0]["pages"] if p["title"].endswith("instructor notes")]
 		self.assertEqual(len(notes), 1)
 		self.assertFalse(notes[0]["published"])
+
+
+class TestTwoLessonsWithOneTitle(FrappeTestCase):
+	"""The importer keys a page on (course, title), so a repeated title lands
+	twice on one page and the second overwrites the first. The first import of
+	church-history wrote 144 pages where 145 were offered -- two lessons there
+	are both called "Delete"."""
+
+	def _export(self, titles):
+		from unittest.mock import patch
+
+		from sibbcs.setup import phase6_admissions_lms as p6
+
+		renamed = []
+		lessons = [{"title": t, "markdown": f"body of {t}", "rubric": ""} for t in titles]
+		with patch.object(p6, "_chapters_in_order", return_value=["ch"]):
+			with patch.object(p6, "_lessons_in_order", return_value=list(range(len(titles)))):
+				with patch.object(p6, "lesson_markdown", side_effect=lambda n, f, p: lessons[n]):
+					with patch.object(frappe.db, "get_value", return_value="Unit 1"):
+						modules = p6._course_export("c", [], [], renamed=renamed)
+		return [p["title"] for p in modules[0]["pages"]], renamed
+
+	def test_a_repeated_title_is_numbered_rather_than_overwritten(self):
+		titles, renamed = self._export(["Delete", "Delete"])
+		self.assertEqual(titles, ["Delete", "Delete (2)"])
+		self.assertEqual(renamed, ["Delete (2)"])
+
+	def test_every_page_survives_the_collision(self):
+		titles, _ = self._export(["Class 1", "Delete", "Delete", "Class 2"])
+		self.assertEqual(len(titles), 4)
+		self.assertEqual(len(set(titles)), 4, "a title was reused, so a page would be lost")
+
+	def test_three_of_a_kind_keep_counting(self):
+		titles, renamed = self._export(["x", "x", "x"])
+		self.assertEqual(titles, ["x", "x (2)", "x (3)"])
+		self.assertEqual(len(renamed), 2)
+
+	def test_distinct_titles_are_left_exactly_as_they_are(self):
+		titles, renamed = self._export(["Class 1", "Class 2"])
+		self.assertEqual(titles, ["Class 1", "Class 2"])
+		self.assertEqual(renamed, [])
+
+	def test_the_report_names_what_it_renamed(self):
+		import inspect
+
+		self.assertIn("renamed_pages", inspect.getsource(p7.export_content))
