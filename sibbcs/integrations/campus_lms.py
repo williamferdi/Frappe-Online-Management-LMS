@@ -1,0 +1,211 @@
+# Copyright (c) 2026, South India Baptist Bible College & Seminary and contributors
+# For license information, please see license.txt
+
+"""Pushing registrar facts into Campus LMS Lite.
+
+Teaching lives in Campus LMS Lite; who the students are, which courses run this
+term and who is registered for them stays here. This is the one direction that
+travel happens, so nobody is enrolled twice and the two never argue about who
+is on a course.
+
+**Silent until configured.** Both `campus_lms_url` and `campus_lms_token` must
+be in site config. Until they are, every call here does nothing -- the live site
+runs exactly as it did before, which is what lets this ship ahead of the switch.
+
+**Queued, never inline.** A registrar saving a record must not wait on another
+system, nor fail because it is down. Each push is a background job, enqueued
+after the commit so the job reads what was actually saved.
+
+The marks that come back the other way arrive at `sibbcs.api.lms_bridge`.
+"""
+
+import frappe
+from frappe import _
+from frappe.utils import cint
+
+TIMEOUT = 20
+
+# Registrar status -> what it means in the LMS.
+OFFERING_STATUS = {
+	"Draft": "unpublished",
+	"Published": "published",
+	"Running": "published",
+	"Completed": "archived",
+}
+REGISTRATION_STATUS = {
+	"Draft": "inactive",
+	"Registered": "active",
+	"Active": "active",
+	"Completed": "completed",
+	"Failed": "completed",
+	"Withdrawn": "inactive",
+}
+# Only the statuses that should close an account. Anything else is left alone:
+# marking somebody "active" who has not set a password yet would strand them,
+# because the LMS issues an activation link only while the account is pending.
+CLOSED_STUDENT_STATUS = {"Withdrawn", "Dismissed"}
+
+
+def _setting(key):
+	return (frappe.conf.get(key) or "").strip()
+
+
+def configured():
+	return bool(_setting("campus_lms_url") and _setting("campus_lms_token"))
+
+
+def _post(path, payload):
+	"""One call to the LMS. Raises on refusal, so a queued job records it."""
+	import requests
+
+	url = f"{_setting('campus_lms_url').rstrip('/')}/api/v1{path}"
+	response = requests.post(
+		url,
+		json=payload,
+		headers={"Authorization": f"Bearer {_setting('campus_lms_token')}"},
+		timeout=TIMEOUT,
+	)
+	if response.status_code >= 400:
+		frappe.throw(
+			_("Campus LMS refused {0}: {1} {2}").format(path, response.status_code, response.text[:400])
+		)
+	return response.json()
+
+
+# ---------------------------------------------------------------------------
+# what each record looks like over there
+# ---------------------------------------------------------------------------
+
+
+def person_payload(doctype, name):
+	"""A Student or an Instructor as an LMS account, or None without an address.
+
+	No email means no account: the LMS identifies people by address, and a
+	placeholder would be a second account for somebody who already has one.
+	"""
+	row = frappe.db.get_value(
+		doctype, name, ["name", "full_name", "email", "user", "status" if doctype == "Student" else "is_active"], as_dict=True
+	)
+	if not row:
+		return None
+	email = (row.get("email") or "").strip() or (row.get("user") or "").strip()
+	if not email or "@" not in email:
+		return None
+
+	payload = {
+		"externalId": row.name,
+		"email": email,
+		"name": row.full_name or email,
+		"role": "student" if doctype == "Student" else "instructor",
+	}
+	if doctype == "Student":
+		if row.get("status") in CLOSED_STUDENT_STATUS:
+			payload["status"] = "deactivated"
+	elif not cint(row.get("is_active")):
+		payload["status"] = "deactivated"
+	return payload
+
+
+def offering_payload(name):
+	row = frappe.db.get_value(
+		"Course Offering", name, ["name", "course", "course_title", "term", "status"], as_dict=True
+	)
+	if not row:
+		return None
+	return {
+		"externalId": row.name,
+		"code": row.course,
+		"name": row.course_title or row.course,
+		"term": row.term,
+		"status": OFFERING_STATUS.get(row.status, "unpublished"),
+	}
+
+
+def registration_payload(name):
+	row = frappe.db.get_value(
+		"Course Registration", name, ["name", "student", "course_offering", "status"], as_dict=True
+	)
+	if not row or not row.student or not row.course_offering:
+		return None
+	return {
+		"externalId": row.name,
+		"personExternalId": row.student,
+		"courseExternalId": row.course_offering,
+		"role": "student",
+		"status": REGISTRATION_STATUS.get(row.status, "inactive"),
+	}
+
+
+# ---------------------------------------------------------------------------
+# pushing
+# ---------------------------------------------------------------------------
+
+
+def push(doctype, name):
+	"""Send one record. Runs in a background job; safe to run again at any time.
+
+	A registration carries its student and its offering with it: the LMS refuses
+	an enrolment naming people or courses it has not heard of, and the registrar
+	is the only one who knows they exist.
+	"""
+	if not configured():
+		return
+
+	if doctype in ("Student", "Instructor"):
+		payload = person_payload(doctype, name)
+		if payload:
+			_post("/sync/people", payload)
+		return
+
+	if doctype == "Course Offering":
+		payload = offering_payload(name)
+		if payload:
+			_post("/sync/courses", payload)
+		return
+
+	if doctype == "Course Registration":
+		registration = registration_payload(name)
+		if not registration:
+			return
+		student = person_payload("Student", registration["personExternalId"])
+		if not student:
+			return
+		offering = offering_payload(registration["courseExternalId"])
+		if not offering:
+			return
+		_post("/sync/people", student)
+		_post("/sync/courses", offering)
+		_post("/sync/enrollments", registration)
+
+
+def queue(doctype, name):
+	if not configured():
+		return
+	frappe.enqueue(
+		"sibbcs.integrations.campus_lms.push",
+		queue="short",
+		enqueue_after_commit=True,
+		doctype=doctype,
+		name=name,
+	)
+
+
+# ---------------------------------------------------------------------------
+# hook handlers
+# ---------------------------------------------------------------------------
+
+
+def on_student_change(doc, method=None):
+	queue("Student", doc.name)
+
+
+def on_instructor_change(doc, method=None):
+	queue("Instructor", doc.name)
+
+
+def on_offering_change(doc, method=None):
+	queue("Course Offering", doc.name)
+
+
+def on_registration_change(doc, method=None):
+	queue("Course Registration", doc.name)

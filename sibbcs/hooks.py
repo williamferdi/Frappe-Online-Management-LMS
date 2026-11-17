@@ -277,18 +277,40 @@ doc_events = {
 		"on_update": "sibbcs.admissions.entrance_exam.on_quiz_submission",
 	},
 	"Course Registration": {
-		"on_update": "sibbcs.finance.hooks_handlers.course_registration_on_update",
+		"on_update": [
+			"sibbcs.finance.hooks_handlers.course_registration_on_update",
+			# Who is on which course is the registrar's fact; the LMS is told it
+			# rather than being enrolled into separately. No-op until configured.
+			"sibbcs.integrations.campus_lms.on_registration_change",
+		],
+		"after_insert": "sibbcs.integrations.campus_lms.on_registration_change",
+	},
+	"Student": {
+		"on_update": "sibbcs.integrations.campus_lms.on_student_change",
+		"after_insert": "sibbcs.integrations.campus_lms.on_student_change",
 	},
 	# The scoping memo in academic.permissions is derived from these two, so
 	# it is dropped whenever either changes.
 	"Instructor": {
-		"on_update": "sibbcs.academic.permissions.clear_scope_cache",
-		"after_insert": "sibbcs.academic.permissions.clear_scope_cache",
+		"on_update": [
+			"sibbcs.academic.permissions.clear_scope_cache",
+			"sibbcs.integrations.campus_lms.on_instructor_change",
+		],
+		"after_insert": [
+			"sibbcs.academic.permissions.clear_scope_cache",
+			"sibbcs.integrations.campus_lms.on_instructor_change",
+		],
 		"on_trash": "sibbcs.academic.permissions.clear_scope_cache",
 	},
 	"Course Offering": {
-		"on_update": "sibbcs.academic.permissions.clear_scope_cache",
-		"after_insert": "sibbcs.academic.permissions.clear_scope_cache",
+		"on_update": [
+			"sibbcs.academic.permissions.clear_scope_cache",
+			"sibbcs.integrations.campus_lms.on_offering_change",
+		],
+		"after_insert": [
+			"sibbcs.academic.permissions.clear_scope_cache",
+			"sibbcs.integrations.campus_lms.on_offering_change",
+		],
 		"on_trash": "sibbcs.academic.permissions.clear_scope_cache",
 	},
 	"Fee Invoice": {
