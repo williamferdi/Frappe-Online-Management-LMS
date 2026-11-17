@@ -19,7 +19,6 @@ SAFE_SITE = "test.local"
 
 # Everything the suite makes, in the order it has to go.
 ORDER = (
-	"Quiz Attempt",
 	"Peer Review",
 	"Assignment Override",
 	"Assignment Submission",
@@ -31,9 +30,6 @@ ORDER = (
 	"Course Group Set",
 	"Course Assignment",
 	"Course Grade Scheme",
-	"Bank Question",
-	"Question Bank",
-	"Course Quiz",
 	"Course Registration",
 	"Level Promotion",
 	"Program Enrollment",

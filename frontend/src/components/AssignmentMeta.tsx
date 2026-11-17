@@ -19,7 +19,6 @@ const HOW: Record<string, string> = {
 	'Text Entry': 'a text box',
 	'File Upload': 'a file',
 	URL: 'a link',
-	Quiz: 'a quiz',
 	'On Paper': 'on paper',
 	'No Submission': 'nothing to hand in',
 }

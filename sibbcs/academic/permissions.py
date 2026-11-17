@@ -508,15 +508,6 @@ def peer_review_permission(doc, ptype="read", user=None):
 	return _offering_scoped_permission(doc, user or frappe.session.user)
 
 
-def quiz_attempt_query(user=None):
-	"""A teacher sees attempts on their own courses; nobody else sees any."""
-	return _offering_scoped_query("Quiz Attempt", user or frappe.session.user)
-
-
-def quiz_attempt_permission(doc, ptype="read", user=None):
-	return _offering_scoped_permission(doc, user or frappe.session.user)
-
-
 def module_item_progress_query(user=None):
 	"""A teacher sees progress on their own courses; a student sees their own.
 
@@ -684,27 +675,11 @@ def course_file_permission(doc, ptype="read", user=None):
 	return _course_scoped_permission(doc, ptype, user or frappe.session.user)
 
 
-def course_quiz_query(user=None):
-	return _course_scoped_query("Course Quiz", user or frappe.session.user)
-
-
-def course_quiz_permission(doc, ptype="read", user=None):
-	return _course_scoped_permission(doc, ptype, user or frappe.session.user)
-
-
 def course_rubric_query(user=None):
 	return _course_scoped_query("Course Rubric", user or frappe.session.user, shared=True)
 
 
 def course_rubric_permission(doc, ptype="read", user=None):
-	return _course_scoped_permission(doc, ptype, user or frappe.session.user, shared=True)
-
-
-def question_bank_query(user=None):
-	return _course_scoped_query("Question Bank", user or frappe.session.user, shared=True)
-
-
-def question_bank_permission(doc, ptype="read", user=None):
 	return _course_scoped_permission(doc, ptype, user or frappe.session.user, shared=True)
 
 
@@ -721,14 +696,5 @@ def rubric_criterion_permission(doc, ptype="read", user=None):
 	)
 
 
-def bank_question_query(user=None):
-	user = user or frappe.session.user
-	if is_unrestricted(user) or not _teaches(user):
-		return ""
-	return _within_parent("Bank Question", "bank", "Question Bank", user)
-
-
-def bank_question_permission(doc, ptype="read", user=None):
-	return _parent_scoped_permission(
-		doc, ptype, user or frappe.session.user, "bank", "Question Bank"
-	)
+# The quiz scoping lived here -- Course Quiz, Question Bank, Bank Question and
+# Quiz Attempt. Quizzes are sat in Campus LMS Lite now, which scopes its own.

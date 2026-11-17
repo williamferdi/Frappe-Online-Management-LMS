@@ -253,13 +253,10 @@ before_tests = "sibbcs.install.before_tests"
 # ---------------------------------------------------------------------------
 
 scheduler_events = {
-	# Every few minutes, because a quiz timer that is enforced an hour late is
-	# not enforced. The sweep only closes attempts already past their own
-	# stored expiry, so running it often costs a query and nothing else.
+	# The quiz-timer sweep was here. Quizzes are sat in Campus LMS Lite now and
+	# it enforces its own timers, so the job had nothing left to close -- and a
+	# cron pointing at a module that no longer exists errors every interval.
 	"cron": {
-		"*/5 * * * *": [
-			"sibbcs.academic.quizzes.close_expired",
-		],
 		# The entrance exam is marked in Campus LMS Lite, which never calls us.
 		# Pulling keeps every credential on this side; a run that fails simply
 		# runs again. An officer may wait a few minutes after marking, which is
@@ -371,7 +368,6 @@ permission_query_conditions = {
 	"Course Module": "sibbcs.academic.permissions.course_module_query",
 	"Course Module Item": "sibbcs.academic.permissions.course_module_item_query",
 	"Module Item Progress": "sibbcs.academic.permissions.module_item_progress_query",
-	"Quiz Attempt": "sibbcs.academic.permissions.quiz_attempt_query",
 	"Course Group Set": "sibbcs.academic.permissions.course_group_set_query",
 	"Course Group": "sibbcs.academic.permissions.course_group_query",
 	"Course Discussion": "sibbcs.academic.permissions.course_discussion_query",
@@ -382,11 +378,8 @@ permission_query_conditions = {
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_query",
 	"Course Page": "sibbcs.academic.permissions.course_page_query",
 	"Course File": "sibbcs.academic.permissions.course_file_query",
-	"Course Quiz": "sibbcs.academic.permissions.course_quiz_query",
 	"Course Rubric": "sibbcs.academic.permissions.course_rubric_query",
 	"Rubric Criterion": "sibbcs.academic.permissions.rubric_criterion_query",
-	"Question Bank": "sibbcs.academic.permissions.question_bank_query",
-	"Bank Question": "sibbcs.academic.permissions.bank_question_query",
 }
 
 has_permission = {
@@ -396,7 +389,6 @@ has_permission = {
 	"Course Module": "sibbcs.academic.permissions.course_module_permission",
 	"Course Module Item": "sibbcs.academic.permissions.course_module_item_permission",
 	"Module Item Progress": "sibbcs.academic.permissions.module_item_progress_permission",
-	"Quiz Attempt": "sibbcs.academic.permissions.quiz_attempt_permission",
 	"Course Group Set": "sibbcs.academic.permissions.course_group_set_permission",
 	"Course Group": "sibbcs.academic.permissions.course_group_permission",
 	"Course Discussion": "sibbcs.academic.permissions.course_discussion_permission",
@@ -407,9 +399,6 @@ has_permission = {
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_permission",
 	"Course Page": "sibbcs.academic.permissions.course_page_permission",
 	"Course File": "sibbcs.academic.permissions.course_file_permission",
-	"Course Quiz": "sibbcs.academic.permissions.course_quiz_permission",
 	"Course Rubric": "sibbcs.academic.permissions.course_rubric_permission",
 	"Rubric Criterion": "sibbcs.academic.permissions.rubric_criterion_permission",
-	"Question Bank": "sibbcs.academic.permissions.question_bank_permission",
-	"Bank Question": "sibbcs.academic.permissions.bank_question_permission",
 }

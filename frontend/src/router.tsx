@@ -26,7 +26,6 @@ import { Assignment } from '@/routes/portal/Assignment'
 import { Coursework } from '@/routes/portal/Coursework'
 import { CoursePlayer } from '@/routes/portal/CoursePlayer'
 import { MyCourse } from '@/routes/portal/MyCourse'
-import { QuizPlayer } from '@/routes/portal/QuizPlayer'
 import { Grades } from '@/routes/portal/Grades'
 import { MyCourses } from '@/routes/portal/MyCourses'
 import { PortalLayout } from '@/routes/portal/PortalLayout'
@@ -65,10 +64,6 @@ export const router = createBrowserRouter([
 					{ path: 'courses/:name/modules', element: <MyCourse /> },
 					{ path: 'courses/:name/learn', element: <CoursePlayer /> },
 					{ path: 'courses/:name/learn/:item', element: <CoursePlayer /> },
-					{
-						path: 'courses/:name/quiz/:assignment',
-						element: <QuizPlayer />,
-					},
 					{ path: 'grades', element: <Grades /> },
 					{ path: 'profile', element: <Profile /> },
 					{ path: 'todo', element: <ToDo /> },

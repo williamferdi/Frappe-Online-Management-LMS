@@ -31,8 +31,7 @@
   "late_penalty_pct_per_day",
   "sb_state",
   "published",
-  "rubric",
-  "course_quiz"
+  "rubric"
  ],
  "fields": [
   {
@@ -143,7 +142,7 @@
    "fieldname": "submission_type",
    "fieldtype": "Select",
    "label": "Submission Type",
-   "options": "No Submission\nText Entry\nFile Upload\nURL\nOn Paper\nQuiz",
+   "options": "No Submission\nText Entry\nFile Upload\nURL\nOn Paper",
    "reqd": 1
   },
   {
@@ -188,14 +187,6 @@
    "fieldtype": "Link",
    "label": "Rubric",
    "options": "Course Rubric"
-  },
-  {
-   "depends_on": "eval:doc.submission_type=='Quiz'",
-   "description": "Which quiz a student sits for this assignment.",
-   "fieldname": "course_quiz",
-   "fieldtype": "Link",
-   "label": "Quiz",
-   "options": "Course Quiz"
   }
  ],
  "grid_page_length": 50,

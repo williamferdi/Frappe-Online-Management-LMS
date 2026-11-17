@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { CircleCheck, Clock, LoaderCircle, Send } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -137,23 +136,11 @@ export function AssignmentDetail({
 				    would offer them something the server refuses. */}
 				{preview ? (
 					<p className="text-muted-foreground text-sm">
-						{row.assignment.submission_type === 'Quiz'
-							? 'A student sits this as a quiz, timed by the server.'
-							: `A student hands this in as ${submittingAs(row.assignment.submission_type)}.`}
+						{`A student hands this in as ${submittingAs(row.assignment.submission_type)}.`}
 					</p>
 				) : (
 					<>
-						{canHandIn && row.assignment.submission_type === 'Quiz' && (
-							<Button size="sm" asChild>
-								<Link
-									to={`/portal/courses/${encodeURIComponent(registration!)}/quiz/${encodeURIComponent(row.assignment.name)}`}
-								>
-									Start quiz
-								</Link>
-							</Button>
-						)}
-
-						{canHandIn && row.assignment.submission_type !== 'Quiz' && (
+						{canHandIn && (
 							<>
 								{open ? (
 									<div className="space-y-3">

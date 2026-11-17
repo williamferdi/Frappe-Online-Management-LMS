@@ -101,27 +101,9 @@ MATRIX = {
 		full(SM), full(COORDINATOR), full(FACULTY),
 		read(REGISTRAR), read(FACILITATOR),
 	],
-	# No Student row on any of these. A student reaches a question only
-	# through `api.quiz`, which strips which answer is correct; a bank readable
-	# through /api/resource would be the answer key.
-	"Question Bank": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR),
-	],
-	"Bank Question": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR),
-	],
-	"Course Quiz": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR),
-	],
-	"Quiz Attempt": [
-		full(SM), full(COORDINATOR), full(FACULTY),
-		read(REGISTRAR), read(FACILITATOR),
-		level(SM, 1), level(COORDINATOR, 1), level(FACULTY, 1),
-		level(REGISTRAR, 1, write=0), level(FACILITATOR, 1, write=0),
-	],
+	# The question banks, quizzes and attempts were here, with no Student row on
+	# any of them: a bank readable through /api/resource would have been the
+	# answer key. Quizzes are sat in Campus LMS Lite now.
 	# A group a student is in and a discussion prompt are the shape of the
 	# course, so Student reads them.
 	"Course Group Set": [
@@ -221,10 +203,6 @@ FORBIDDEN_CREATE = {
 	"Course Page": [STUDENT, FACILITATOR],
 	"Course File": [STUDENT, FACILITATOR],
 	"Module Item Progress": [STUDENT, FACILITATOR],
-	"Question Bank": [STUDENT, FACILITATOR],
-	"Bank Question": [STUDENT, FACILITATOR],
-	"Course Quiz": [STUDENT, FACILITATOR],
-	"Quiz Attempt": [STUDENT, FACILITATOR],
 	"Course Group Set": [STUDENT, FACILITATOR],
 	"Course Group": [STUDENT, FACILITATOR],
 	"Course Discussion": [STUDENT, FACILITATOR],
