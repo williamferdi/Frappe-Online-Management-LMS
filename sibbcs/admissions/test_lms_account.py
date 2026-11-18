@@ -69,7 +69,11 @@ class TestLMSAccount(FrappeTestCase):
 
 		user = frappe.get_doc("User", name)
 		self.assertEqual(user.user_type, "Website User")
-		self.assertIn(lms_account.LMS_ROLE, [r.role for r in user.roles])
+		# No role at all. `LMS Student` was granted here and belonged to the
+		# bundled lms app, which Phase 7 removed; an applicant needs nothing on
+		# this site to sit the exam, because that happens in Campus LMS Lite
+		# under its own account.
+		self.assertEqual([r.role for r in user.roles], [])
 
 	def test_the_applicant_does_not_get_the_student_role_yet(self):
 		"""They are an applicant. The Student role is granted at conversion."""
@@ -280,7 +284,6 @@ class TestLMSAccount(FrappeTestCase):
 
 		roles = [r.role for r in frappe.get_doc("User", APPLICANT_EMAIL).roles]
 		self.assertIn("Student", roles)
-		self.assertIn(lms_account.LMS_ROLE, roles)
 
 
 class TestTheExamAccountInCampusLms(FrappeTestCase):

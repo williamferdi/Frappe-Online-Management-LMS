@@ -175,11 +175,6 @@ class TestPreliminaryCourse(FrappeTestCase):
 		)
 		self.assertEqual(enrolled.call_args.args[0], app.name)
 		self.assertEqual(enrolled.call_args.args[1], EXTERNAL)
-		self.assertEqual(
-			frappe.db.count("LMS Enrollment", {"member": app.applicant_user}),
-			0,
-			"nothing should be enrolled into the bundled app any more",
-		)
 
 	def test_the_email_carries_both_the_course_and_the_signing_link(self):
 		app = admit(make_application())
@@ -356,11 +351,6 @@ class TestTheMovedCourseEnrolsInCampusLms(FrappeTestCase):
 		args = enrol.call_args.args
 		self.assertEqual(args[0], app.name)
 		self.assertEqual(args[1], "ADMISSIONS-ORIENTATION")
-		self.assertEqual(
-			frappe.db.count("LMS Enrollment", {"course": self.MOVED, "member": app.applicant_user}),
-			0,
-			"the bundled app must not be enrolled into as well",
-		)
 
 	def test_it_is_filed_under_the_application(self):
 		"""The applicant has no student number yet; the application number is
@@ -404,7 +394,3 @@ class TestTheMovedCourseEnrolsInCampusLms(FrappeTestCase):
 
 		self.assertIsNone(result)
 		self.assertFalse(enrol.called)
-		self.assertEqual(
-			frappe.db.count("LMS Enrollment", {"course": self.course}),
-			0,
-		)
