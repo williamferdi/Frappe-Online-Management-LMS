@@ -4,9 +4,16 @@
 
 Onboarding is gated on this step, so "acknowledged" has to mean the course was
 actually finished. These tests are mostly about the gate refusing.
+
+**The course is Campus LMS Lite's now.** Phase 7 removed the lesson counting on
+this side, so there is no progress to arrange by inserting rows: what these
+tests arrange is what that system would answer, through `lms_says`. The fixture
+still builds a course in the bundled app because `Reading Manual.lms_course` is
+a Link to it, and that is the last thing holding that app in place.
 """
 
 import itertools
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import frappe
@@ -15,10 +22,35 @@ from frappe.tests.utils import FrappeTestCase
 from sibbcs.admissions import manuals
 from sibbcs.admissions.checklist import NO, set_status, status_of
 from sibbcs.admissions.test_scholarship import png_data_url
+from sibbcs.integrations import campus_lms
 
 COURSE_TITLE = "Test Orientation Course"
 MANUAL = "Test Course Manual"
 LESSONS = 3
+EXTERNAL = "ADMISSIONS-ORIENTATION"
+LIVE_LMS = {"campus_lms_url": "https://lms.example.invalid", "campus_lms_token": "t"}
+
+
+@contextmanager
+def lms_says(done=0, total=LESSONS, external=EXTERNAL, enrol=True):
+	"""Treat the fixture course as moved, and say how far along the candidate is.
+
+	`course_for` is patched rather than naming a real moved slug, so these
+	tests do not depend on which courses happen to be in `MOVED_COURSES`.
+	`enrol=False` makes it an unmapped course, which is the configuration error
+	the gate has to fail closed on.
+	"""
+	resolved = external if enrol else None
+	answer = {
+		"required": total,
+		"completed": done,
+		"complete": bool(total) and done >= total,
+	}
+	with patch.dict(frappe.conf, LIVE_LMS):
+		with patch.object(campus_lms, "course_for", return_value=resolved):
+			with patch.object(campus_lms, "progress", return_value=answer):
+				with patch.object(campus_lms, "enrol_in_course", return_value={}) as enrolled:
+					yield enrolled
 
 _seq = itertools.count(1)
 
@@ -121,26 +153,9 @@ def admit(app):
 	return app
 
 
-def complete_lessons(user, course, count):
-	chapter = frappe.db.get_value("Course Chapter", {"course": course}, "name")
-	lessons = frappe.get_all(
-		"Course Lesson", filters={"course": course}, pluck="name", order_by="creation"
-	)
-	for lesson in lessons[:count]:
-		if frappe.db.exists(
-			"LMS Course Progress", {"member": user, "course": course, "lesson": lesson}
-		):
-			continue
-		frappe.get_doc(
-			{
-				"doctype": "LMS Course Progress",
-				"member": user,
-				"course": course,
-				"chapter": chapter,
-				"lesson": lesson,
-				"status": "Complete",
-			}
-		).insert(ignore_permissions=True)
+# `complete_lessons` inserted LMS Course Progress rows to arrange how far a
+# candidate had got. Progress is read from Campus LMS Lite now, so what gets
+# arranged is that system's answer -- see `lms_says` above.
 
 
 class TestPreliminaryCourse(FrappeTestCase):
@@ -160,78 +175,108 @@ class TestPreliminaryCourse(FrappeTestCase):
 	# -- which delivery -----------------------------------------------------
 
 	def test_a_course_backed_manual_reports_its_course(self):
-		self.assertEqual(manuals.manual_course(MANUAL), self.course)
+		with lms_says():
+			self.assertEqual(manuals.manual_course(MANUAL), self.course)
 
 	def test_a_document_manual_reports_no_course(self):
 		frappe.db.set_value("Reading Manual", MANUAL, "delivery", "Document")
 		self.assertIsNone(manuals.manual_course(MANUAL))
 
-	def test_a_course_that_has_been_deleted_is_not_a_course(self):
-		"""A dangling link must not silently become an ungated manual."""
-		frappe.db.set_value("Reading Manual", MANUAL, "lms_course", "no-such-course")
-		self.assertIsNone(manuals.manual_course(MANUAL))
+	def test_a_course_we_cannot_find_over_there_is_not_a_course(self):
+		"""An unmapped manual must not silently become an ungated one.
+
+		This used to ask whether the bundled LMS still had the course. Once
+		that app goes the answer is False for every manual, so it asks whether
+		the course can be found in Campus LMS Lite instead."""
+		with lms_says(enrol=False):
+			self.assertIsNone(manuals.manual_course(MANUAL))
 
 	# -- sending ------------------------------------------------------------
 
 	def test_sending_enrolls_the_applicant_in_the_course(self):
 		app = admit(make_application())
-		self._send(app)
+		with lms_says() as enrolled:
+			self._send(app)
 
 		app.reload()
 		self.assertTrue(app.applicant_user)
 		self.assertTrue(
-			frappe.db.exists(
-				"LMS Enrollment", {"member": app.applicant_user, "course": self.course}
-			),
+			enrolled.called,
 			"the candidate was told to take a course they are not enrolled in",
+		)
+		self.assertEqual(enrolled.call_args.args[0], app.name)
+		self.assertEqual(enrolled.call_args.args[1], EXTERNAL)
+		self.assertEqual(
+			frappe.db.count("LMS Enrollment", {"member": app.applicant_user}),
+			0,
+			"nothing should be enrolled into the bundled app any more",
 		)
 
 	def test_the_email_carries_both_the_course_and_the_signing_link(self):
 		app = admit(make_application())
-		_report, sendmail = self._send(app)
+		with lms_says():
+			_report, sendmail = self._send(app)
 
 		body = sendmail.call_args.kwargs["message"]
-		self.assertIn(f"/lms/courses/{self.course}", body)
 		self.assertIn("/manual-reading?token=", body)
 		self.assertNotIn(":8000", body)
 		self.assertNotIn("{{", body)
 
-	def test_enrolling_twice_makes_one_enrollment(self):
+	def test_enrolling_twice_is_harmless(self):
+		"""The sync endpoints upsert on externalId, so a second enrolment finds
+		the first rather than making another. What this pins is that we do call
+		again rather than deciding for ourselves that we need not."""
 		app = admit(make_application())
-		self._send(app)
-		app.reload()
-		manuals.enroll_in_course(app, self.course)
+		with lms_says() as enrolled:
+			self._send(app)
+			app.reload()
+			manuals.enroll_in_course(app, self.course)
 
-		self.assertEqual(
-			frappe.db.count(
-				"LMS Enrollment", {"member": app.applicant_user, "course": self.course}
-			),
-			1,
-		)
+		keys = {call.args[0] for call in enrolled.call_args_list}
+		self.assertEqual(keys, {app.name})
+		self.assertGreaterEqual(enrolled.call_count, 2)
 
 	# -- progress -----------------------------------------------------------
 
-	def test_progress_counts_completed_lessons(self):
+	def test_progress_is_what_the_lms_reports(self):
 		app = admit(make_application())
-		self._send(app)
+		with lms_says():
+			self._send(app)
 		app.reload()
 
-		progress = manuals.course_progress(app.name, self.course)
-		self.assertEqual(progress["total"], LESSONS)
-		self.assertEqual(progress["done"], 0)
+		with lms_says(done=0):
+			progress = manuals.course_progress(app.name, self.course)
+			self.assertEqual(progress["total"], LESSONS)
+			self.assertEqual(progress["done"], 0)
+			self.assertFalse(progress["complete"])
+
+		with lms_says(done=2):
+			progress = manuals.course_progress(app.name, self.course)
+			self.assertEqual(progress["done"], 2)
+			self.assertFalse(progress["complete"])
+
+		with lms_says(done=LESSONS):
+			self.assertTrue(manuals.course_progress(app.name, self.course)["complete"])
+
+	def test_a_course_we_cannot_find_is_never_complete(self):
+		"""Not an error, and not complete either: a signature must never be let
+		through on an absence of evidence."""
+		app = admit(make_application())
+		with lms_says(enrol=False):
+			progress = manuals.course_progress(app.name, self.course)
+
+		self.assertEqual(progress["total"], 0)
 		self.assertFalse(progress["complete"])
 
-		complete_lessons(app.applicant_user, self.course, 2)
-		progress = manuals.course_progress(app.name, self.course)
-		self.assertEqual(progress["done"], 2)
-		self.assertFalse(progress["complete"])
-
-		complete_lessons(app.applicant_user, self.course, LESSONS)
-		self.assertTrue(manuals.course_progress(app.name, self.course)["complete"])
-
-	def test_an_applicant_with_no_account_has_no_progress(self):
+	def test_an_applicant_the_lms_has_not_heard_of_has_no_progress(self):
 		app = make_application()
-		progress = manuals.course_progress(app.name, self.course)
+		with patch.dict(frappe.conf, LIVE_LMS):
+			with patch.object(campus_lms, "course_for", return_value=EXTERNAL):
+				# What `/sync/progress` answers for an unknown person: a 404,
+				# which `_get` turns into None rather than raising.
+				with patch.object(campus_lms, "progress", return_value=None):
+					progress = manuals.course_progress(app.name, self.course)
+
 		self.assertEqual(progress["done"], 0)
 		self.assertFalse(progress["complete"])
 
@@ -243,23 +288,25 @@ class TestPreliminaryCourse(FrappeTestCase):
 
 	def test_signing_is_refused_until_every_lesson_is_done(self):
 		app = admit(make_application())
-		self._send(app)
+		with lms_says():
+			self._send(app)
 		app.reload()
-		complete_lessons(app.applicant_user, self.course, LESSONS - 1)
 
-		with self.assertRaises(frappe.ValidationError):
-			manuals.acknowledge(self._token(app), "Course Reader", 1, png_data_url())
+		with lms_says(done=LESSONS - 1):
+			with self.assertRaises(frappe.ValidationError):
+				manuals.acknowledge(self._token(app), "Course Reader", 1, png_data_url())
 
 		app.reload()
 		self.assertNotEqual(status_of(app, NO["manual_reading"]), "Acknowledged")
 
 	def test_signing_works_once_the_course_is_complete(self):
 		app = admit(make_application())
-		self._send(app)
+		with lms_says():
+			self._send(app)
 		app.reload()
-		complete_lessons(app.applicant_user, self.course, LESSONS)
 
-		manuals.acknowledge(self._token(app), "Course Reader", 1, png_data_url())
+		with lms_says(done=LESSONS):
+			manuals.acknowledge(self._token(app), "Course Reader", 1, png_data_url())
 
 		app.reload()
 		row = app.manual_acknowledgements[0]
@@ -270,10 +317,11 @@ class TestPreliminaryCourse(FrappeTestCase):
 
 	def test_the_signature_is_stored_privately(self):
 		app = admit(make_application())
-		self._send(app)
+		with lms_says():
+			self._send(app)
 		app.reload()
-		complete_lessons(app.applicant_user, self.course, LESSONS)
-		manuals.acknowledge(self._token(app), "Course Reader", 1, png_data_url())
+		with lms_says(done=LESSONS):
+			manuals.acknowledge(self._token(app), "Course Reader", 1, png_data_url())
 
 		app.reload()
 		signature = app.manual_acknowledgements[0].signature
@@ -283,13 +331,15 @@ class TestPreliminaryCourse(FrappeTestCase):
 
 	def test_a_refused_course_gate_leaves_no_signature_behind(self):
 		app = admit(make_application())
-		self._send(app)
+		with lms_says():
+			self._send(app)
 		app.reload()
 
-		try:
-			manuals.acknowledge(self._token(app), "Course Reader", 1, png_data_url())
-		except frappe.ValidationError:
-			pass
+		with lms_says(done=0):
+			try:
+				manuals.acknowledge(self._token(app), "Course Reader", 1, png_data_url())
+			except frappe.ValidationError:
+				pass
 
 		app.reload()
 		self.assertFalse(app.manual_acknowledgements[0].signature)
@@ -299,13 +349,14 @@ class TestPreliminaryCourse(FrappeTestCase):
 		from sibbcs.admissions.checklist import blocked_reason
 
 		app = admit(make_application())
-		self._send(app)
+		with lms_says():
+			self._send(app)
 		app.reload()
 
 		self.assertIsNotNone(blocked_reason(app, NO["onboarding"]))
 
-		complete_lessons(app.applicant_user, self.course, LESSONS)
-		manuals.acknowledge(self._token(app), "Course Reader", 1, png_data_url())
+		with lms_says(done=LESSONS):
+			manuals.acknowledge(self._token(app), "Course Reader", 1, png_data_url())
 		app.reload()
 
 		self.assertIsNone(blocked_reason(app, NO["onboarding"]))
@@ -373,14 +424,18 @@ class TestTheMovedCourseEnrolsInCampusLms(FrappeTestCase):
 		keys = [c.args[1]["externalId"] for c in post.call_args_list if c.args[0] == "/sync/enrollments"]
 		self.assertEqual(keys, ["EXAM-APP-0001"])
 
-	def test_a_course_that_did_not_move_still_uses_the_bundled_app(self):
+	def test_a_course_that_did_not_move_is_reported_not_enrolled_anywhere(self):
+		"""Stage B still fell back to the bundled app here. Stage C removed
+		that: nobody is taught there, so an unmapped course is a configuration
+		problem rather than somewhere to enrol."""
 		app = admit(make_application())
 		with patch.dict(frappe.conf, self.LIVE):
 			with patch("sibbcs.integrations.campus_lms.enrol_in_course") as enrol:
-				manuals.enroll_in_course(app, self.course)
+				result = manuals.enroll_in_course(app, self.course)
 
+		self.assertIsNone(result)
 		self.assertFalse(enrol.called)
 		self.assertEqual(
-			frappe.db.count("LMS Enrollment", {"course": self.course, "member": app.applicant_user}),
-			1,
+			frappe.db.count("LMS Enrollment", {"course": self.course}),
+			0,
 		)

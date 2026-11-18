@@ -102,9 +102,65 @@ class TestCampusLms(FrappeTestCase):
 		self.assertEqual(campus_lms.offering_payload(self.offering)["status"], "unpublished")
 
 	def test_a_withdrawn_registration_is_not_an_active_enrolment(self):
-		self.assertEqual(campus_lms.registration_payload(self.registration)["status"], "active")
+		# The fee gate is off here so that this test is about the status alone;
+		# the gate has its own tests below.
+		with patch.dict(frappe.conf, {"require_fee_for_lms_access": 0}):
+			self.assertEqual(
+				campus_lms.registration_payload(self.registration)["status"], "active"
+			)
+			frappe.db.set_value("Course Registration", self.registration, "status", "Withdrawn")
+			self.assertEqual(
+				campus_lms.registration_payload(self.registration)["status"], "inactive"
+			)
+
+	# --- the fee gate ------------------------------------------------------
+	#
+	# "The course opens on payment, not on Register." That rule used to live in
+	# `Course Registration.maybe_sync_lms`, which gated enrolment into the
+	# bundled LMS and went with it in Phase 7. It is applied in the payload
+	# now, and these are here because deleting the method is exactly how such a
+	# rule gets lost.
+
+	def test_an_unpaid_registration_is_pushed_as_inactive(self):
+		with patch.dict(frappe.conf, {"require_fee_for_lms_access": 1}):
+			self.assertEqual(
+				campus_lms.registration_payload(self.registration)["status"], "inactive"
+			)
+
+	def test_the_gate_can_be_turned_off(self):
+		"""It is a setting because the gate is only as good as the gateway
+		behind it, and no gateway is configured yet."""
+		with patch.dict(frappe.conf, {"require_fee_for_lms_access": 0}):
+			self.assertEqual(
+				campus_lms.registration_payload(self.registration)["status"], "active"
+			)
+
+	def test_the_gate_only_ever_narrows(self):
+		"""A settled fee must not make a withdrawn registration active."""
 		frappe.db.set_value("Course Registration", self.registration, "status", "Withdrawn")
-		self.assertEqual(campus_lms.registration_payload(self.registration)["status"], "inactive")
+		for gate in (0, 1):
+			with patch.dict(frappe.conf, {"require_fee_for_lms_access": gate}):
+				self.assertEqual(
+					campus_lms.registration_payload(self.registration)["status"],
+					"inactive",
+					f"gate={gate}",
+				)
+
+	def test_a_settled_fee_opens_the_course(self):
+		from sibbcs.academic.doctype.course_registration.course_registration import (
+			registration_fee_settled,
+		)
+
+		with patch.dict(frappe.conf, {"require_fee_for_lms_access": 1}):
+			with patch(
+				"sibbcs.academic.doctype.course_registration.course_registration.registration_fee_settled",
+				return_value=True,
+			):
+				self.assertEqual(
+					campus_lms.registration_payload(self.registration)["status"], "active"
+				)
+		# Guard against the import above being the thing that passes.
+		self.assertTrue(callable(registration_fee_settled))
 
 	# --- pushing -----------------------------------------------------------
 
