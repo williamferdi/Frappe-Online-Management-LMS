@@ -81,10 +81,15 @@ def manual_course(manual):
 	)
 	if not row or row.delivery != "LMS Course" or not row.lms_course:
 		return None
-	if not frappe.db.exists("LMS Course", row.lms_course):
+	# Checked against the mapping, not against the bundled LMS. It used to ask
+	# `frappe.db.exists("LMS Course", ...)`, which is a question about an app
+	# that is on its way out -- and once it goes that check would answer False
+	# for every manual, so every candidate would be told their manual was not
+	# set up. What matters is whether we can find the course over there.
+	if not campus_lms.course_for(row.lms_course):
 		frappe.log_error(
-			title="Reading Manual points at a course that does not exist",
-			message=f"{manual} -> {row.lms_course}",
+			title="Reading Manual course is not mapped to Campus LMS Lite",
+			message=f"{manual} -> {row.lms_course!r} is not in campus_lms.MOVED_COURSES.",
 		)
 		return None
 	return row.lms_course
@@ -117,20 +122,17 @@ def course_progress(application, course):
 			"complete": bool(answer.get("complete")),
 		}
 
-	total = frappe.db.count("Course Lesson", {"course": course})
-	if not user or not total:
-		return {"user": user, "total": total, "done": 0, "complete": False}
-
-	done = frappe.db.count(
-		"LMS Course Progress",
-		{"member": user, "course": course, "status": "Complete"},
+	# A course this system has no mapping for. Counting completed lessons in
+	# the bundled LMS used to be the answer, and Phase 7 removed that: we are
+	# not reading progress out of a system nobody is taught in. Every course
+	# that has ever backed a Reading Manual is in `MOVED_COURSES`, so this is a
+	# misconfiguration rather than a case -- reported, and never complete,
+	# because a signature must not be let through on an absence of evidence.
+	frappe.log_error(
+		title="Reading Manual course is not mapped to Campus LMS Lite",
+		message=f"Reading Manual course {course!r} is not in campus_lms.MOVED_COURSES.",
 	)
-	return {
-		"user": user,
-		"total": total,
-		"done": min(done, total),
-		"complete": done >= total,
-	}
+	return {"user": user, "total": 0, "done": 0, "complete": False}
 
 
 def enroll_in_course(doc, course):
@@ -161,22 +163,15 @@ def enroll_in_course(doc, course):
 			return None
 		return user
 
-	if not frappe.db.exists("LMS Enrollment", {"member": user, "course": course}):
-		try:
-			frappe.get_doc(
-				{
-					"doctype": "LMS Enrollment",
-					"member": user,
-					"course": course,
-					"member_type": "Student",
-					"role": "Member",
-				}
-			).insert(ignore_permissions=True)
-		except Exception:
-			frappe.log_error(title=f"Preliminary course enrollment failed for {doc.name}")
-			return None
-
-	return user
+	# Enrolling into the bundled LMS was the fallback, and there is nothing to
+	# fall back to: nobody is taught there. Reported rather than attempted, so
+	# an unmapped course shows up as a configuration problem instead of an
+	# enrolment somebody will go looking for.
+	frappe.log_error(
+		title="Reading Manual course is not mapped to Campus LMS Lite",
+		message=f"Cannot enrol {doc.name} -- course {course!r} is not in campus_lms.MOVED_COURSES.",
+	)
+	return None
 
 
 def attach_manuals(doc):

@@ -120,7 +120,7 @@ def _access_state(row, fee_gates_access):
       open        the course is there
       fee         the fee gates access and has not been settled
       preparing   the fee is not the problem; the LMS enrolment has not been
-                  written yet. `lms_sync.sync_pending` retries hourly, so this
+                  written yet. the queued push to Campus LMS Lite retries, so this
                   resolves itself and the student needs telling that, not
                   telling to pay.
 	"""

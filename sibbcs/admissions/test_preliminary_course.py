@@ -26,7 +26,7 @@ _seq = itertools.count(1)
 def make_course():
 	course = frappe.db.get_value("LMS Course", {"title": COURSE_TITLE}, "name")
 	if not course:
-		from sibbcs.academic.lms_sync import _default_instructor
+		from sibbcs.academic.lms_legacy import _default_instructor
 
 		doc = frappe.get_doc(
 			{

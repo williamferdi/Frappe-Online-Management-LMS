@@ -161,9 +161,13 @@ describe('My Courses', () => {
 		expect(await screen.findByText('Your enrolment is not active.')).toBeInTheDocument()
 	})
 
-	it('reports progress to assistive technology, not just as a coloured bar', async () => {
+	it('draws no progress bar, because this screen no longer knows the figure', async () => {
+		// Reading it meant a call per course to a system 265ms away, on a
+		// screen that draws every registration a student has. The LMS shows
+		// progress on the course itself.
 		await renderScreen({ enrollment, registrations: [paid] })
-		const bar = await screen.findByRole('progressbar')
-		expect(bar).toHaveAttribute('aria-valuenow', '42')
+
+		await screen.findByRole('link', { name: /open course/i })
+		expect(screen.queryByRole('progressbar')).toBeNull()
 	})
 })

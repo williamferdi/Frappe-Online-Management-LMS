@@ -118,54 +118,6 @@ def _blocked_course_items(registrations):
 	return items
 
 
-def _assignment_items(registrations, user):
-	"""Assignments on the student's courses that they have not submitted.
-
-	LMS Assignment carries no due date, so these have none -- showing an
-	invented one would be worse than showing none.
-	"""
-	courses = [r.course for r in registrations if r.status in LIVE_REGISTRATION_STATES]
-	if not courses:
-		return []
-
-	lms_courses = {
-		row.lms_course: row.name
-		for row in frappe.get_all(
-			"Course", filters={"name": ("in", courses)}, fields=["name", "lms_course"]
-		)
-		if row.lms_course
-	}
-	if not lms_courses:
-		return []
-
-	assignments = frappe.get_all(
-		"LMS Assignment",
-		filters={"course": ("in", list(lms_courses))},
-		fields=["name", "title", "course"],
-	)
-	if not assignments:
-		return []
-
-	submitted = set(
-		frappe.get_all(
-			"LMS Assignment Submission",
-			filters={"member": user, "assignment": ("in", [a.name for a in assignments])},
-			pluck="assignment",
-		)
-	)
-
-	return [
-		_item(
-			"assignment",
-			assignment.title or "Assignment",
-			lms_courses.get(assignment.course) or assignment.course,
-			url=f"/lms/courses/{assignment.course}",
-			reference=assignment.name,
-		)
-		for assignment in assignments
-		if assignment.name not in submitted
-	]
-
 
 def _registration_items(registrations):
 	"""An open window the student has not used yet."""
@@ -213,12 +165,11 @@ def todo():
 	items = (
 		_fee_items(student)
 		+ _blocked_course_items(registrations)
-		+ _assignment_items(registrations, user)
 		+ _registration_items(registrations)
 	)
 
-	# Dated first, soonest at the top; undated work after it. Sorting by a
-	# missing date would otherwise put every assignment above an overdue fee.
+	# Dated first, soonest at the top; undated after it. Sorting by a
+	# missing date would otherwise put an undated item above an overdue fee.
 	items.sort(key=lambda item: (item["due"] is None, item["due"] or "", item["title"]))
 
 	return {
@@ -250,52 +201,6 @@ def _window(start, end):
 		end = add_days(start, 400)
 	return start, end
 
-
-def _live_classes(batches, start, end):
-	if not batches:
-		return []
-	rows = frappe.get_all(
-		"LMS Live Class",
-		filters={"batch_name": ("in", batches), "date": ("between", [start, end])},
-		fields=["name", "title", "date", "time", "duration", "join_url", "batch_name"],
-		ignore_permissions=True,
-	)
-	events = []
-	for row in rows:
-		start_at = f"{row.date} {row.time or '00:00:00'}"
-		events.append(
-			_event(
-				"class",
-				row.title or "Live class",
-				start_at,
-				url=row.join_url,
-				detail=row.batch_name,
-				reference=row.name,
-			)
-		)
-	return events
-
-
-def _timetable(batches, start, end):
-	if not batches:
-		return []
-	rows = frappe.get_all(
-		"LMS Batch Timetable",
-		filters={"parent": ("in", batches), "date": ("between", [start, end])},
-		fields=["name", "date", "start_time", "end_time", "reference_doctype", "reference_docname", "parent"],
-		ignore_permissions=True,
-	)
-	return [
-		_event(
-			"timetable",
-			row.reference_docname or row.reference_doctype or "Scheduled",
-			f"{row.date} {row.start_time or '00:00:00'}",
-			end=f"{row.date} {row.end_time}" if row.end_time else None,
-			detail=row.parent,
-			reference=row.name,
-		)
-		for row in rows
-	]
 
 
 def _weekly_sessions(registrations, start, end):
@@ -435,25 +340,12 @@ def calendar(start=None, end=None):
 	student = frappe.db.get_value("Program Enrollment", enrollment, "student")
 	registrations = _registrations(enrollment)
 
-	batches = [
-		row.lms_batch
-		for row in frappe.get_all(
-			"Course Offering",
-			filters={
-				"name": (
-					"in",
-					[r.course_offering for r in registrations if r.course_offering] or [""],
-				)
-			},
-			fields=["name", "lms_batch"],
-		)
-		if row.lms_batch
-	]
-
+	# The bundled LMS's live classes and batch timetable were read here. Both
+	# were empty on the live site -- the college schedules its Zoom sessions on
+	# the Course Offering, which is what `_weekly_sessions` expands -- so what
+	# the calendar actually draws is unchanged.
 	events = (
-		_live_classes(batches, start, end)
-		+ _timetable(batches, start, end)
-		+ _weekly_sessions(registrations, start, end)
+		_weekly_sessions(registrations, start, end)
 		+ _fee_due_events(student, start, end)
 		+ _term_events(registrations, start, end)
 	)

@@ -23,8 +23,6 @@
   "programs",
   "course_prerequisites",
   "sb_prerequisites",
-  "sb_lms",
-  "lms_course",
   "sb_about",
   "description"
  ],
@@ -118,17 +116,6 @@
    "fieldtype": "Table MultiSelect",
    "label": "Counts Toward Programs",
    "options": "Course Program Link"
-  },
-  {
-   "fieldname": "sb_lms",
-   "fieldtype": "Section Break",
-   "label": "LMS"
-  },
-  {
-   "fieldname": "lms_course",
-   "fieldtype": "Link",
-   "label": "LMS Course",
-   "options": "LMS Course"
   },
   {
    "fieldname": "sb_about",

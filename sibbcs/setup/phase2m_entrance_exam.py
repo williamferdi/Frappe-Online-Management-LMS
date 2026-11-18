@@ -248,7 +248,7 @@ def rubric_json():
 
 
 def _default_instructor():
-	from sibbcs.academic.lms_sync import _default_instructor
+	from sibbcs.academic.lms_legacy import _default_instructor
 
 	return _default_instructor()
 

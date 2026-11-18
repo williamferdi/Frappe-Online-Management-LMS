@@ -82,7 +82,8 @@ def _lms_links(registrations):
 
 	url = campus_lms.base_url() if campus_lms.configured() else None
 	for row in registrations:
-		row["lms_course"] = None
+		# No per-course address: the LMS lands a student on the courses they are
+		# enrolled on, and a registration number means nothing over there.
 		row["lms_url"] = url
 		row["progress"] = 0
 

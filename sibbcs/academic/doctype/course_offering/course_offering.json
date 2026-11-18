@@ -27,9 +27,7 @@
   "sb_academic",
   "course_level",
   "cb_academic",
-  "credits",
-  "sb_lms",
-  "lms_batch"
+  "credits"
  ],
  "fields": [
   {
@@ -158,17 +156,6 @@
    "fieldtype": "Float",
    "label": "Credits",
    "read_only": 1
-  },
-  {
-   "fieldname": "sb_lms",
-   "fieldtype": "Section Break",
-   "label": "LMS"
-  },
-  {
-   "fieldname": "lms_batch",
-   "fieldtype": "Link",
-   "label": "LMS Batch",
-   "options": "LMS Batch"
   }
  ],
  "grid_page_length": 50,

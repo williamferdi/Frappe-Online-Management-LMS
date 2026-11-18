@@ -265,11 +265,10 @@ scheduler_events = {
 			"sibbcs.admissions.entrance_exam.pull_marked_exams",
 		],
 	},
-	"hourly": [
-		# Registered-but-not-in-LMS is exactly the state a student reports as
-		# "I can't see my course", so retry it rather than wait for a ticket.
-		"sibbcs.academic.lms_sync.sync_pending",
-	],
+	# The hourly `lms_sync.sync_pending` sweep was here, retrying registrations
+	# the bundled LMS had not picked up. Enrolment is a queued push to Campus
+	# LMS Lite now, and a failed job is retried by the queue itself, so there
+	# is nothing left for a sweep to find.
 }
 
 doc_events = {

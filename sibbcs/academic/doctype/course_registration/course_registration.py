@@ -6,7 +6,6 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, flt, today
 
-from sibbcs.academic import lms_sync
 from sibbcs.academic.eligibility import evaluate, may_override
 
 
@@ -30,7 +29,6 @@ class CourseRegistration(Document):
 
 	def on_update(self):
 		self.refresh_offering_count()
-		self.maybe_sync_lms()
 
 	def on_trash(self):
 		self.refresh_offering_count(removing=True)
@@ -190,20 +188,13 @@ class CourseRegistration(Document):
 			"Course Offering", self.course_offering, "enrolled_count", count, update_modified=False
 		)
 
-	def maybe_sync_lms(self):
-		"""§6. Never let an LMS problem undo an accepted registration.
-
-		The course opens when the registration fee is settled, not when the
-		student presses Register. Registering is the student saying yes; paying
-		is what buys the seat.
-		"""
-		if self.lms_enrollment_created:
-			return
-		if self.status not in ("Registered", "Active"):
-			return
-		if not registration_fee_settled(self):
-			return
-		lms_sync.sync_registration(self)
+	# `maybe_sync_lms` was here. It enrolled a student into the bundled LMS once
+	# their fee was settled, and both halves of that have moved: the enrolment
+	# is a push to Campus LMS Lite from `integrations.campus_lms`, and the fee
+	# gate is applied in `campus_lms.registration_payload`, which sends an
+	# unpaid registration as inactive. `require_fee_before_lms` and
+	# `registration_fee_settled` below are still the rule; only the system they
+	# are applied to changed.
 
 
 def require_fee_before_lms():

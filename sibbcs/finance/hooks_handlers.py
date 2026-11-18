@@ -77,15 +77,18 @@ def open_course_when_fee_settled(fee_invoice, method=None):
 		return
 
 	try:
-		from sibbcs.academic import lms_sync
+		from sibbcs.integrations import campus_lms
 
-		registration = frappe.get_doc("Course Registration", doc.course_registration)
-		if registration.lms_enrollment_created:
+		status = frappe.db.get_value(
+			"Course Registration", doc.course_registration, "status"
+		)
+		if status not in ("Registered", "Active", "Completed"):
 			return
-		if registration.status not in ("Registered", "Active", "Completed"):
-			return
-		lms_sync.sync_registration(registration)
+		# Push the registration again rather than enrolling directly. The
+		# payload reads the fee gate itself, so a settled invoice is what turns
+		# the enrolment from inactive to active over there -- and pushing is
+		# idempotent, so a second settlement costs a no-op.
+		campus_lms.queue("Course Registration", doc.course_registration)
 	except Exception:
-		# The student has paid; an LMS problem must not undo that. The hourly
-		# sync_pending sweep retries.
+		# The student has paid; an LMS problem must not undo that.
 		frappe.log_error(title=f"Opening course after payment failed for {doc.name}")

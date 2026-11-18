@@ -16,7 +16,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog'
-import { Progress } from '@/components/ui/progress'
 import { useMyCourses, useWithdraw } from '@/hooks/useStudent'
 import { FrappeError } from '@/lib/frappe'
 import { cn, money } from '@/lib/utils'
@@ -178,18 +177,13 @@ function CourseRow({
 						<div className="mt-1 truncate font-medium">
 							{registration.course_title || registration.course}
 						</div>
+						{/* The progress bar went with Phase 7. Reading it meant a call
+						    per course to the LMS, 265ms away, on a screen that draws
+						    every registration a student has -- and the LMS shows
+						    progress on the course itself, which is where somebody is
+						    when they want it. */}
 						<div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 							<span>{registration.credits} credits</span>
-							{registration.lms_course && (
-								<span className="flex items-center gap-1.5">
-									<Progress
-										value={registration.progress}
-										className="w-20"
-										aria-label={`${registration.course} progress`}
-									/>
-									{Math.round(registration.progress)}%
-								</span>
-							)}
 						</div>
 					</div>
 

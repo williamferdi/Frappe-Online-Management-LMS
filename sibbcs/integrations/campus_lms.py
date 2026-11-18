@@ -305,12 +305,31 @@ def registration_payload(name):
 	)
 	if not row or not row.student or not row.course_offering:
 		return None
+
+	status = REGISTRATION_STATUS.get(row.status, "inactive")
+	# The course opens on payment, not on Register: registering is the student
+	# saying yes, paying is what buys the seat. That rule used to live in
+	# `Course Registration.maybe_sync_lms`, which gated enrolment into the
+	# bundled LMS and went with it in Phase 7 -- so it is applied here instead,
+	# or removing that method would have quietly dropped the college's rule.
+	#
+	# Only ever narrowing. A settled fee does not make a withdrawn
+	# registration active again.
+	if status == "active":
+		from sibbcs.academic.doctype.course_registration.course_registration import (
+			registration_fee_settled,
+			require_fee_before_lms,
+		)
+
+		if require_fee_before_lms() and not registration_fee_settled(row.name):
+			status = "inactive"
+
 	return {
 		"externalId": row.name,
 		"personExternalId": row.student,
 		"courseExternalId": row.course_offering,
 		"role": "student",
-		"status": REGISTRATION_STATUS.get(row.status, "inactive"),
+		"status": status,
 	}
 
 
