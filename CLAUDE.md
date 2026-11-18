@@ -488,8 +488,9 @@ audience type.
 reply_to)` — no recipient parameter at all. A reply reaches whoever is already on
 the thread; a new message goes to whoever holds Registrar, Admissions Officer or
 Academic Coordinator. Without that the portal is a way to message every account on
-the site. **Nobody currently holds any of those roles**, so `office_contacts()`
-returns empty and the compose form says so instead of failing on send.
+the site. Those roles **are** held now (checked 18 Nov 2026: Registrar 3, Academic
+Coordinator 2, Admissions Officer 1), so `office_contacts()` answers — it used to be
+empty, and the compose form still says so rather than failing on send when it is.
 
 **Discussions reuse Frappe's `Discussion Topic` / `Discussion Reply`**, scoped to a
 Course Offering the student is registered on. That DocType is shared — Frappe uses
@@ -729,8 +730,9 @@ rather than silently dropped — dropping it would tell the caller it worked.
 
 **The role summary counts enabled accounts only**, and the screen warns when a role
 has nobody: an empty Registrar is why a student's portal message has nowhere to
-arrive and why no promotion can be approved. On this site that is currently
-**Registrar, Admissions Officer, Academic Coordinator, Dean and Accounts**.
+arrive and why no promotion can be approved. Every one of them has a holder as of
+18 Nov 2026 — Registrar 3, Academic Coordinator 2, Accounts 2, Admissions Officer 1,
+Dean 1 — so the warnings that used to cover this screen are gone.
 
 **A capped list says it was capped.** `api/paging.py::fetch_capped` asks for one row
 beyond the limit and reports `truncated`. Two hundred results with no sign there are
@@ -1136,7 +1138,12 @@ one month and one day; emailed a month later it opens on a date that has already
     bench --site online.sibbc.org set-config calendly_interview_url \
         "https://calendly.com/admissions-online-sibbc/30min"
 
-### 2.3 Formation — Phase 6, not built
+### 2.3 Formation — NOT BUILT (no `sibbcs/formation` directory at all)
+The original plan called these Phase 6, which now collides with what Phase 6 actually
+was (admissions moving to Campus LMS Lite); the numbers below are not a schedule.
+`conversion.py:245` still carries a **deferred** `Mentor` branch that has never run —
+see the gotcha about deferred branches going live silently.
+
 `Mentor`, `Mentor Monthly Report`, `Chapel Session` + `Chapel Attendance`,
 `Internship Record` (+ `Internship Log Entry`), `Campus Visit` + `Campus Visit Attendance`.
 
@@ -1219,8 +1226,12 @@ The webhook verifies Razorpay's HMAC-SHA256 signature over the **raw body** with
 could mark invoices paid. It is idempotent on `razorpay_payment_id`, because Razorpay
 retries. **Not yet configured** — no keys are set, so links cannot be generated.
 
-### 2.5 Output — Phase 7, not built
-`Degree Audit`, `Transcript` (print format), `Graduation Record`.
+### 2.5 Output — NOT BUILT
+`Degree Audit`, `Transcript` (print format), `Graduation Record`. Originally Phase 7,
+which now collides with the Phase 7 that removed the bundled `lms` app.
+**`completed_registrations()` is the only transcript code that exists** and nothing but
+its own test calls it — so the shape of a transcript is still an open question, not a
+settled one.
 
 ---
 
@@ -1460,8 +1471,9 @@ argue about who is on a course.
   Course Registration, as `/sync/people`, `/sync/courses`, `/sync/enrollments`. Queued
   after commit, never inline. Silent until both `campus_lms_url` and `campus_lms_token`
   are in site config.
-- **Pulled**: `/sync/progress` for the orientation course and `/sync/quiz-results` for
-  the entrance exam. A 404 from either means "the LMS has never heard of this person",
+- **Pulled**: `/sync/progress` for the orientation course, `/sync/quiz-results` for
+  the entrance exam, `/sync/grades` for course results. A 404 from any of them means
+  "the LMS has never heard of this person",
   which is an answer and not a fault — `_get(..., allow_missing=True)` returns None.
   Asking by application number legitimately 404s twice over: before an account exists,
   and again after conversion re-files the person under their student number.
@@ -1469,6 +1481,32 @@ argue about who is on a course.
   `gradebook.sync_components` first and then `academic_api.save_grades`. Sending one
   bucket without syncing first would make it the *whole* set — 90 in a 60%-weighted
   bucket would land as a final 54.
+
+  **What knocks on that door is `academic/mark_pull.py`, hourly.** Until 18 Nov 2026
+  nothing did: `post_final_mark` had no caller but its own tests, and the LMS makes no
+  outbound call to this system at all — so a course result released over there never
+  reached a transcript, while this file said it did. If that claim ever looks true again,
+  check for a caller before believing it.
+
+  **Deciding a figure is final needs both sides, and neither has both halves.** The
+  registrar says a course is *over* — the term's `end_date` has passed, or somebody
+  marked the offering `Completed`; only then is anything taken. The LMS says whether
+  *marking* is finished, through `awaitingMarking` and `gradedUnposted`; while either is
+  above zero the pull records nothing for that student. Drop the first and week two of a
+  twelve-week course records `final`, which counts unsubmitted work as zero. Drop the
+  second and a half-marked course records as a fail — the entrance exam's "sat is not
+  marked", wearing different clothes.
+
+  `final` is the figure taken, not `current`: once the term is over, work never handed
+  in *is* a zero. And the pull sets `status = "Completed"`, which is not decoration —
+  `completed_registrations()`, the transcript, filters on it, so a graded registration
+  left at `Registered` is invisible there. A fail is `Completed` too; `passed` records
+  the outcome, and routing it to `Failed` would drop the F off the transcript.
+
+  The offerings asked about are **work outstanding, not all of history**: any offering
+  with an unrecorded registration, plus 120 days after a term ends for corrections. A
+  plain `limit` would cut the oldest unrecorded offerings off the end of the query and
+  those marks would never arrive, with nothing to say so.
 - **`external_id` is the join.** A Student is `SIB-…`, an applicant is their
   `APP-…` number, and `/sync/people` takes `replacesExternalId` so conversion moves the
   key rather than making a second account. Without that it correctly *refuses* an address
@@ -1477,8 +1515,11 @@ argue about who is on a course.
 **An offering taught there must be graded as one bucket.** `gradebook.use_single_component`
 puts it on a single **Coursework** component worth 100%, because `compute_grade` holds the
 letter back until *every* bucket is marked — so with several buckets one release can never
-finish a transcript. `0507-2026-T1` (6 buckets) and `DEMO BIST502-DEMO-TERM-B` (5) are
-**not** in that shape yet; neither has registrations.
+finish a transcript. Both offerings on the live site are now in that shape —
+`0507-2026-T1` was the 6-bucket one and `DEMO BIST502-DEMO-TERM-B` went with the demo
+data. A new offering taught in the LMS needs `use_single_component` before anyone is
+marked on it, and `lms_bridge.post_final_mark` *refuses* a release against an offering
+with no scheme at all rather than guessing a bucket.
 
 ### Things that cost time
 

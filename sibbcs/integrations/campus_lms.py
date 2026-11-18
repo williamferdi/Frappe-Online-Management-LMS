@@ -232,6 +232,30 @@ def quiz_results(course_external_id, person_external_id=None):
 	return _get("/sync/quiz-results", params, allow_missing=True)
 
 
+def course_grades(course_external_id, person_external_id=None):
+	"""Course results on one offering, or None when unconfigured.
+
+	Two totals come back per student and the choice between them is ours, not
+	the LMS's -- it does not know when a term ended:
+
+	- `current` counts only work that has been marked and released. It is the
+	  running average and it climbs as marking happens.
+	- `final` treats unreleased and unsubmitted work as zero, so it is only the
+	  truth once the course is over.
+
+	`awaitingMarking` and `gradedUnposted` are why a caller must look before it
+	records anything. The transcript is the one place a wrong figure is hardest
+	to undo, and the rule here is the same one the entrance exam already
+	follows: a mark nobody has finished is not a mark of zero.
+	"""
+	if not configured():
+		return None
+	params = {"courseExternalId": course_external_id}
+	if person_external_id:
+		params["personExternalId"] = person_external_id
+	return _get("/sync/grades", params, allow_missing=True)
+
+
 def _post(path, payload):
 	"""One call to the LMS. Raises on refusal, so a queued job records it."""
 	import requests

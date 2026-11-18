@@ -331,6 +331,13 @@ doc_events = {
 	},
 }
 
+scheduler_events["hourly"] = [
+	# Course results released in Campus LMS Lite, onto the transcript. Hourly
+	# and not every quarter of an hour like the exam pull: nobody is waiting on
+	# a transcript the way an admissions officer waits on an exam mark, and this
+	# one asks per finished offering rather than once.
+	"sibbcs.academic.mark_pull.pull_released_marks",
+]
 scheduler_events["daily"] = [
 	# Bills only on the day a term actually starts; per-term idempotent.
 	"sibbcs.finance.fees.run_term_tuition_scheduled",
