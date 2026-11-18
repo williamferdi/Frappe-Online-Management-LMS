@@ -3,6 +3,7 @@
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
+from frappe.utils import cint
 
 from sibbcs.academic.doctype.academic_term.academic_term import derive_term_dates
 
@@ -35,6 +36,33 @@ class TestAcademicTerm(FrappeTestCase):
 	def test_duration_must_be_at_least_one_month(self):
 		with self.assertRaises(frappe.ValidationError):
 			make_term("TST-TERM-C", duration_months=0)
+
+	def test_a_duration_typed_into_a_form_arrives_as_a_string(self):
+		"""Which is how this rule threw a 500 instead of refusing politely.
+
+		`validate` runs before the database layer casts anything, so a number
+		typed into the console form is still a `str` here. Comparing it with an
+		int raised TypeError, and the browser got a bare 500 with no message --
+		reported from production on 2026-11-18 while creating 2026-T6. The
+		int cases above all passed throughout, which is exactly why nobody saw
+		it: the form never sends an int.
+		"""
+		term = make_term(
+			f"TST-TERM-STR-{frappe.generate_hash(length=4)}",
+			duration_months="2",
+			start_date="2026-01-01",
+			end_date="2026-02-28",
+		)
+		self.assertEqual(cint(term.duration_months), 2)
+
+	def test_a_duration_of_zero_as_a_string_is_still_refused(self):
+		""" "0" is a non-empty string, so a bare falsiness check lets it past."""
+		with self.assertRaises(frappe.ValidationError):
+			make_term(f"TST-TERM-Z-{frappe.generate_hash(length=4)}", duration_months="0")
+
+	def test_a_duration_left_blank_is_refused(self):
+		with self.assertRaises(frappe.ValidationError):
+			make_term(f"TST-TERM-E-{frappe.generate_hash(length=4)}", duration_months="")
 
 	def test_registration_cannot_close_before_it_opens(self):
 		with self.assertRaises(frappe.ValidationError):

@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_days, getdate
+from frappe.utils import add_days, cint, getdate
 
 
 class AcademicTerm(Document):
@@ -21,7 +21,16 @@ class AcademicTerm(Document):
 				title=_("Invalid Term Dates"),
 			)
 
-		if not self.duration_months or self.duration_months < 1:
+		# `cint` first, and not just for tidiness. A value typed into a form
+		# arrives here as a string, because `validate` runs before the database
+		# layer casts anything -- so `self.duration_months < 1` compared a str
+		# with an int and raised TypeError, which the browser saw as a bare 500
+		# with no message. The dates above never had the problem because
+		# `getdate` was already coercing them.
+		#
+		# cint("") and cint(None) are both 0, so the emptiness check comes free:
+		# "0" is a non-empty string and would otherwise sail past `not`.
+		if cint(self.duration_months) < 1:
 			frappe.throw(
 				_("Duration (Months) must be at least 1. It drives tuition billing."),
 				title=_("Invalid Duration"),
