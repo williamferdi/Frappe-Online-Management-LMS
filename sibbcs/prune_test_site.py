@@ -43,6 +43,11 @@ TEST_PREFIXES = (
 	# Found by reading the helpers that make them, after the site reached 479
 	# terms with the list above in place. `GRD` alone was 227 of them.
 	"GRD", "GEN", "TPL", "TCN", "TIM", "TAP",
+	# 2026-11-18, after the suite reached 723s. Found by extracting every
+	# literal passed to `make_course`, `make_term` and `make_offering` across
+	# the suite rather than by guessing, which is how the list went stale
+	# twice. `TCB` alone was 262 courses. `TMP` covers `TMPX` by prefix.
+	"TTS", "TTR", "TMP", "TFE", "TCL", "TCB",
 )
 
 
@@ -211,3 +216,211 @@ def people(apply=False):
 	print("PEOPLE removed:", gone)
 	print(f"PEOPLE enrolments still pointing at nobody: {left}")
 	return gone
+
+
+# ---------------------------------------------------------------------------
+# what no prefix can reach
+# ---------------------------------------------------------------------------
+
+# Rows named by series -- FEE-2026-00231, INS-00144 -- can never be matched by
+# name, so they are found by what they point at instead. Each rule is a
+# doctype and the SQL that finds rows whose owner has already gone.
+ORPHAN_RULES = (
+	(
+		"Fee Invoice",
+		"""
+		select fi.name from `tabFee Invoice` fi
+		left join `tabProgram Enrollment` pe on pe.name = fi.program_enrollment
+		where fi.program_enrollment is not null and fi.program_enrollment != ''
+		  and pe.name is null
+		""",
+	),
+	(
+		"Fee Invoice",
+		"""
+		select fi.name from `tabFee Invoice` fi
+		left join `tabStudent` s on s.name = fi.student
+		where fi.student is not null and fi.student != '' and s.name is null
+		""",
+	),
+	(
+		"Course Grade Scheme",
+		"""
+		select cgs.name from `tabCourse Grade Scheme` cgs
+		left join `tabCourse Offering` co on co.name = cgs.course_offering
+		where co.name is null
+		""",
+	),
+	(
+		"Course Registration",
+		"""
+		select cr.name from `tabCourse Registration` cr
+		left join `tabCourse Offering` co on co.name = cr.course_offering
+		where co.name is null
+		""",
+	),
+	(
+		"Instructor",
+		# Fixture instructors only: the address is the test helper's, and
+		# nothing still being taught points at them.
+		"""
+		select i.name from `tabInstructor` i
+		where (i.email like '%%@example.invalid' or i.user like '%%@example.invalid')
+		  and not exists (
+			select 1 from `tabCourse Offering` co
+			where co.instructor = i.name or co.facilitator = i.name
+		  )
+		""",
+	),
+)
+
+# Frappe's own bookkeeping. On a site whose only purpose is to be rebuilt by
+# the next test run, none of it is evidence of anything: 40,000 Comments and a
+# Deleted Document graveyard are what five phases of fixtures leave behind.
+HOUSEKEEPING = ("Comment", "Version", "Deleted Document", "Error Log", "Activity Log")
+
+
+def leftovers(apply=False, keep=50):
+	"""Clear what `run()` and `people()` cannot name.
+
+	Run after both: every rule here finds rows by the absence of something
+	those two have just deleted, so running it first finds almost nothing.
+	"""
+	if frappe.local.site != SAFE_SITE:
+		raise Exception(f"refusing to run on {frappe.local.site}; this is for {SAFE_SITE}")
+
+	# A set per doctype, not a list: two rules can both catch the same row --
+	# a fee invoice whose enrolment AND whose student have gone -- and a
+	# report that counts it twice claims more rows than the table holds.
+	found = {}
+	for doctype, sql in ORPHAN_RULES:
+		names = frappe.db.sql_list(sql)
+		if names:
+			found.setdefault(doctype, set()).update(names)
+
+	# These two exist only because a test made them; there is no seeded
+	# announcement or message on this site. A tail is kept so a run in flight
+	# is not pulled out from under itself.
+	for doctype in ("Portal Message", "Announcement"):
+		names = frappe.get_all(
+			doctype, pluck="name", order_by="creation desc",
+			limit_start=keep, limit_page_length=100000,
+		)
+		if names:
+			found.setdefault(doctype, set()).update(names)
+
+	print("LEFTOVERS would remove:", {k: len(v) for k, v in found.items()})
+	if not apply:
+		print("LEFTOVERS dry run -- nothing deleted")
+		return found
+
+	frappe.flags.ignore_links = True
+	gone = {}
+	for doctype, names in found.items():
+		for name in names:
+			try:
+				frappe.delete_doc(
+					doctype, name, force=True, ignore_permissions=True,
+					ignore_missing=True, delete_permanently=True,
+				)
+				gone[doctype] = gone.get(doctype, 0) + 1
+			except Exception:
+				continue
+		frappe.db.commit()
+	print("LEFTOVERS removed:", gone)
+	return gone
+
+
+def housekeeping(apply=False):
+	"""Empty Frappe's own log tables. Nothing here is a record of the college."""
+	if frappe.local.site != SAFE_SITE:
+		raise Exception(f"refusing to run on {frappe.local.site}; this is for {SAFE_SITE}")
+
+	before = {}
+	for doctype in HOUSEKEEPING:
+		try:
+			before[doctype] = frappe.db.count(doctype)
+		except Exception:
+			continue
+	print("HOUSEKEEPING before:", {k: v for k, v in before.items() if v})
+
+	if not apply:
+		print("HOUSEKEEPING dry run -- nothing deleted")
+		return before
+
+	for doctype in before:
+		frappe.db.delete(doctype)
+	frappe.db.commit()
+
+	# Contacts, defaults and notification preferences are made per User and
+	# outlive the user that caused them.
+	# Ordered, not a dict for its own sake: the contacts have to go before the
+	# rows that hang off them, or those rows still have a parent and survive.
+	orphaned = (
+		(
+			"Contact (unattached)",
+			# Not "whose user has gone" -- that caught 277 of 6,154. The rest
+			# have no user AND no Dynamic Link to anything: made in passing by
+			# a fixture and never attached to a student or an application at
+			# all. On this site nothing else makes a contact.
+			"""
+			delete c from `tabContact` c
+			left join `tabDynamic Link` dl
+			       on dl.parent = c.name and dl.parenttype = 'Contact'
+			where ifnull(c.user, '') = '' and dl.name is null
+			""",
+		),
+		(
+			"Contact (user gone)",
+			"delete c from `tabContact` c left join `tabUser` u on u.name = c.user"
+			" where ifnull(c.user, '') != '' and u.name is null",
+		),
+		(
+			"Contact Email",
+			"delete ce from `tabContact Email` ce left join `tabContact` c"
+			" on c.name = ce.parent where c.name is null",
+		),
+		(
+			"Contact Phone",
+			"delete cp from `tabContact Phone` cp left join `tabContact` c"
+			" on c.name = cp.parent where c.name is null",
+		),
+		(
+			"Dynamic Link",
+			"delete dl from `tabDynamic Link` dl left join `tabContact` c"
+			" on c.name = dl.parent where dl.parenttype = 'Contact' and c.name is null",
+		),
+		(
+			"DefaultValue",
+			"delete dv from `tabDefaultValue` dv left join `tabUser` u on u.name = dv.parent"
+			" where dv.parenttype = 'User' and u.name is null",
+		),
+		(
+			"Notification Type Preference",
+			"delete n from `tabNotification Type Preference` n left join `tabUser` u"
+			" on u.name = n.parent where u.name is null",
+		),
+	)
+	for label, sql in orphaned:
+		try:
+			frappe.db.sql(sql)
+			frappe.db.commit()
+		except Exception as problem:
+			print(f"HOUSEKEEPING could not clear {label}: {str(problem)[:120]}")
+
+	after = {}
+	for doctype in HOUSEKEEPING:
+		try:
+			after[doctype] = frappe.db.count(doctype)
+		except Exception:
+			continue
+	print("HOUSEKEEPING after:", {k: v for k, v in after.items() if v})
+	return after
+
+
+def everything(apply=False):
+	"""The whole sweep, in the order the passes depend on each other."""
+	run(apply=apply)
+	people(apply=apply)
+	leftovers(apply=apply)
+	housekeeping(apply=apply)
