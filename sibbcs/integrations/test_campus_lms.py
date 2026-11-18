@@ -27,6 +27,32 @@ from sibbcs.integrations import campus_lms
 LIVE = {"campus_lms_url": "https://lms.example.invalid", "campus_lms_token": "t0ken"}
 
 
+def _ours(call):
+	"""Is this enqueue ours, or one of Frappe's own?
+
+	`frappe.delete_doc` enqueues `delete_dynamic_links` itself. A test about
+	what we send has no business counting that, and no business guessing at its
+	signature either.
+	"""
+	return str(call.args[0] if call.args else "").startswith("sibbcs.")
+
+
+def _inline_enqueue(method, **kwargs):
+	"""Run one of our queued jobs now, so a test can see what it sent.
+
+	The real job is enqueued `after_commit`, which a test rolling back never
+	reaches -- so without this the queue swallows the thing being tested.
+	Frappe's own jobs are left alone: passing their keywords on to a function
+	that does not take them is how this helper first broke the delete it was
+	meant to observe.
+	"""
+	if not str(method).startswith("sibbcs."):
+		return
+	for internal in ("queue", "enqueue_after_commit", "now", "timeout", "job_name", "at_front"):
+		kwargs.pop(internal, None)
+	frappe.get_attr(method)(**kwargs)
+
+
 class TestCampusLms(FrappeTestCase):
 	@classmethod
 	def setUpClass(cls):
@@ -377,3 +403,120 @@ class TestAnAdmittedApplicantKeepsTheirAccount(FrappeTestCase):
 	def test_a_student_who_never_applied_carries_no_old_key(self):
 		payload = campus_lms.person_payload("Student", self.student)
 		self.assertNotIn("replacesExternalId", payload)
+
+
+class TestADeletedRegistrationStopsTheEnrolment(FrappeTestCase):
+	"""Deleting a registration used to tell the LMS nothing.
+
+	The push fires on `on_update` and `after_insert`, and nothing fired on
+	delete -- so a purged or deleted registration left the student with an
+	**active** enrolment in a course the registrar no longer knows about. Found
+	while clearing TEST COURSE, whose enrolment had to be removed by hand.
+	"""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.term = make_term(f"TST-TR-{frappe.generate_hash(length=6)}", status="Open").name
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		suffix = frappe.generate_hash(length=6)
+		self.course = make_course(f"TTR {suffix[:4]}").name
+		self.offering = make_offering(self.course, self.term, status="Published").name
+		self.student = make_student(
+			f"Trash Student {suffix}", email=f"trash.{suffix}@example.invalid"
+		).name
+		self.enrollment = make_enrollment(self.student).name
+		self.registration = frappe.get_doc(
+			{
+				"doctype": "Course Registration",
+				"program_enrollment": self.enrollment,
+				"course_offering": self.offering,
+				"status": "Registered",
+			}
+		).insert(ignore_permissions=True).name
+
+	def _cut_the_fee_cycle(self):
+		"""Registering raises a Rs 350 fee invoice, and it links back.
+
+		The registration points at the invoice through
+		`registration_fee_invoice` and the invoice points back through
+		`course_registration`, so neither can be deleted first -- the same
+		cycle that refused 21 records when the DEMO data was cleared. One side
+		is cut, which is what makes the delete under test possible at all.
+		"""
+		for inv in frappe.get_all(
+			"Fee Invoice", filters={"course_registration": self.registration}, pluck="name"
+		):
+			frappe.db.set_value(
+				"Course Registration",
+				self.registration,
+				"registration_fee_invoice",
+				None,
+				update_modified=False,
+			)
+			frappe.delete_doc("Fee Invoice", inv, ignore_permissions=True)
+
+	def _delete(self):
+		"""Delete it with the queue running inline, so the payload is visible."""
+		self._cut_the_fee_cycle()
+		with patch.dict(frappe.conf, LIVE):
+			with patch.object(campus_lms, "_post") as post:
+				with patch("frappe.enqueue", side_effect=_inline_enqueue):
+					frappe.delete_doc(
+						"Course Registration", self.registration, ignore_permissions=True
+					)
+		return post
+
+	def test_the_enrolment_is_sent_inactive(self):
+		post = self._delete()
+
+		calls = [c for c in post.call_args_list if c.args[0] == "/sync/enrollments"]
+		self.assertEqual(len(calls), 1, "the deletion said nothing to the LMS")
+		sent = calls[0].args[1]
+		self.assertEqual(sent["status"], "inactive")
+		self.assertEqual(sent["externalId"], self.registration)
+		self.assertEqual(sent["personExternalId"], self.student)
+		self.assertEqual(sent["courseExternalId"], self.offering)
+
+	def test_it_is_never_a_delete_over_there(self):
+		"""The student may have done work on the course, and a withdrawal
+		already means inactive -- so a deletion meaning the same thing keeps
+		one answer to whether they can still get in."""
+		post = self._delete()
+
+		for call in post.call_args_list:
+			self.assertNotIn("delete", call.args[0])
+			self.assertNotEqual(call.args[1].get("status"), "deactivated")
+
+	def test_the_payload_is_built_before_the_job_runs(self):
+		"""A queued job cannot read a row that has gone. `queue` sends a
+		doctype and a name and lets `push` read the document, which is right
+		for a save and impossible for a delete."""
+		captured = {}
+
+		def capture(method, **kwargs):
+			if str(method).startswith("sibbcs."):
+				captured.update(kwargs)
+
+		self._cut_the_fee_cycle()
+		with patch.dict(frappe.conf, LIVE):
+			with patch("frappe.enqueue", side_effect=capture):
+				frappe.delete_doc(
+					"Course Registration", self.registration, ignore_permissions=True
+				)
+
+		self.assertIn("payload", captured, "the job was given a name to read, not a payload")
+		self.assertEqual(captured["payload"]["externalId"], self.registration)
+		self.assertFalse(frappe.db.exists("Course Registration", self.registration))
+
+	def test_nothing_is_sent_when_the_lms_is_not_configured(self):
+		self._cut_the_fee_cycle()
+		with patch.dict(frappe.conf, {"campus_lms_url": "", "campus_lms_token": ""}):
+			with patch("frappe.enqueue") as enqueue:
+				frappe.delete_doc(
+					"Course Registration", self.registration, ignore_permissions=True
+				)
+		ours = [c for c in enqueue.call_args_list if _ours(c)]
+		self.assertEqual(ours, [], "something was sent with no LMS configured")

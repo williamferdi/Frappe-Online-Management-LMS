@@ -283,6 +283,11 @@ doc_events = {
 			"sibbcs.integrations.campus_lms.on_registration_change",
 		],
 		"after_insert": "sibbcs.integrations.campus_lms.on_registration_change",
+		# A delete has to be told too, or the student keeps an active enrolment
+		# in a course the registrar no longer knows about. `on_trash` and not
+		# `after_delete`: the payload has to be built while the document still
+		# exists, and a queued job cannot read a row that has gone.
+		"on_trash": "sibbcs.integrations.campus_lms.on_registration_trash",
 	},
 	"Student": {
 		"on_update": "sibbcs.integrations.campus_lms.on_student_change",

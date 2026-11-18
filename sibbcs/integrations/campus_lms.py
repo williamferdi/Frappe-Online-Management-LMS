@@ -387,6 +387,33 @@ def queue(doctype, name):
 	)
 
 
+def send(path, payload):
+	"""Post one prepared payload. Runs in a background job."""
+	if not configured():
+		return
+	_post(path, payload)
+
+
+def queue_payload(path, payload):
+	"""Queue a payload that was built before the job ran.
+
+	`queue` sends a doctype and a name and lets `push` read the document in the
+	job, which is right for a save: the job then sends what was actually
+	stored. It cannot work for a deletion -- by the time the job runs there is
+	nothing left to read -- so a deletion has to say what it means while the
+	document is still in front of it.
+	"""
+	if not configured():
+		return
+	frappe.enqueue(
+		"sibbcs.integrations.campus_lms.send",
+		queue="short",
+		enqueue_after_commit=True,
+		path=path,
+		payload=payload,
+	)
+
+
 # ---------------------------------------------------------------------------
 # hook handlers
 # ---------------------------------------------------------------------------
@@ -406,3 +433,37 @@ def on_offering_change(doc, method=None):
 
 def on_registration_change(doc, method=None):
 	queue("Course Registration", doc.name)
+
+
+def on_registration_trash(doc, method=None):
+	"""A deleted registration is not an enrolment any more. Say so.
+
+	Without this, deleting or purging a registration left the student with an
+	**active** enrolment in a course the registrar no longer knows about: the
+	push fires on `on_update` and `after_insert`, and nothing fired on delete.
+	Found while clearing TEST COURSE, whose LMS enrolment had to be removed by
+	hand afterwards.
+
+	**Inactive, not deleted.** There is no delete over there and there should
+	not be: the student may have done work on the course, and a withdrawal
+	already means inactive, so a deletion meaning the same thing keeps one
+	answer to "can they still get in".
+
+	`/sync/enrollments` upserts, so this can in principle *create* an inactive
+	enrolment where none existed. It cannot invent one out of nothing -- the
+	endpoint 404s unless both the person and the course are already over there
+	-- and an inactive enrolment grants no access, which is the same outcome a
+	withdrawal has always had.
+	"""
+	if not doc.student or not doc.course_offering:
+		return
+	queue_payload(
+		"/sync/enrollments",
+		{
+			"externalId": doc.name,
+			"personExternalId": doc.student,
+			"courseExternalId": doc.course_offering,
+			"role": "student",
+			"status": "inactive",
+		},
+	)
