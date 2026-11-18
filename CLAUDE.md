@@ -1,7 +1,8 @@
 # SIBBCS ERP — `sibbcs` app
 
 University ERP for South India Baptist Bible College & Seminary (Online), Coimbatore.
-Built on Frappe Framework v15 + Frappe LMS. Scale: 200 students → 1,000 in 2 years.
+Built on Frappe Framework v15, with teaching in **Campus LMS Lite** at `lms.sibbc.org`.
+Scale: 200 students → 1,000 in 2 years.
 
 Full spec: `SIBBCS_ERP_Architecture.md`. This file is the always-in-context summary —
 read it before touching anything, and keep it current as phases land.
@@ -13,7 +14,7 @@ read it before touching anything, and keep it current as phases land.
 | Layer | Choice | Why |
 |---|---|---|
 | Platform | **Frappe Framework v15** | Owns DocTypes, workflows, roles, web forms, portal |
-| Learning delivery | **Frappe LMS** | Courses, lessons, quizzes, assignments, batches, live class links, certificates |
+| Learning delivery | **Campus LMS Lite** at `lms.sibbc.org` | A separate Node/Postgres application. Courses, modules, pages, assignments, quizzes and marking all live there — see §10 |
 | Custom app | **`sibbcs`** | Admissions, enrollment, registration, fees, grading, formation, degree audit |
 | Payments | **Razorpay** (via `payments` app) | Native Frappe integration exists |
 | Accounting | ERPNext — **deferred to Phase 8, optional** | Only for GST invoices / P&L. Not needed for "who paid what" |
@@ -70,7 +71,7 @@ Modules: `Academic` (Phase 1, built), plus `Admissions`, `Formation`, `Finance`,
     `min_hours`
 - **`Course`** — `course_code` (docname), `course_title`, `credits`, `level` (1–4),
   `course_type`, `department` (BIST/THST/CHMI/HIST/REMI/GEST), `default_format`,
-  `programs`, `lms_course` → LMS Course, `is_active`
+  `programs`, `is_active`. The `lms_course` link went with the bundled app in Phase 7
   - child **`Course Prerequisite`** — `prerequisite_course`, `is_hard`
   - child **`Course Program Link`** — `program`
 - **`Academic Term`** — `term_name` (docname, e.g. `2026-T4`), `term_code`, `start_date`,
@@ -78,7 +79,7 @@ Modules: `Academic` (Phase 1, built), plus `Admissions`, `Formation`, `Finance`,
   `duration_months` (default 2), `status` (Planned/Open/Active/Closed)
 - **`Course Offering`** — docname `{course}-{term}`; `course`, `term`, `format`,
   `instructor`, `facilitator`, `zoom_days`, `zoom_time`, `capacity`, `enrolled_count`,
-  `lms_batch` → LMS Batch, `status` (Draft/Published/Running/Completed)
+  `status` (Draft/Published/Running/Completed). `lms_batch` went in Phase 7
   - child **`Course Offering Weekday`** — `weekday` → Weekday
 - **`Instructor`** — `INS-.#####`; `full_name`, `user`, `email`, `mobile`,
   `qualification`, `courses_qualified`, `is_facilitator`, `is_active`
@@ -132,22 +133,24 @@ hard gate with no code change.
 **Level 4 gate**: `Level Promotion` refuses `to_level = 4` until every Level 3 course for
 the program is completed and passed.
 
-### LMS sync — `sibbcs/academic/lms_sync.py`
+### LMS sync — `sibbcs/integrations/campus_lms.py`
 
-`Course Registration → Registered` ensures an LMS Course, ensures/creates an LMS Batch for
-the offering, and enrolls `student.user`. **Two records are needed, not one**: `LMS Batch
-Enrollment` grants batch membership, but `LMS Enrollment` is what actually opens the
-course — batch membership alone leaves the student staring at an empty dashboard. Sync
-never raises into the registration: a misconfigured LMS must not undo a registration the
-registrar accepted. An hourly `sync_pending` sweep retries anything left behind.
+Students, offerings and registrations are **pushed** to Campus LMS Lite; released marks
+are **pulled** back. See §10 for the whole picture. `academic/lms_sync.py` was the
+equivalent for the bundled `lms` app and went in Phase 7 with that app.
+
+Each push is a background job enqueued after commit, so a registrar saving a record never
+waits on another system nor fails because it is down.
 
 ### Registration, payment and promotion — Phase 5
 
-**The course opens on payment, not on Register.** `Course Registration.maybe_sync_lms`
-now also requires `registration_fee_settled()` — the invoice Paid, Waived or Cancelled.
-Settling it fires the sync from `Fee Invoice.refresh_payment_state`, not from a doc hook:
-payment almost always arrives as a Payment Entry allocation, which uses `db_set` and so
-never runs `on_update`.
+**The course opens on payment, not on Register.** The rule lived in
+`Course Registration.maybe_sync_lms`, which gated enrolment into the bundled LMS; Phase 7
+moved it to **`campus_lms.registration_payload`**, which sends an unpaid registration as
+`inactive`. Settling the invoice re-pushes from `Fee Invoice.refresh_payment_state`, not
+from a doc hook: payment almost always arrives as a Payment Entry allocation, which uses
+`db_set` and so never runs `on_update`. The gate only ever narrows — a settled fee does
+not make a withdrawn registration active.
 
 **The gate is only as good as the gateway behind it.** With none configured it would shut
 everyone out, so it is a setting and `require_fee_for_lms_access` is currently **0** on
@@ -216,48 +219,56 @@ Review) is gated on it because the exam is sat inside the LMS.
 - **No password is ever emailed** — the invite carries a `/update-password?key=` link.
   `User._reset_password` builds that URL with `get_url()`, which appends `:8000` here, so
   the key is kept and the address rebuilt through `gateway.public_url()`.
-- The applicant gets **`LMS Student` only**; `Student` is granted at conversion.
+- **The applicant gets no role here at all.** They used to be granted `LMS Student`, a
+  role belonging to the bundled app; Phase 7 removed both. The exam is sat in Campus LMS
+  Lite under its own account, which `enroll_in_exam` creates and whose activation link
+  this module emails — the LMS has no SMTP of its own.
 
-Where the exam lives is config, not code — `entrance_exam_url` wins over
-`entrance_exam_lms_course`; with the course set the applicant is also enrolled in it.
-With **neither set the account is still created** and the step reports why nothing was
-sent, rather than mailing a dead link. **Neither is set on `online.sibbc.org` yet.**
+Where the exam lives is config, not code — `entrance_exam_url` wins for an exam hosted
+outside the LMS entirely; otherwise `campus_lms_url`. With **neither set the account is
+still created** and the step reports why nothing was sent, rather than mailing a dead
+link. `entrance_exam_lms_course` named a course in the bundled app and is no longer read.
 
 ### The preliminary orientation course
 
-Step 12 is delivered as an **LMS course**, not a PDF. `Reading Manual.delivery` is
-`Document` or `LMS Course`; on the course path the candidate is enrolled, and
-`/manual-reading` refuses their signature until **every lesson** is complete.
+Step 12 is delivered as a **course**, not a PDF. `Reading Manual.delivery` is `Document`
+or `LMS Course`; on the course path the candidate is enrolled in Campus LMS Lite, and
+`/manual-reading` refuses their signature until **every required item** is complete.
 
 That distinction is the point: onboarding is gated on this step, and acknowledging a PDF
 is one click — it records that somebody pressed a button, not that anybody read anything.
-A course records a lesson at a time.
+A course records an item at a time.
 
-`setup/phase2j_preliminary_course.py` imports the college's two handbooks into
-**`m-div-preliminary-orientation`** — 5 chapters, 49 lessons, both PDFs attached. It
-reflows the PDF's hard line breaks back into paragraphs by line width, since extracted
-text has one line per *visual* line and paragraph boundaries are gone.
+**The course is `ADMISSIONS-ORIENTATION` in Campus LMS Lite** — 5 modules, 49 pages,
+migrated from the bundled app's `m-div-preliminary-orientation` in Phase 6.
+`Reading Manual.lms_course` still holds that old slug, which
+`campus_lms.MOVED_COURSES` maps to the course over there; the field is **Data**, not a
+Link, because the app it pointed at is gone. `manuals.manual_course` validates it against
+that mapping rather than asking whether an LMS Course exists — the old check would answer
+False for every manual once the app was uninstalled.
 
-**The handbooks say Canvas.** The college wrote them for Canvas; the courses run here.
-`setup/phase2l_lms_naming.py` corrects the lessons — mostly a rename, but six sentences
-asserted Canvas behaviour this LMS does not have (a mobile app, `Account → Settings`, an
-emailed password, an enrolment invitation, an Announcements section, and a claim that the
-seminary cannot reset a password — which is false here). Renaming those would have left
-the handbook confidently wrong rather than merely out of date, so they are rewritten and
-listed in `REWRITES` for the college to review. **The attached PDFs are untouched** and
-still say Canvas.
+`manuals.course_progress` asks `/sync/progress` rather than counting rows: the LMS knows
+which items ask something of a candidate and which are only there to be read past. An
+unmapped course, or a person the LMS has never heard of, is reported and treated as **not
+complete** — a signature must never be let through on an absence of evidence.
+
+**The two handbook PDFs are attached to the `Reading Manual`.** They were attached to the
+bundled LMS course, and all 49 migrated pages link to them by absolute URL
+(`https://online.sibbc.org/files/...`), so deleting that course would have cascade-deleted
+the files and broken every one of those links. Re-homed in Phase 7 before the uninstall.
 
 **The Formation Handbook is only partly imported, on purpose.** Its Level 1-4 sections are
 reflection and goal-setting forms filled at the start of each level *with a mentor*.
 Importing them would have a new admit writing Level 4 goals before beginning Level 1,
 guided by a mentor not assigned until Phase 6. Only the Welcome Note, "Before You Begin"
-and the Formation Covenant are in. Sections 9-12 (FAQs, Your Mentor & You, Choosing a
-Mentor, Suggested Practices) are not level-bound either and can be added to
-`HANDBOOK_PARTS`.
+and the Formation Covenant are in.
 
-`course_progress()` counts completed lessons against lessons that exist rather than
-reading `LMS Enrollment.progress`, which is a rounded figure the LMS maintains and can
-read 100 with a lesson skipped.
+**The handbooks said Canvas.** The college wrote them for Canvas; six sentences asserted
+Canvas behaviour this college does not have (a mobile app, `Account → Settings`, an
+emailed password, an enrolment invitation, an Announcements section, and a claim that the
+seminary cannot reset a password — false here). Those were rewritten before the migration,
+so the pages now in Campus LMS Lite carry the corrections. **The attached PDFs are
+untouched** and still say Canvas.
 
 ### Manual Reading and Onboarding — `sibbcs/admissions/manuals.py`, `conversion.onboard`
 
@@ -285,63 +296,39 @@ intake term. A **waived** admission fee counts as settled: a waiver is a decisio
 at step 10, not a payment, so `admission_fee_paid` stays false and a fee-paid-only check
 would block every waived candidate.
 
-### The entrance exam — `setup/phase2m_entrance_exam.py`
+### The entrance exam
 
-Three essays in the LMS course `entrance-exam`: 25 marks each, **75 total, pass at 40%**,
-one attempt. The course was empty until this; candidates enrolled at step 6 were being sent
-somewhere with nothing in it.
+Three essays, **25 marks each, 75 total, pass at 40%**, one attempt, marked by hand.
+It lives in Campus LMS Lite as `ADMISSIONS-ENTRANCE-EXAM` — a `short_answer` quiz with no
+answer key, which that system leaves `pending_review` for a human. Ramsem is enrolled as
+`teacher`; the marking rubric is an **unpublished page**, visible to markers and not to
+candidates. Migrated from the bundled app's `entrance-exam` course in Phase 6.
 
-**Open Ended, and the LMS is strict.** `LMS Quiz.validate_open_ended_questions` refuses to
-mix Open Ended with any other type in one quiz — fine for an all-essay paper. The
-consequence: an open-ended answer scores **0 at submission** and stays there until an
-instructor marks it, so `passing_percentage` judges the *marked* script, not the submitted
-one. Every candidate reads 0/75 until somebody grades them. That is the LMS working, not a
-fault.
+**Results are pulled, not pushed.** A cron every 15 minutes runs
+`sibbcs.admissions.entrance_exam.pull_marked_exams`, which asks `/sync/quiz-results` for
+marked attempts and writes the `Qualifying Exam Result`. Pulling keeps every credential on
+this side and retries itself; an officer may wait a few minutes after marking, which is
+the price. **That job must be registered**, and it was declared in `hooks.py` for a while
+without being synced into `Scheduled Job Type`, so nothing pulled at all —
+`sync_jobs()` lives in
+`frappe.core.doctype.scheduled_job_type.scheduled_job_type`, not `frappe.utils.scheduler`.
 
-**The lesson is authored as EditorJS `content` with the quiz as a block inside it.**
-`Lesson.vue` renders `content` when set and falls back to `body` only when it is not —
-and the fallback branch is the only one that passes `quizId`. So the moment anyone opens
-the lesson in the LMS editor, `content` appears, `body` stops being read, and a quiz
-attached through `quiz_id` disappears with it. The builder rewrites `content` whenever the
-quiz block is missing, so an editor save cannot strand either half.
+Two rules in `admissions/entrance_exam.py` are the reason that module was kept rather
+than rewritten:
 
-**The quiz resource was cached across component mounts — we patched the LMS.**
-`Quiz.vue` built its resource with `cache: ['quiz_with_questions', quizName]`, and
-frappe-ui's `createResource` returns the **first** component's resource object for a given
-cache key, callbacks and all. A second mount got `quiz.data` straight from the cache while
-its own `questionsByName` and `questions` refs stayed empty, because `transform` and
-`onSuccess` were still writing to the first instance's closures. The template read
-`questions.length` as 0 and rendered *"This quiz has no questions available yet."* for the
-rest of the page session — so the exam worked once per page load and was empty every time
-after. A hard refresh cleared it, because `cached` is a module-level object. Our patch
-drops the cache key. See **Patches to the vendored LMS** below.
+- essays map **positionally** onto `ESSAYS`; an open-ended question carries no key to
+  match on, and a submission without exactly three answers is reported, not guessed at.
+- **Sat is not marked.** The LMS records a submission the moment a candidate presses
+  submit, unmarked. Recording that would tell the college they scored nothing, so the
+  pull refuses it and the screen says "Sat, not marked".
 
-**`LMS Question` has no `question_detail`.** The whole prompt goes in `question`, a Text
-Editor. A prompt passed as `question_detail` is silently dropped on insert and raises
-`Unknown column` on update — which left the essays holding nothing but their titles.
+The pass mark is the college's (`Qualifying Exam Result.pass_mark`, **40**), never the
+quiz's own figure. `Qualifying Exam Result.total` is a **percentage** — 45 of 75 stores as
+60.0 — so a raw mark and the stored figure are not meant to match.
 
-**`instructor_content` is EditorJS JSON, never HTML.** `Lesson.vue` evaluates
-`JSON.parse(lesson.data.instructor_content)` **inside the template, unguarded** — anything
-that is not JSON throws during render and the whole lesson comes out blank. The same
-condition needs `blocks.length > 1`, so a single block is silently invisible. A test builds
-the document and checks both.
-
-**Rubrics are not in the questions.** A candidate reading the mark scheme is not sitting
-the same exam, so they live in the lesson's `instructor_content`, which the LMS shows only
-to instructors and moderators. The source PDF is attached to the course as a **private**
-file for the same reason. Tests assert no rubric fragment leaks into a question.
-
-**`Qualifying Exam Result` records both papers.** It was built for four subject scores
-averaged into a percentage; the real exam is three essays out of 75. `compute_total` uses
-the essay marks when any are present and the old four-subject mean otherwise, so results
-already recorded keep the answer they had. `pass_mark` now defaults to **40**.
-
-**`tidy()` and `rebuild()` put it back after a hand-edit.** Building a quiz in the LMS UI
-is easy to get wrong — the rubric bands read like separate questions, and deleting a quiz
-leaves the lesson pointing at nothing. `survey()` reports loose quizzes, orphan questions,
-dangling lesson pointers and empty lessons; `tidy(apply=True)` clears them and
-`rebuild()` follows with a fresh build. **Nothing with a submission against it is ever
-removed** — a candidate's answers are the one thing here that cannot be rebuilt.
+**A result can also be entered by hand** through `entrance_exam.record`, and was for
+APP-2026-00015: its LMS rows were never marked, so the archive shows 0/75 while
+QER-2026-00002 holds the real 20/20/25.
 
 ### Production was cleared of test data on 31 Aug 2026
 
@@ -421,8 +408,8 @@ repeat the frappe-ui failure where one component inherited another's callbacks.
 **Route guards are cosmetic.** `RequireAuth` only decides what to render;
 `setup/permissions.py` and each endpoint's own checks are the boundary.
 
-**Development.** `yarn dev` proxies `/api`, `/assets`, `/files`, `/app`, `/login`
-and `/lms` to `FRAPPE_URL` (default `http://127.0.0.1:8000`) with the site named
+**Development.** `yarn dev` proxies `/api`, `/assets`, `/files`, `/app` and `/login`
+to `FRAPPE_URL` (default `http://127.0.0.1:8000`) with the site named
 in `FRAPPE_SITE` (default `test.local`) — the bench is DNS multi-tenant, so a
 request on localhost must say which site it means. Develop against `test.local`
 with `demo_data.seed`, not production.
@@ -481,10 +468,12 @@ Phase 2 completed the nine sections. **Two new DocTypes only**, built by
 **To Do and Calendar are derived, never stored.** An unpaid invoice is already a
 thing to do and a live class is already a calendar entry; writing them down again
 means keeping two copies of one fact in step, and the copy is the one that goes
-stale. `agenda.todo()` assembles from Fee Invoice, blocked registrations, LMS
-Assignment minus submissions, and open registration windows. `agenda.calendar()`
-adds LMS Live Class, LMS Batch Timetable, the weekly recurrence expanded from
-`Course Offering.zoom_days` + `zoom_time`, fee due dates and term milestones.
+stale. `agenda.todo()` assembles from Fee Invoice, blocked registrations and open
+registration windows. `agenda.calendar()` is the weekly recurrence expanded from
+`Course Offering.zoom_days` + `zoom_time`, fee due dates and term milestones. The
+bundled LMS's assignments, live classes and batch timetable were sources here too and
+went in Phase 7 -- all three were empty on the live site, because the college schedules
+its Zoom sessions on the Course Offering.
 
 **Read state is its own DocType, not a child row.** A thousand students marking one
 notice as read would otherwise rewrite that notice a thousand times, every write
@@ -954,28 +943,38 @@ A resubmit is refused, with advice rather than a raw error, when nothing is
 outstanding, the application has moved past `uploads.OPEN_STATES`, there is no
 email address, or no outgoing mail account is configured.
 
-### Patches to the vendored LMS
+### The bundled `lms` app is gone — 18 Nov 2026
 
-`bench update` pulls a fresh `apps/lms` and silently discards anything we changed there,
-so every LMS patch is kept as a diff in `deploy/lms-patches/` and re-applied by:
+Phase 7 removed it: uninstalled from both sites, removed from the bench, and the 69
+DocTypes and 777 rows dropped. `installed_apps` is now `frappe`, `payments`, `sibbcs`,
+and `/lms` on this site is a 404.
 
-```
-bash deploy/apply-lms-patches.sh
-cd apps/lms/frontend && NODE_OPTIONS=--max-old-space-size=5120 yarn build
-```
+**Everything of the college's was moved first, and verified before the uninstall:**
 
-`NODE_OPTIONS` is not optional — the default 2 GB node heap dies with *"Reached heap
-limit"* part way through `rendering chunks`, and the half-written bundle is worse than no
-build at all. The build takes about 4½ minutes.
+- 135 lessons of taught content → four **unpublished** `LEGACY-` courses in Campus LMS
+  Lite (History of Christianity 86 pages, New Testament 30, Ramsem's church-history 26,
+  Hermeneutics 3). Unpublished and prefixed so the registrar can never match an enrolment
+  onto an archive, and so they do not compete with the courses being authored by hand.
+- the orientation course and the entrance exam → `ADMISSIONS-ORIENTATION` (49 pages) and
+  `ADMISSIONS-ENTRANCE-EXAM`.
+- the three original entrance-exam scripts → `~/sibbcs-archive/entrance-exam-scripts-*.json`.
+- the two handbook PDFs → re-attached to the `Reading Manual`.
 
-Editing the `.vue` file changes nothing until the bundle is rebuilt, which is its own
-trap: the source looks right and the site still serves the old behaviour.
-`TestVendoredLMSPatches` in `sibbcs/admissions/test_entrance_exam.py` checks **both** the
-source and the built bundle, so a lost patch or a forgotten rebuild fails a test run
-rather than an applicant's exam.
+Archives on the server, all in `~/sibbcs-archive/`: the exam scripts, the Frappe-side
+teaching-layer rows (`teaching-layer-*.json`), the `Course.lms_course` /
+`Course Offering.lms_batch` pairs (`lms-links-*.json`), and a full pre-uninstall database
+dump kept out of the backup rotation.
 
-The LMS frontend registers a **service worker**, so a browser can hold the previous bundle
-for a load or two after a rebuild.
+So the LMS patch set, `deploy/apply-lms-patches.sh`, the
+`NODE_OPTIONS=--max-old-space-size=5120` frontend build and the service-worker staleness
+that went with it are all **no longer relevant**. `bench update` has nothing of ours to
+discard any more.
+
+**Two things to know if this is ever revisited.** `bench migrate` deletes a DocType whose
+JSON has gone, but leaves the physical table — those are dropped separately, after
+checking each is empty. And `bench remove-app` shells out to `bench` by name, so it needs
+`~/.local/bin` on PATH in a non-interactive shell; it also refuses while the app is
+installed on *any* site, which is why the test site had to be uninstalled first.
 
 ### Step order — a position, not an identity
 
@@ -1028,8 +1027,10 @@ marking happens, and a `Qualifying Exam Result` is what we make of it.**
   submit, every open-ended answer at zero. Recording that would tell the college
   they scored nothing, so `pull` refuses it and the screen says "Sat, not
   marked".
-- A `doc_events` hook on `LMS Quiz Submission` means marking in the course
-  reaches admissions **on the same save**. Everything in it is best-effort: an
+- **Marks are pulled on a schedule, not pushed.** A `doc_events` hook on
+  `LMS Quiz Submission` used to carry marking into admissions on the same save.
+  The exam left this system in Phase 6, so a cron every 15 minutes asks the LMS
+  instead -- see "The entrance exam" above. Everything in it is best-effort: an
   admissions bookkeeping failure must never stop somebody marking a quiz.
 - The pass mark is the college's (`Qualifying Exam Result.pass_mark`, currently
   **40**), never the quiz's own `passing_percentage`, which the LMS sets for its
@@ -1266,14 +1267,9 @@ Recorded so nobody "corrects" them back:
   cells, and even `exec(open(...).read())` puts module-level names in *locals*, invisible
   to nested function scopes — so a script with helper functions raises `NameError`. Use
   `bench execute <dotted.path>` for anything real; keep console one-liners function-free.
-- **`LMS Batch.validate_batch_time` rejects `start_time >= end_time`.** Deriving both ends
-  of the class window from `Course Offering.zoom_time` produced a zero-length slot and
-  broke every batch creation. `zoom_time` is the *start* only; `lms_sync` adds a two-hour
-  default. (Compounded by the Time-field default above — the field is never empty, so this
-  failed silently on every offering, not just scheduled ones.)
-- **Batch membership is not course access.** `LMS Batch Enrollment` alone leaves a student
-  with an empty dashboard; `LMS Enrollment` is the record that opens the course. Guarded
-  by `test_student_is_enrolled_in_the_course_itself`.
+- **`zoom_time` is the start of a class, not a window.** The bundled LMS needed both ends
+  and `lms_sync` added a two-hour default; that app is gone, but the field still carries
+  only a start, which `agenda._weekly_sessions` expands.
 - **Renaming a field on a standard DocType takes three steps, not one.**
   `frappe.rename_field` is not enough: the JSON on disk is the source of truth and the
   phase builders skip DocTypes that already exist, so the next `bench migrate` restores
@@ -1341,7 +1337,7 @@ bench at `/home/theiox/frappe-bench`, database `sibbcs_erp`.
 | Node | 22.23.2 via nvm (LMS requires ≥22; Frappe only ≥18) |
 | MariaDB | 11.8.6, `utf8mb4` / `utf8mb4_unicode_ci` |
 | Redis | 8.0.5 · **nginx** 1.28.3 · **supervisor** 4.3.0 |
-| Apps | frappe 15.117.0, payments 0.0.1, lms 2.61.0, sibbcs 0.0.1 |
+| Apps | frappe 15.117.0, payments 0.0.1, sibbcs 0.0.1 (lms removed 18 Nov 2026) |
 
 - `bench start` runs as the **`sibbcs-bench`** systemd unit (`Restart=always`, enabled at
   boot). `systemctl restart sibbcs-bench` after changing Procfile-level things.
@@ -1423,7 +1419,7 @@ application deadlines and flagged for review).
 ## 9. Public access — live
 
 **https://online.sibbc.org** is reachable from the internet and serves Desk, `/login`,
-`/lms` and the API. DNS: `online.sibbc.org` → `14.98.31.75`; `sibbc.org` stays on the
+and the API. DNS: `online.sibbc.org` → `14.98.31.75`; `sibbc.org` stays on the
 marketing host `216.198.79.1`. The gateway forwards 80, 443 and 2222 to `192.168.7.213`.
 The host has no local firewall (ufw inactive, iptables ACCEPT).
 
@@ -1432,3 +1428,80 @@ The host has no local firewall (ufw inactive, iptables ACCEPT).
 bench user. `bench start` runs under the `sibbcs-bench` systemd unit with
 `Restart=always`, fronted by nginx. Switch before go-live: the dev server is
 single-process and will not hold 200+ concurrent students.
+
+---
+
+## 10. Campus LMS Lite — where teaching happens
+
+A separate application, not a Frappe app: **Node 24 / Fastify 5 / Drizzle / PostgreSQL**
+with a React front end, live at **https://lms.sibbc.org**, source in
+`/home/theiox/campus-lms-lite` on branch `Claude-for-online-erp`. The database is a
+**Neon** instance in `us-east-2` — about **265 ms** away, which is why nothing here reads
+it per-row on a page that draws a list.
+
+Served by the same nginx. Its TLS settings **must mirror the frappe-bench block exactly**
+(`ssl_protocols`, `ssl_ciphers`, `ssl_ecdh_curve`, `ssl_prefer_server_ciphers`,
+`ssl_session_tickets`) and must **not** set `http2 on`: settings come from the *default
+server* per listening socket, and BoringSSL (Chrome, Edge, Android) aborts on an
+inconsistency with `illegal_parameter` while OpenSSL clients accept it happily. A curl or
+`openssl s_client` check will pass while every browser fails — verify with a browser
+engine.
+
+Runs as the **`campus-lms`** systemd unit from `server/dist`, so a code change needs
+`npm run build` *then* `sudo systemctl restart campus-lms`. Restarting before the build
+finishes silently leaves the old bundle running.
+
+### The boundary
+
+**Frappe is the registrar; the LMS teaches.** Nothing is enrolled twice and the two never
+argue about who is on a course.
+
+- **Pushed** by `integrations/campus_lms.py`: Student, Instructor, Course Offering and
+  Course Registration, as `/sync/people`, `/sync/courses`, `/sync/enrollments`. Queued
+  after commit, never inline. Silent until both `campus_lms_url` and `campus_lms_token`
+  are in site config.
+- **Pulled**: `/sync/progress` for the orientation course and `/sync/quiz-results` for
+  the entrance exam. A 404 from either means "the LMS has never heard of this person",
+  which is an answer and not a fault — `_get(..., allow_missing=True)` returns None.
+  Asking by application number legitimately 404s twice over: before an account exists,
+  and again after conversion re-files the person under their student number.
+- **A released mark comes back** through `api/lms_bridge.post_final_mark`, which calls
+  `gradebook.sync_components` first and then `academic_api.save_grades`. Sending one
+  bucket without syncing first would make it the *whole* set — 90 in a 60%-weighted
+  bucket would land as a final 54.
+- **`external_id` is the join.** A Student is `SIB-…`, an applicant is their
+  `APP-…` number, and `/sync/people` takes `replacesExternalId` so conversion moves the
+  key rather than making a second account. Without that it correctly *refuses* an address
+  already linked.
+
+**An offering taught there must be graded as one bucket.** `gradebook.use_single_component`
+puts it on a single **Coursework** component worth 100%, because `compute_grade` holds the
+letter back until *every* bucket is marked — so with several buckets one release can never
+finish a transcript. `0507-2026-T1` (6 buckets) and `DEMO BIST502-DEMO-TERM-B` (5) are
+**not** in that shape yet; neither has registrations.
+
+### Things that cost time
+
+- **Applicants are isolated by enrolment, not by a permission.** `GET /courses` forces
+  `scope: "mine"` for anyone who is not an admin, and there is no self-signup — so an
+  applicant enrolled only in the admissions courses sees only those. Verified on a trial
+  candidate: 2 of 6 courses.
+- **An unpublished page is dropped from the student view entirely**, items and all, so the
+  exam's marking rubric neither shows nor counts: the course reports `required: 2` where
+  the module holds three items.
+- **`Referrer-Policy: no-referrer`** — helmet's default — breaks YouTube and Vimeo embeds
+  with "Video unavailable" (Error 153). Set to `strict-origin-when-cross-origin`.
+- **The importer keys a page on (course, title)**, so two lessons sharing a title land on
+  one page and the second overwrites the first, silently. `_course_export` numbers repeats
+  and reports what it numbered.
+- **PGlite is single-process**: the local CLI cannot run while the dev server is up. Tests
+  use `pglite:memory`, never Neon.
+- **No SMTP.** The LMS sends nothing; `/sync/people` returns an `activationUrl` on
+  creation and Frappe emails it.
+
+### Service tokens
+
+`npm run create-service-token` prints the token once and stores only its SHA-256. A token
+authenticates as a *service*, not a person, and deliberately **cannot author pages or
+quizzes** — that is session-only, so the Phase 6/7 content migration had to export from
+Frappe and import through the LMS's own CLI rather than widening the token.
