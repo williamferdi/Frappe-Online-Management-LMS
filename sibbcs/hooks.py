@@ -292,6 +292,10 @@ doc_events = {
 	"Student": {
 		"on_update": "sibbcs.integrations.campus_lms.on_student_change",
 		"after_insert": "sibbcs.integrations.campus_lms.on_student_change",
+		# Deactivates the account over there rather than leaving one that can
+		# still sign in. Sends `onlyIfPresent`, so a student who was never
+		# pushed does not have an account created on the way out.
+		"on_trash": "sibbcs.integrations.campus_lms.on_student_trash",
 	},
 	# The scoping memo in academic.permissions is derived from these two, so
 	# it is dropped whenever either changes.
@@ -315,7 +319,12 @@ doc_events = {
 			"sibbcs.academic.permissions.clear_scope_cache",
 			"sibbcs.integrations.campus_lms.on_offering_change",
 		],
-		"on_trash": "sibbcs.academic.permissions.clear_scope_cache",
+		"on_trash": [
+			"sibbcs.academic.permissions.clear_scope_cache",
+			# Archives the course over there. Unpublished would read as "not
+			# ready yet", which is the opposite of what happened.
+			"sibbcs.integrations.campus_lms.on_offering_trash",
+		],
 	},
 	"Fee Invoice": {
 		"on_update": "sibbcs.finance.hooks_handlers.open_course_when_fee_settled",

@@ -520,3 +520,89 @@ class TestADeletedRegistrationStopsTheEnrolment(FrappeTestCase):
 				)
 		ours = [c for c in enqueue.call_args_list if _ours(c)]
 		self.assertEqual(ours, [], "something was sent with no LMS configured")
+
+
+class TestADeletedStudentAndOfferingAreReported(FrappeTestCase):
+	"""Deleting a Student or a Course Offering told the LMS nothing either.
+
+	Less exposed than the registration case -- Frappe refuses to delete either
+	while a registration exists, so the enrolments have already closed -- but
+	an account that can still sign in, and a course still published, are both
+	left behind.
+	"""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.term = make_term(f"TST-TS-{frappe.generate_hash(length=6)}", status="Open").name
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		suffix = frappe.generate_hash(length=6)
+		self.email = f"gone.{suffix}@example.invalid"
+		self.student = make_student(f"Gone Student {suffix}", email=self.email).name
+		self.course = make_course(f"TTS {suffix[:4]}").name
+		self.offering = make_offering(self.course, self.term, status="Published").name
+
+	def _delete(self, doctype, name):
+		with patch.dict(frappe.conf, LIVE):
+			with patch.object(campus_lms, "_post") as post:
+				with patch("frappe.enqueue", side_effect=_inline_enqueue):
+					frappe.delete_doc(doctype, name, ignore_permissions=True)
+		return post
+
+	def _sent(self, post, path):
+		return [c.args[1] for c in post.call_args_list if c.args[0] == path]
+
+	# --- the student -------------------------------------------------------
+
+	def test_a_deleted_student_is_deactivated_over_there(self):
+		post = self._delete("Student", self.student)
+
+		sent = self._sent(post, "/sync/people")
+		self.assertEqual(len(sent), 1, "the deletion said nothing to the LMS")
+		self.assertEqual(sent[0]["status"], "deactivated")
+		self.assertEqual(sent[0]["externalId"], self.student)
+		self.assertEqual(sent[0]["email"], self.email)
+
+	def test_it_cannot_create_an_account_for_somebody_just_removed(self):
+		"""`/sync/people` upserts. Clearing the demo data deleted a seeded
+		student with no account over there; without this flag that delete would
+		have made them one."""
+		post = self._delete("Student", self.student)
+
+		for payload in self._sent(post, "/sync/people"):
+			self.assertTrue(payload.get("onlyIfPresent"), payload)
+
+	def test_a_student_with_no_address_says_nothing(self):
+		frappe.db.set_value("Student", self.student, {"email": "", "user": ""})
+		post = self._delete("Student", self.student)
+
+		self.assertEqual(self._sent(post, "/sync/people"), [])
+
+	# --- the offering -----------------------------------------------------
+
+	def test_a_deleted_offering_is_archived_over_there(self):
+		post = self._delete("Course Offering", self.offering)
+
+		sent = self._sent(post, "/sync/courses")
+		self.assertEqual(len(sent), 1)
+		self.assertEqual(sent[0]["status"], "archived")
+		self.assertEqual(sent[0]["externalId"], self.offering)
+		self.assertTrue(sent[0].get("onlyIfPresent"))
+
+	def test_archived_and_not_unpublished(self):
+		"""Unpublished reads as "not ready yet", which is the opposite of what
+		happened to it."""
+		post = self._delete("Course Offering", self.offering)
+
+		for payload in self._sent(post, "/sync/courses"):
+			self.assertNotEqual(payload["status"], "unpublished")
+
+	def test_nothing_is_sent_when_the_lms_is_not_configured(self):
+		with patch.dict(frappe.conf, {"campus_lms_url": "", "campus_lms_token": ""}):
+			with patch("frappe.enqueue") as enqueue:
+				frappe.delete_doc("Course Offering", self.offering, ignore_permissions=True)
+				frappe.delete_doc("Student", self.student, ignore_permissions=True)
+
+		self.assertEqual([c for c in enqueue.call_args_list if _ours(c)], [])

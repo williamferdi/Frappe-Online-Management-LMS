@@ -435,6 +435,58 @@ def on_registration_change(doc, method=None):
 	queue("Course Registration", doc.name)
 
 
+def on_student_trash(doc, method=None):
+	"""A deleted student should not keep an account over there.
+
+	Their courses have already closed: Frappe refuses to delete a Student while
+	a registration exists, so each registration went first and fired
+	`on_registration_trash`. What was left was an account that could still sign
+	in and see an empty dashboard.
+
+	Deactivated, not deleted. They may have done work, and the LMS's own audit
+	trail refers to them.
+
+	`onlyIfPresent` is what makes this safe: `/sync/people` upserts, so without
+	it a student who was never pushed would have an account *created* for them
+	on the way out. Not hypothetical -- clearing the demo data deleted a seeded
+	student who had no account over there at all.
+	"""
+	email = (doc.email or "").strip() or (doc.user or "").strip()
+	if not email or "@" not in email:
+		return
+	queue_payload(
+		"/sync/people",
+		{
+			"externalId": doc.name,
+			"email": email,
+			"name": doc.full_name or email,
+			"role": "student",
+			"status": "deactivated",
+			"onlyIfPresent": True,
+		},
+	)
+
+
+def on_offering_trash(doc, method=None):
+	"""A deleted offering is not a course anybody should still open.
+
+	Archived rather than unpublished: unpublished reads as "not ready yet",
+	which is the opposite of what happened. Same `onlyIfPresent` reasoning as
+	above -- and on this endpoint it also stops a no-op creating the term.
+	"""
+	queue_payload(
+		"/sync/courses",
+		{
+			"externalId": doc.name,
+			"code": doc.course,
+			"name": doc.course_title or doc.course,
+			"term": doc.term,
+			"status": "archived",
+			"onlyIfPresent": True,
+		},
+	)
+
+
 def on_registration_trash(doc, method=None):
 	"""A deleted registration is not an enrolment any more. Say so.
 
