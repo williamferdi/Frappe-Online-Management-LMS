@@ -88,10 +88,10 @@
   },
   {
    "depends_on": "eval:doc.delivery=='LMS Course'",
+   "description": "The course slug, resolved through campus_lms.MOVED_COURSES. Data rather than a Link: the bundled lms app it used to point at was removed in Phase 7, and a Link whose DocType is gone cannot be saved at all.",
    "fieldname": "lms_course",
-   "fieldtype": "Link",
-   "label": "LMS Course",
-   "options": "LMS Course"
+   "fieldtype": "Data",
+   "label": "Course"
   },
   {
    "default": "Document",

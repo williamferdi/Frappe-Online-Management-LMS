@@ -20,14 +20,15 @@ end up knowing every applicant's.
 LMS, and nothing else. The `Student` role is granted at conversion, when it is
 true.
 
-Two settings, neither hardcoded:
+Where the exam lives is config, not code:
 
-    bench --site online.sibbc.org set-config entrance_exam_lms_course "<lms course>"
+    bench --site online.sibbc.org set-config campus_lms_url "<lms url>"
     bench --site online.sibbc.org set-config entrance_exam_url "<full url>"
 
 `entrance_exam_url` wins if both are set, for an exam that lives outside the
-LMS. With the course set we also enroll the applicant, so it appears on their
-dashboard rather than only in an email they have to keep.
+LMS altogether. Otherwise the applicant is enrolled in Campus LMS Lite and sent
+there. `entrance_exam_lms_course` named a course in the bundled lms app and is
+no longer read: Phase 7 removed that app.
 """
 
 from urllib.parse import urlsplit
@@ -40,7 +41,6 @@ from sibbcs.admissions.checklist import NO
 from sibbcs.finance.gateway import public_url
 from sibbcs.integrations import campus_lms
 
-LMS_ROLE = "LMS Student"
 STEP = NO["lms_account"]
 
 
@@ -50,17 +50,13 @@ STEP = NO["lms_account"]
 
 
 def exam_course():
-	"""The LMS Course the entrance exam lives in, if it lives in the LMS."""
-	name = (frappe.conf.get("entrance_exam_lms_course") or "").strip()
-	if not name:
-		return None
-	if not frappe.db.exists("LMS Course", name):
-		frappe.log_error(
-			title="Entrance exam course not found",
-			message=f"entrance_exam_lms_course is set to {name!r}, which does not exist.",
-		)
-		return None
-	return name
+	"""Where the entrance exam lives.
+
+	Always Campus LMS Lite now. `entrance_exam_lms_course` used to name a
+	course in the bundled lms app and is no longer read: that app went in
+	Phase 7, so the setting could only ever have named something absent.
+	"""
+	return campus_lms.EXAM_COURSE if campus_lms.configured() else None
 
 
 def exam_link():
@@ -134,10 +130,10 @@ def ensure_user(doc):
 		user.insert(ignore_permissions=True)
 		created = True
 
-	if not any(r.role == LMS_ROLE for r in user.roles):
-		user.append("roles", {"role": LMS_ROLE})
-		user.save(ignore_permissions=True)
-
+	# The `LMS Student` role was granted here. It belonged to the bundled lms
+	# app, which Phase 7 removed, and the applicant does not need a role on
+	# this site to sit the exam: that happens in Campus LMS Lite, under its own
+	# account, which `enroll_in_exam` creates.
 	return user.name, created
 
 
@@ -156,44 +152,27 @@ def set_password_link(user_name):
 
 
 def enroll_in_exam(user_name, doc=None):
-	"""Put the applicant into the exam course, if there is one. Idempotent.
+	"""Put the applicant into the exam course. Idempotent over there.
 
-	The exam moved to Campus LMS Lite, so this enrols them there and hands back
-	the activation link for the invitation -- the LMS sends no email of its own.
-	The older path below remains for a site still pointed at the bundled LMS.
+	Returns the activation link with it, because the LMS sends no email of its
+	own and the invitation goes out from here.
+
+	The fallback that enrolled into the bundled lms app went with that app in
+	Phase 7. Without `doc` there is nothing to file the person under -- they are
+	known over there by their application number -- so this answers None rather
+	than guessing.
 	"""
-	if doc is not None and campus_lms.configured():
-		try:
-			link = campus_lms.enrol_applicant(doc.name, (doc.email or "").strip().lower(), doc.full_name)
-			return {"course": campus_lms.EXAM_COURSE, "activation_link": link}
-		except Exception:
-			# A misconfigured LMS must not cost the applicant their account.
-			frappe.log_error(title=f"Campus LMS enrolment failed for {doc.name}")
-			return None
-
-	course = exam_course()
-	if not course:
+	if doc is None or not campus_lms.configured():
 		return None
-
-	if frappe.db.exists("LMS Enrollment", {"member": user_name, "course": course}):
-		return course
-
 	try:
-		frappe.get_doc(
-			{
-				"doctype": "LMS Enrollment",
-				"member": user_name,
-				"course": course,
-				"member_type": "Student",
-				"role": "Member",
-			}
-		).insert(ignore_permissions=True)
+		link = campus_lms.enrol_applicant(
+			doc.name, (doc.email or "").strip().lower(), doc.full_name
+		)
+		return {"course": campus_lms.EXAM_COURSE, "activation_link": link}
 	except Exception:
 		# A misconfigured LMS must not cost the applicant their account.
-		frappe.log_error(title=f"Entrance exam enrollment failed for {user_name}")
+		frappe.log_error(title=f"Campus LMS enrolment failed for {doc.name}")
 		return None
-
-	return course
 
 
 # ---------------------------------------------------------------------------
@@ -290,7 +269,7 @@ def create_and_send(application, send=True):
 	else:
 		report["warnings"].append(
 			"No entrance exam link is configured, so the invitation was not sent. "
-			"Set entrance_exam_lms_course or entrance_exam_url."
+			"Set campus_lms_url or entrance_exam_url."
 		)
 
 	if send and link:

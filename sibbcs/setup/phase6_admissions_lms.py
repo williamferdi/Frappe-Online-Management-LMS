@@ -1,321 +1,29 @@
 # Copyright (c) 2026, South India Baptist Bible College & Seminary and contributors
 # For license information, please see license.txt
 
-"""Move the admissions courses into Campus LMS Lite.
+"""The two admissions courses in Campus LMS Lite, and who marks the exam.
 
-The entrance exam and the preliminary orientation course are the last things
-running on the bundled LMS app. This builds their counterparts over there and
-exports their content, so the bundled app can go.
+Phase 6 moved admissions across: the entrance exam and the preliminary
+orientation course. The content half of this module -- reading `Course Lesson`
+out of the bundled `lms` app and converting EditorJS blocks into Markdown
+pages -- went when that app was uninstalled in Phase 7, along with the
+`phase7_course_content` builder that carried the taught courses. 196 pages are
+over there now; the commit history is where the conversion lives if it is ever
+needed again.
 
-**Two steps on purpose.** Courses, people and enrolments go through the sync
-endpoints, which a service token may use. Pages, modules and quizzes may not be
-authored with a token -- that is session-only, and widening it for a one-off
-import would leave a standing door open. So the content is *exported* here and
-*imported* by a one-off script inside the LMS, which has its own database.
+What remains is the part with no dependency on the old app, and the part worth
+being able to run again: making sure the two courses exist, and putting the
+markers on the exam.
 
-Idempotent, like every builder here: run it twice and nothing doubles.
+    bench --site online.sibbc.org execute sibbcs.setup.phase6_admissions_lms.build
+
+Idempotent -- both sync endpoints upsert on `externalId`.
 """
-
-import json
-import re
 
 import frappe
 from frappe import _
 
-from sibbcs.finance import gateway
 from sibbcs.integrations import campus_lms
-
-
-# These two read the bundled LMS's own ordering. They lived in `api/content.py`,
-# which was the Content tab's backend and went with the rest of the teaching
-# screens in Phase 7 -- but the migration still has to read that app until it is
-# removed, so they moved here rather than keeping a module alive for two
-# functions.
-#
-# A chapter or lesson is ordered by its parent's reference table when there is
-# one, because that is the order somebody dragged it into. Falling back to
-# creation order matters for the courses imported from the handbooks, which have
-# no reference rows at all.
-
-
-def _chapters_in_order(lms_course):
-	referenced = frappe.get_all(
-		"Chapter Reference",
-		filters={"parent": lms_course, "parenttype": "LMS Course"},
-		fields=["chapter"],
-		order_by="idx asc",
-	)
-	if referenced:
-		return [row.chapter for row in referenced]
-	return frappe.get_all(
-		"Course Chapter", filters={"course": lms_course}, pluck="name", order_by="creation asc"
-	)
-
-
-def _lessons_in_order(chapter):
-	referenced = frappe.get_all(
-		"Lesson Reference",
-		filters={"parent": chapter, "parenttype": "Course Chapter"},
-		fields=["lesson"],
-		order_by="idx asc",
-	)
-	if referenced:
-		return [row.lesson for row in referenced]
-	return frappe.get_all(
-		"Course Lesson", filters={"chapter": chapter}, pluck="name", order_by="creation asc"
-	)
-
-# What the courses are called over there, and where they come from here.
-ORIENTATION_SOURCE = "m-div-preliminary-orientation"
-EXAM_SOURCE = "entrance-exam"
-EXPORT_PATH = "/tmp/sibbcs-work/admissions-content.json"
-
-
-# A lesson written here links to its handbook as `/files/program_manual.pdf`.
-# Relative to this site, and so broken over there: the page is served from
-# lms.sibbc.org while the file sits on the registrar's host. Every one of the 49
-# orientation pages carries one of these.
-_SITE_FILE = re.compile(r"\]\((/(?:private/)?files/[^)\s]+)\)")
-
-
-def _absolutise(markdown, found, private):
-	"""Point site-relative file links at this site, and say which ones moved.
-
-	Absolute rather than copied: the handbooks are revised, and a second copy of
-	a 9.5 MB PDF is a second copy to keep in step. `gateway.public_url` and not
-	`frappe.utils.get_url`, which appends :8000 on this deployment -- see its
-	docstring.
-
-	A `/private/files/` link is recorded in `private` as well as rewritten:
-	fetching one needs a session on *this* site, which a candidate working in
-	the LMS does not have, so the link would only send them to a login page for
-	the wrong system. There are none today; this is here so that the day a
-	lesson gains one, the export reports it rather than shipping a dead link
-	across 49 pages.
-	"""
-
-	def swap(match):
-		path = match.group(1)
-		(private if path.startswith("/private/") else found).append(path)
-		return "](" + gateway.public_url(path) + ")"
-
-	return _SITE_FILE.sub(swap, markdown or "")
-
-
-def _inline(value):
-	"""EditorJS text, kept as it is.
-
-	The inline markup is `<b>`, `<i>` and `<a>`, which Markdown passes through
-	and the LMS sanitises on render -- so keeping it loses nothing, where
-	stripping it would lose emphasis the college wrote deliberately.
-	"""
-	return (value or "").strip()
-
-
-def _blocks_to_markdown(blocks):
-	out = []
-	for block in blocks:
-		kind = block.get("type")
-		data = block.get("data") or {}
-		if kind == "header":
-			out.append("#" * max(1, min(6, int(data.get("level") or 2))) + " " + _inline(data.get("text")))
-		elif kind == "paragraph":
-			out.append(_inline(data.get("text")))
-		elif kind == "list":
-			bullet = "1." if data.get("style") == "ordered" else "-"
-			items = data.get("items") or []
-			out.append(
-				"\n".join(
-					f"{bullet} {_inline(item if isinstance(item, str) else (item or {}).get('content'))}"
-					for item in items
-				)
-			)
-		elif kind == "quote":
-			out.append("> " + _inline(data.get("text")))
-		elif kind == "code":
-			out.append("```\n" + (data.get("code") or "") + "\n```")
-		elif kind == "delimiter":
-			out.append("---")
-		elif kind == "image":
-			url = (data.get("file") or {}).get("url") or data.get("url") or ""
-			if url:
-				out.append(f"![]({url})")
-		elif kind == "embed":
-			source = data.get("source") or data.get("embed") or ""
-			if source:
-				out.append(source)
-	return "\n\n".join(part for part in out if part)
-
-
-def lesson_markdown(name, found=None, private=None):
-	"""One lesson as Markdown, from whichever half of it is filled in.
-
-	`found` and `private` collect the file links rewritten on the way out, so
-	the export can report them; pass neither when the counts are not wanted.
-
-	`content` is the EditorJS document the LMS editor writes; `body` is the
-	plain text the handbook importer left. Most of these lessons are body only,
-	and the reader prefers `content` when both exist -- so this does too, or a
-	lesson edited since the import would be exported in its older form.
-	"""
-	row = frappe.db.get_value(
-		"Course Lesson", name, ["title", "content", "body", "instructor_content"], as_dict=True
-	)
-	if not row:
-		return None
-	markdown = ""
-	if row.content:
-		try:
-			markdown = _blocks_to_markdown(json.loads(row.content).get("blocks") or [])
-		except (ValueError, TypeError):
-			markdown = ""
-	if not markdown:
-		markdown = (row.body or "").strip()
-
-	# The marking rubric lives here, and the LMS shows it to instructors only.
-	# A candidate reading the mark scheme is not sitting the same exam, so it
-	# travels as its own page and that page is never published.
-	rubric = ""
-	if row.instructor_content:
-		try:
-			rubric = _blocks_to_markdown(json.loads(row.instructor_content).get("blocks") or [])
-		except (ValueError, TypeError):
-			rubric = ""
-
-	found = found if found is not None else []
-	private = private if private is not None else []
-	return {
-		"title": row.title,
-		"markdown": _absolutise(markdown, found, private),
-		"rubric": _absolutise(rubric, found, private),
-	}
-
-
-# What `instructor_content` is called on the page it travels as. On the entrance
-# exam it is the mark scheme, which is why that is the default. On a taught
-# course it is the lecturer's own notes -- and on `church-history` it is where
-# the material actually is, 7.6 KB of it under a lesson with nothing
-# student-facing at all. Calling that a marking rubric would mislabel the
-# college's teaching notes, so Phase 7 passes its own word for it.
-NOTES_LABEL = "marking rubric"
-
-
-def _course_export(source, found=None, private=None, notes_label=NOTES_LABEL, renamed=None):
-	"""A course as modules of pages, in the order a student meets them.
-
-	`renamed` collects any page title this had to number to keep it distinct --
-	see `unique` below.
-	"""
-	modules = []
-	seen = {}
-
-	def unique(title):
-		"""A title no other page in this course is using.
-
-		The importer keys a page on (course, title), so two lessons sharing one
-		title land on the same page and the second quietly overwrites the
-		first. It is not hypothetical: `church-history` carries two lessons
-		both called "Delete", and the first import of it wrote 144 pages where
-		145 were offered. Numbering the repeat keeps the archive complete, and
-		`renamed` means nobody has to notice the arithmetic to find out.
-		"""
-		count = seen.get(title, 0) + 1
-		seen[title] = count
-		if count == 1:
-			return title
-		numbered = f"{title} ({count})"
-		if renamed is not None:
-			renamed.append(numbered)
-		return numbered
-
-	for chapter in _chapters_in_order(source):
-		chapter_title = frappe.db.get_value("Course Chapter", chapter, "title")
-		pages = []
-		for lesson in _lessons_in_order(chapter):
-			page = lesson_markdown(lesson, found, private)
-			if not page:
-				continue
-			title = unique(page["title"])
-			pages.append({"title": title, "markdown": page["markdown"], "published": True})
-			if page["rubric"]:
-				pages.append(
-					{
-						"title": unique(f"{title} — {notes_label}"),
-						"markdown": page["rubric"],
-						"published": False,
-					}
-				)
-		modules.append({"title": chapter_title, "pages": pages})
-	return modules
-
-
-def _exam_quiz():
-	"""The three essays, in the order the paper asks them.
-
-	Read from the quiz itself rather than restated here, so a reworded prompt
-	moves across with everything else.
-
-	The quiz is found by title, in one query here rather than through a helper
-	in `entrance_exam` or `phase2m_entrance_exam`. The first of those lost its
-	copy when the exam moved to the LMS -- which left this builder raising
-	`ImportError` and so not re-runnable at all -- and the second is one of the
-	modules Phase 7 deletes. Returns None once the bundled quiz is gone, which
-	leaves the import to keep the quiz it already has.
-	"""
-	from sibbcs.admissions.entrance_exam import QUIZ_TITLE
-
-	if not frappe.db.exists("DocType", "LMS Quiz"):
-		return None
-	names = sorted(frappe.get_all("LMS Quiz", filters={"title": QUIZ_TITLE}, pluck="name"))
-	if not names:
-		return None
-	doc = frappe.get_doc("LMS Quiz", names[0])
-	questions = []
-	for row in doc.questions:
-		prompt = frappe.db.get_value("LMS Question", row.question, "question")
-		questions.append({"prompt": (prompt or "").strip(), "points": int(row.marks or 25)})
-	return {"title": QUIZ_TITLE, "questions": questions}
-
-
-def export_content(path=EXPORT_PATH):
-	"""Write what the LMS importer needs, and say what is in it."""
-	found, private = [], []
-	payload = {
-		"orientation": {
-			"externalId": campus_lms.ORIENTATION_COURSE,
-			"modules": _course_export(ORIENTATION_SOURCE, found, private),
-		},
-		"exam": {
-			"externalId": campus_lms.EXAM_COURSE,
-			"modules": _course_export(EXAM_SOURCE, found, private),
-			"quiz": _exam_quiz(),
-		},
-	}
-
-	every = [p for side in ("orientation", "exam") for m in payload[side]["modules"] for p in m["pages"]]
-	pages = sum(len(m["pages"]) for m in payload["orientation"]["modules"])
-	empty = [p["title"] for p in every if not p["markdown"]]
-	rubrics = [p["title"] for p in every if not p["published"]]
-	with open(path, "w", encoding="utf-8") as handle:
-		json.dump(payload, handle, ensure_ascii=False, indent=1)
-
-	return {
-		"path": path,
-		"orientation_modules": len(payload["orientation"]["modules"]),
-		"orientation_pages": pages,
-		"exam_questions": len(payload["exam"]["quiz"]["questions"]) if payload["exam"]["quiz"] else 0,
-		# A page that came across empty is the quiet failure worth naming.
-		"empty_pages": empty,
-		# And these must stay unpublished: they are the mark schemes.
-		"unpublished_pages": rubrics,
-		# Links made absolute, by file, so a handbook that stopped being linked
-		# is visible as a count that moved rather than as a 404 a candidate
-		# finds first.
-		"linked_files": {path: found.count(path) for path in sorted(set(found))},
-		# These would need a session on this site, which the candidate has not
-		# got. None today; non-empty means somebody must look.
-		"private_links": sorted(set(private)),
-	}
 
 
 def _markers():
@@ -333,11 +41,13 @@ def _markers():
 	return markers
 
 
-def ensure_courses():
-	"""The two courses over there, and the marker on them.
+def ensure_courses(status="unpublished"):
+	"""The two courses over there, and the markers on them.
 
-	Unpublished to begin with: an applicant enrolled before the content lands
+	Unpublished by default: an applicant enrolled before the content lands
 	would open an empty course and conclude the college had sent them nothing.
+	Both are published on the live site now, so pass `status="published"` to
+	reconcile rather than quietly closing them.
 	"""
 	if not campus_lms.configured():
 		frappe.throw(_("Campus LMS is not configured on this site."))
@@ -349,12 +59,11 @@ def ensure_courses():
 	):
 		made[external_id] = campus_lms._post(
 			"/sync/courses",
-			{"externalId": external_id, "code": code, "name": name, "status": "unpublished"},
+			{"externalId": external_id, "code": code, "name": name, "status": status},
 		)
 
-	markers = _markers()
 	enrolled = []
-	for instructor in markers:
+	for instructor in _markers():
 		person = campus_lms.person_payload("Instructor", instructor)
 		if not person:
 			continue
@@ -375,5 +84,4 @@ def ensure_courses():
 
 
 def build():
-	"""Both halves of this side: the courses, then the content to import."""
-	return {"courses": ensure_courses(), "content": export_content()}
+	return {"courses": ensure_courses()}

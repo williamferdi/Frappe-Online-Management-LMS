@@ -77,10 +77,12 @@ class TestSessionPayload(FrappeTestCase):
 		self.assertFalse(payload["is_staff"])
 		self.assertTrue(payload["is_student"])
 
-	def test_lms_student_alone_is_not_staff(self):
-		"""Applicants get LMS Student for the entrance exam. That must not
-		open the staff console's navigation."""
-		make_user("api.applicant@example.com", ["LMS Student"])
+	def test_an_account_with_no_roles_is_not_staff(self):
+		"""An applicant has an account here and nothing on it -- they sit the
+		exam in Campus LMS Lite, under its own account. This used to grant
+		them `LMS Student`, which went with the bundled app in Phase 7. Either
+		way the staff navigation must stay shut."""
+		make_user("api.applicant@example.com", [])
 		frappe.set_user("api.applicant@example.com")
 		self.assertFalse(session_api.session_payload()["is_staff"])
 

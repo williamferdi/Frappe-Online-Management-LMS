@@ -113,7 +113,7 @@ class TestPromotionGate(FrappeTestCase):
 		self.assertIn("Academic Coordinator", promo.APPROVER_ROLES)
 
 	def test_a_student_may_not_approve_a_promotion(self):
-		with patch("frappe.get_roles", return_value=["Student", "LMS Student"]):
+		with patch("frappe.get_roles", return_value=["Student"]):
 			self.assertFalse(promo.may_approve())
 
 	def test_faculty_may_not_approve_a_promotion(self):

@@ -34,7 +34,8 @@ from sibbcs.admissions.doctype.qualifying_exam_result.qualifying_exam_result imp
 )
 
 # The quiz the college sets. Found by title rather than hard-coded name so a
-# rebuilt quiz is still recognised -- `phase2m_entrance_exam.py` owns the title.
+# rebuilt quiz is still recognised. The title is ours; the quiz is in Campus LMS
+# Lite, and the builder that used to own this constant went in Phase 7.
 QUIZ_TITLE = "Entrance Exam — Essays"
 
 # The three essays, in the order the quiz asks them. `ESSAYS` is the same order

@@ -56,46 +56,15 @@ _seq = itertools.count(1)
 
 
 def make_course():
-	course = frappe.db.get_value("LMS Course", {"title": COURSE_TITLE}, "name")
-	if not course:
-		from sibbcs.academic.lms_legacy import _default_instructor
+	"""The course slug a Reading Manual names.
 
-		doc = frappe.get_doc(
-			{
-				"doctype": "LMS Course",
-				"title": COURSE_TITLE,
-				"short_introduction": "For tests.",
-				"description": "For tests.",
-				"published": 1,
-				"instructors": [{"instructor": _default_instructor()}],
-			}
-		)
-		doc.insert(ignore_permissions=True)
-		course = doc.name
-
-	chapter = frappe.db.get_value(
-		"Course Chapter", {"course": course, "title": "Chapter"}, "name"
-	)
-	if not chapter:
-		chapter_doc = frappe.get_doc(
-			{"doctype": "Course Chapter", "course": course, "title": "Chapter"}
-		)
-		chapter_doc.insert(ignore_permissions=True)
-		chapter = chapter_doc.name
-
-	have = frappe.db.count("Course Lesson", {"course": course})
-	for index in range(have, LESSONS):
-		frappe.get_doc(
-			{
-				"doctype": "Course Lesson",
-				"course": course,
-				"chapter": chapter,
-				"title": f"Lesson {index + 1}",
-				"body": "Read this.",
-			}
-		).insert(ignore_permissions=True)
-
-	return course
+	It used to build a real course in the bundled `lms` app, because
+	`Reading Manual.lms_course` was a Link to it. Phase 7 uninstalled that app
+	and the field is Data now -- a slug that `campus_lms.MOVED_COURSES`
+	resolves -- so there is nothing to build. `lms_says` patches `course_for`,
+	so the slug only has to be stable.
+	"""
+	return "test-orientation-course"
 
 
 def make_manual(course):

@@ -290,8 +290,6 @@ def _course():
 				"Course Program Link",
 				description="Which programs this course may satisfy requirements for.",
 			),
-			section("sb_lms", "LMS"),
-			link("lms_course", "LMS Course", "LMS Course"),
 			section("sb_about", "Description"),
 			f("description", "Description", "Text Editor"),
 		],
@@ -499,8 +497,6 @@ def _course_offering():
 			fetched("course_level", "Course Level", "course.level"),
 			column("cb_academic"),
 			fetched("credits", "Credits", "course.credits", fieldtype="Float"),
-			section("sb_lms", "LMS"),
-			link("lms_batch", "LMS Batch", "LMS Batch"),
 		],
 		permissions=[
 			full("System Manager"),

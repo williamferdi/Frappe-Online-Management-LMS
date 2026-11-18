@@ -11,7 +11,8 @@ from frappe.utils import flt
 SECTIONS = ("english_score", "bible_score", "theology_score", "ministry_score")
 
 # Three essays, 25 marks each, marked against the rubrics in the entrance exam
-# course. See setup/phase2m_entrance_exam.py.
+# course. The builder that made it, setup/phase2m_entrance_exam.py, went with
+# the bundled lms app in Phase 7.
 ESSAYS = ("essay_gospel", "essay_calling", "essay_motivation")
 ESSAY_MAX = 25
 ESSAY_TOTAL = ESSAY_MAX * len(ESSAYS)
