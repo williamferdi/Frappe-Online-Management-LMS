@@ -232,7 +232,7 @@ def _student_user():
 			"first_name": "Ruth",
 			"last_name": "Anandhi",
 			"send_welcome_email": 0,
-			"roles": [{"role": "Student"}, {"role": "LMS Student"}],
+			"roles": [{"role": "Student"}],
 		}
 	).insert(ignore_permissions=True)
 	return STUDENT_EMAIL
