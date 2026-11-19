@@ -75,6 +75,11 @@ TEMPLATES = [
 	need a login.
 </p>
 
+<p>
+	Our <strong>Mentor Handbook</strong> is attached to this email. It sets out
+	what we would be asking of you — please read it before you decide.
+</p>
+
 <p style="margin:24px 0">
 	<a href="{{ link }}"
 	   style="background:#171717;color:#fff;padding:10px 18px;border-radius:6px;
