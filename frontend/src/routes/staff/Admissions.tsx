@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/table'
 import { useDebounced } from '@/hooks/useDebounced'
 import { usePipeline } from '@/hooks/useStaff'
+import { stateLabel } from '@/lib/states'
 import { cn, formatDate } from '@/lib/utils'
 import type { PipelineResponse, PipelineRow } from '@/types'
 
@@ -88,7 +89,7 @@ function Loaded({
 					{data.states.map((option) => (
 						<FilterChip
 							key={option}
-							label={option}
+							label={stateLabel(option)}
 							active={state === option}
 							onClick={() => onState(option)}
 						/>
@@ -160,7 +161,7 @@ function Row({ row }: { row: PipelineRow }) {
 			</TableCell>
 			<TableCell>
 				<Badge variant={STATE_TONE[row.workflow_state] ?? 'muted'}>
-					{row.workflow_state}
+					{stateLabel(row.workflow_state)}
 				</Badge>
 			</TableCell>
 			<TableCell>

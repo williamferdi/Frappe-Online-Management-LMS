@@ -992,6 +992,118 @@ the Frappe workflow in `phase2_workflow.py`, which is not active on the site.
 whole server. Raising it (300s) at the `http` level in a `conf.d` file that sorts before
 `frappe-bench.conf` would survive `bench setup nginx` regenerating that file.
 
+### Nothing is sent before it has been seen — 19 Nov 2026
+
+The college asked for a look at the whole application before it is saved, and for
+the same courtesy on the resubmission page.
+
+**`/apply` now has a review step.** The button says *Review my application*; the
+form's own submit builds a summary and goes nowhere near the server, and only
+*Confirm and submit* posts. A test asserts there is no `fetch(` in the submit
+handler, because a review screen the application has already gone past is worse
+than none.
+
+The summary is **read out of the form itself** — every `<fieldset>`, its
+`.sib-legend-bar` heading, its `.sub-head` sub-headings and each control's own
+`<label for>`. A hand-kept list of field names would be one more thing to update
+the day a field is added, and the failure is silent: the field is collected and
+saved and simply never shown to the person confirming it. Three details the
+generic walk has to get right, each with a test: the honeypot (`#website`) is
+never shown back; a phone is one joined value under the number's label, not a
+country code on its own; and a field left empty is shown as **Not given** rather
+than dropped, because *"did I fill that in?"* is the question the page exists to
+answer. The sub-headings matter more than they look — without them the two
+references read as "Their name / Their email" twice over.
+
+Documents are **shown, not listed**: a thumbnail for an image, a link that opens
+the file for a PDF. "marksheet.jpg, 2.1 MB" does not tell anybody whether they
+photographed the right side of the page. Every object URL is revoked on rebuild
+and on success; one held open is the whole file held in memory.
+
+**`/documents` no longer uploads the instant a file is chosen.** Choose, see it,
+and then press *Send this document* — or *Remove* and pick another. Until now the
+wrong file was on the record before the candidate had seen it, with no way to
+take it back.
+
+**And the drop zones on that page had never worked at all.** `dropzone.html`
+upgrades every `.dropzone` it can find *at the moment it runs*, and it runs where
+it is included — which on `/documents` was the top of the block, before any of
+them existed. Every zone there rendered with no prompt in it and never named a
+chosen file back to the candidate. `/apply` has always had the include at the
+foot, which is why the same include worked on one page and not the other.
+`TestTheDropZoneIncludeComesAfterTheMarkup` pins the ordering on both.
+
+### The office is told when documents arrive — 19 Nov 2026
+
+A candidate could send every certificate we had asked for and nobody was told:
+the resubmit request went out from the console and the answer to it came back in
+silence. `notifications.notify_officers_of_documents()` now emails everyone
+holding **Admissions Officer** with the candidate, what is outstanding, and a
+link straight to `/staff/admissions/<APP>`.
+
+It is called from `uploads.upload_document` **outside the save and unable to fail
+it** — a mail problem must never cost a candidate the document they have just
+sent.
+
+**Throttled to one email per application per quarter of an hour**, because a
+candidate sends six certificates one after another and six emails about one
+application is how a useful alert becomes one an officer filters away. Each email
+lists everything outstanding rather than just the file that triggered it, so a
+throttled one costs the officer nothing.
+
+The throttle is **Redis INCR, not `get_value`/`set_value`** — the trap
+`public_form._rate_limit` already documents: `set_value(..., expires_in_sec=...)`
+does not populate `frappe.local.cache` while the `get_value` miss before it caches
+`None` there, so within one process the throttle silently never fires. The first
+version used get-then-set, and the test that proves six uploads are one email is
+what caught it.
+
+**`admissions_api.attention()` is the console's nav badge**, polled on a minute
+like the portal's unread counts. It counts *applications* with an unverified
+document that has a file on it — outstanding work, not unread notices. A per-user
+read mark would clear the moment somebody glanced at a list whether or not the
+work was done; counting what is actually unverified means the badge goes out when
+the documents have been checked and comes back when the next candidate sends one.
+It needs no read-state DocType and can never go stale.
+
+### "Draft" is called Awaiting Application Fee — 19 Nov 2026
+
+An application sitting at `Draft` is complete in every respect except the ₹350
+fee. To an officer that reads as *"the candidate never finished"*, which is the
+opposite of the truth and is how one candidate was asked to apply again.
+
+Relabelled in `frontend/src/lib/states.ts`, not renamed: the value is stored on
+every application, is a Select option, and is what the pipeline's filter chips
+send back as `state`. A rename is a patch plus a DocType change plus every stored
+row; a label is a label. `stateLabel()` is used by the pipeline badge, the filter
+chips, the candidate header and the Overview funnel, and passes every other state
+through untouched.
+
+### The Mentor Handbook goes with the consent request — 19 Nov 2026
+
+A mentor is a stranger with no login, asked on the strength of one email to take
+on a student for the length of a degree. `notifications.mentor_handbook_attachment()`
+attaches the handbook to that email, and the fallback wording says it is there —
+an attachment nobody is told about is an attachment nobody opens.
+
+**Which file is site config, not code**, because the college rewrites this
+document and a new edition should not need a deploy:
+
+```bash
+bench --site online.sibbc.org set-config mentor_handbook_file \
+    "/private/files/SIBBCS Mentor Handbook - Guiding Holistic Formation.pdf"
+```
+
+Set on 19 Nov 2026 to a private 804 KB `File` on the site; the PDF is **not** in
+the repo. Unset, or pointing at a file that has gone, it returns `[]` and the
+request still goes out — a mentor can answer without the handbook, but not an
+email that was never sent. The attachment is passed as `{"file_url": ...}` so the
+queue resolves it at send time and the queue row stays small.
+
+Note Frappe scans an uploaded PDF for embedded JavaScript, and pypdf refuses a
+stub that merely starts with `%PDF` — so a test fixture standing in for the
+handbook must not be named `.pdf`.
+
 ### The bundled `lms` app is gone — 18 Nov 2026
 
 Phase 7 removed it: uninstalled from both sites, removed from the bench, and the 69

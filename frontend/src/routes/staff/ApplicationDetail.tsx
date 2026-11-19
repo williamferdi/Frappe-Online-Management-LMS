@@ -39,6 +39,7 @@ import {
 	useUpdateStep,
 } from '@/hooks/useStaff'
 import { FrappeError } from '@/lib/frappe'
+import { stateLabel } from '@/lib/states'
 import { cn, formatDate, money } from '@/lib/utils'
 import type { ApplicationDetail as Detail, ChecklistRow } from '@/types'
 
@@ -76,7 +77,7 @@ function Loaded({ data, onChanged }: { data: Detail; onChanged: () => void }) {
 				avatar={
 					<Face name={record.full_name} photo={record.photo} className="size-12" />
 				}
-				description={`${record.name} · ${record.program ?? 'No programme'} · ${record.workflow_state}`}
+				description={`${record.name} · ${record.program ?? 'No programme'} · ${stateLabel(record.workflow_state)}`}
 				actions={
 					<div className="flex gap-2">
 						<Button variant="outline" size="sm" asChild>

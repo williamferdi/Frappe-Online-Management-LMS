@@ -275,6 +275,17 @@ def upload_document(application, upload_token, document_type, filename, content,
 	doc.flags.ignore_permissions = True
 	doc.save(ignore_permissions=True)
 
+	# Outside the save, and unable to fail it. A candidate sending a document
+	# used to be met with silence on our side: the officer asked for it from
+	# the console and then had to remember to go back and look. Mail trouble
+	# here must still never cost them the upload itself.
+	try:
+		from sibbcs.admissions.notifications import notify_officers_of_documents
+
+		notify_officers_of_documents(application, document_type)
+	except Exception:
+		frappe.log_error(title=f"Document alert failed for {application}")
+
 	return {
 		"ok": True,
 		"document_type": document_type,

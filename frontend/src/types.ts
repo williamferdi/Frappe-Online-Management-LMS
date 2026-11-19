@@ -347,6 +347,13 @@ export interface UnreadCounts {
 	announcements: number
 	inbox: number
 }
+
+/** What is waiting on an officer right now. Outstanding work, not unread
+ *  notices: the count clears when the documents have been checked. */
+export interface AttentionCounts {
+	documents: number
+}
+
 // --- staff console ---------------------------------------------------------
 
 export interface FunnelState {

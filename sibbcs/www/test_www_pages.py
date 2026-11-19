@@ -579,3 +579,135 @@ class TestAnUploadSurvivesAMobileConnection(FrappeTestCase):
 		markup = self.page("apply.html")
 		self.assertIn("<b>In Review</b>", markup)
 		self.assertNotIn("<b>Submitted</b>", markup)
+
+
+class TestNothingIsSentBeforeItIsSeen(FrappeTestCase):
+	"""The college asked for a look at the whole application, documents
+	included, before anything is saved -- and for the same on the resubmission
+	page, where choosing a file used to send it that instant with no way to
+	see what had been chosen or to change your mind.
+	"""
+
+	def page(self, name):
+		return open(os.path.join(WWW, name), encoding="utf-8").read()
+
+	# --- /apply -----------------------------------------------------------
+
+	def test_the_button_no_longer_submits_the_form(self):
+		markup = self.page("apply.html")
+		self.assertIn("Review my application", markup)
+		self.assertNotIn(">\n        Submit application", markup)
+
+	def test_there_is_a_review_panel_with_a_way_back(self):
+		markup = self.page("apply.html")
+		self.assertIn('id="apply-review"', markup)
+		self.assertIn('id="confirm-btn"', markup)
+		self.assertIn('id="back-btn"', markup)
+
+	def test_the_review_says_nothing_has_been_saved_yet(self):
+		"""Otherwise it reads as a receipt, and somebody closes the tab."""
+		self.assertIn("Nothing has been saved yet", self.page("apply.html"))
+
+	def test_only_the_confirm_button_posts(self):
+		"""The form's own submit must not reach the server any more, or the
+		review is a screen the application has already gone past.
+		"""
+		markup = self.page("apply.html")
+		submit_handler = markup.split("form.addEventListener('submit'")[1].split(
+			"document.getElementById('back-btn')"
+		)[0]
+		self.assertNotIn("fetch(", submit_handler)
+		self.assertIn("buildReview()", submit_handler)
+
+	def test_the_review_is_built_from_the_form_rather_than_a_second_list(self):
+		"""A hand-kept list of fields is one more thing to update when a field
+		is added, and the failure is silent: the field is collected and saved
+		and simply never shown to the person confirming it.
+		"""
+		markup = self.page("apply.html")
+		self.assertIn("form.querySelectorAll('fieldset')", markup)
+		self.assertIn("label[for=", markup)
+
+	def test_the_honeypot_is_not_shown_back_to_the_applicant(self):
+		markup = self.page("apply.html")
+		self.assertIn("control.id === 'website'", markup)
+
+	def test_a_field_left_empty_is_shown_as_empty_rather_than_dropped(self):
+		""""Did I fill that in?" is the question the page exists to answer."""
+		self.assertIn("Not given", self.page("apply.html"))
+
+	def test_the_documents_are_shown_not_listed(self):
+		markup = self.page("apply.html")
+		self.assertIn("review-docs", markup)
+		self.assertIn("createObjectURL", markup)
+
+	def test_the_previews_are_released(self):
+		"""An object URL holds the whole file until it is revoked, and a
+		candidate who goes back and changes three photographs would hold
+		three of them for as long as the tab is open.
+		"""
+		markup = self.page("apply.html")
+		self.assertIn("previewUrls.forEach(URL.revokeObjectURL)", markup)
+
+	# --- /documents -------------------------------------------------------
+
+	def test_the_resubmission_page_shows_what_was_chosen(self):
+		markup = self.page("documents.html")
+		self.assertIn("chosen-preview", markup)
+		self.assertIn("chosen-name", markup)
+		self.assertIn("chosen-size", markup)
+
+	def test_it_can_be_taken_back_before_it_is_sent(self):
+		markup = self.page("documents.html")
+		self.assertIn("chosen-remove", markup)
+		self.assertIn("function forget(", markup)
+
+	def test_sending_is_a_separate_decision(self):
+		"""Choosing a file used to upload it on the spot, so the wrong file was
+		already on the record before the candidate had seen it.
+		"""
+		markup = self.page("documents.html")
+		self.assertIn("chosen-send", markup)
+		self.assertIn("Send this document", markup)
+		handler = markup.split("input.addEventListener('change'")[1].split("\n")[0]
+		self.assertIn("showChosen", handler)
+		self.assertNotIn("send(", handler)
+
+	def test_the_page_no_longer_claims_there_is_nothing_to_submit(self):
+		markup = self.page("documents.html")
+		self.assertNotIn("there is nothing to submit at the end", markup)
+		self.assertIn("Send this document</b>", markup)
+
+	def test_its_object_urls_are_released_too(self):
+		self.assertIn("revokeObjectURL", self.page("documents.html"))
+
+
+class TestTheDropZoneIncludeComesAfterTheMarkup(FrappeTestCase):
+	"""`dropzone.html` upgrades every `.dropzone` it can find at the moment it
+	runs, and it runs where it is included. On /documents it sat at the top of
+	the block, before any of them existed -- so every drop zone there rendered
+	with no prompt in it and never named a chosen file back to the candidate.
+	/apply had it at the foot all along, which is why the same include worked
+	on one page and not the other.
+	"""
+
+	INCLUDES = (
+		'{% include "templates/includes/dropzone.html" %}',
+		'{% include "templates/includes/image_shrink.html" %}',
+	)
+
+	def page(self, name):
+		return open(os.path.join(WWW, name), encoding="utf-8").read()
+
+	def test_every_page_includes_it_below_its_own_drop_zones(self):
+		for name in ("apply.html", "documents.html"):
+			markup = self.page(name)
+			first_zone = markup.find('class="dropzone"')
+			self.assertGreater(first_zone, -1, f"{name} has no drop zone")
+			for include in self.INCLUDES:
+				with self.subTest(page=name, include=include):
+					self.assertGreater(
+						markup.find(include),
+						first_zone,
+						f"{include} runs before {name}'s drop zones exist",
+					)

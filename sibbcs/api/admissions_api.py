@@ -54,6 +54,10 @@ LIST_FIELDS = (
 
 STATES = ["Draft", "In Review", "Admitted", "Onboarded", "Rejected", "Withdrawn"]
 
+# States where a document can still arrive and still needs checking. Matches
+# uploads.OPEN_STATES, which is what the upload endpoint itself enforces.
+OPEN_FOR_REVIEW = ("", "Draft", "In Review")
+
 
 # Who may work in admissions. Checked alongside the DocType permission, not
 # instead of it: these endpoints aggregate across every candidate, so the day
@@ -449,3 +453,39 @@ def actions_for(application):
 		for row in board["rows"]
 		if row["action"]
 	]
+
+
+@frappe.whitelist()
+def attention():
+	"""What is waiting on an officer right now. The console's nav badge.
+
+	Outstanding, not unread. A per-user read mark would clear the moment
+	somebody glanced at the list, whether or not the work was done; counting
+	what is actually unverified means the badge goes out when the documents
+	have been checked and comes back the moment a candidate sends another.
+	So it needs no read-state DocType and can never go stale.
+
+	Deliberately cheap -- it is polled on a timer from every open console.
+	"""
+	_require_staff()
+
+	open_applications = frappe.get_all(
+		"Admission Application",
+		filters={"workflow_state": ("in", OPEN_FOR_REVIEW)},
+		pluck="name",
+	)
+	if not open_applications:
+		return {"documents": 0}
+
+	waiting = frappe.get_all(
+		"Application Document",
+		filters={
+			"parenttype": "Admission Application",
+			"parent": ("in", open_applications),
+			"verified": 0,
+			"file": ("!=", ""),
+		},
+		fields=["distinct parent as parent"],
+	)
+
+	return {"documents": len(waiting)}

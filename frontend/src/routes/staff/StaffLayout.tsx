@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 
 import { AppShell, type NavSection } from '@/components/AppShell'
+import { useAttention } from '@/hooks/useStaff'
 
 const SECTIONS: NavSection[] = [
 	{
@@ -32,5 +33,19 @@ const SECTIONS: NavSection[] = [
 ]
 
 export function StaffLayout() {
-	return <AppShell product="Staff Console" sections={SECTIONS} />
+	const { data } = useAttention()
+
+	// Rebuilt per render rather than mutating SECTIONS: a module-level array
+	// edited on render is shared by every mount and outlives the component
+	// that changed it.
+	const sections: NavSection[] = SECTIONS.map((section) => ({
+		...section,
+		items: section.items.map((item) =>
+			item.to === '/staff/admissions' && data?.documents
+				? { ...item, badge: String(data.documents) }
+				: item,
+		),
+	}))
+
+	return <AppShell product="Staff Console" sections={sections} />
 }

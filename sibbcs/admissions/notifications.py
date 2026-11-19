@@ -21,7 +21,7 @@ from frappe.utils import now_datetime
 from sibbcs.admissions.doctype.admission_application.admission_application import token_url
 
 # Steps 3, 4 and 6 on the checklist mirror what has been sent.
-from sibbcs.admissions.checklist import NO
+from sibbcs.admissions.checklist import NO, OFFICER
 
 REFEREE_STEPS = {0: NO["reference_1"], 1: NO["reference_2"]}
 MENTOR_STEP = NO["mentor_form"]
@@ -105,8 +105,151 @@ FALLBACK_MENTOR = (
 	"India Baptist Bible College &amp; Seminary and asked you to be their mentor.</p>"
 	"<p>Please confirm here:<br>"
 	'<a href="{{ link }}">{{ link }}</a></p>'
+	"<p>Our Mentor Handbook is attached. It sets out what we would be asking of "
+	"you, so please read it before you decide.</p>"
 	"<p>Admissions Office</p>",
 )
+
+
+MENTOR_HANDBOOK_CONFIG = "mentor_handbook_file"
+
+# One alert per application per quarter of an hour. A candidate sends six
+# documents one after another, and six emails about the same application is how
+# a useful alert becomes one an officer filters away.
+DOCUMENT_ALERT_THROTTLE_SECONDS = 15 * 60
+
+
+def officer_emails():
+	"""Everyone holding Admissions Officer, as addresses.
+
+	One lookup, because three things now write to this group: the new-application
+	alert, the documents-waiting alert, and the mail self-test.
+	"""
+	return [
+		email
+		for email in frappe.get_all(
+			"Has Role",
+			filters={"role": OFFICER, "parenttype": "User"},
+			pluck="parent",
+		)
+		if "@" in (email or "")
+	]
+
+
+def mentor_handbook_attachment():
+	"""The Mentor Handbook, if this site has one, as a sendmail attachment.
+
+	A mentor is a stranger with no login, asked on the strength of one email to
+	take on a student for the length of a degree. The handbook is the document
+	that says what they would be agreeing to, so it travels *with* the request
+	rather than waiting for somebody to think to send it afterwards.
+
+	Which file is site config, not code -- the college rewrites this document,
+	and a new edition should not need a deploy:
+
+	    bench --site online.sibbc.org set-config mentor_handbook_file \\
+	        "/private/files/mentor-handbook.pdf"
+
+	Returns a list, empty when nothing is configured or the file has gone. A
+	missing handbook must never hold up a consent request -- the mentor can
+	still answer without it, and the log says what was left off.
+	"""
+	file_url = frappe.conf.get(MENTOR_HANDBOOK_CONFIG)
+	if not file_url:
+		return []
+
+	if not frappe.db.exists("File", {"file_url": file_url}):
+		frappe.logger("sibbcs").warning(
+			f"{MENTOR_HANDBOOK_CONFIG} is {file_url}, which is not a File on this site"
+		)
+		return []
+
+	# Resolved by the queue at send time rather than inlined here, so the queue
+	# row stays small however large the handbook grows.
+	return [{"file_url": file_url}]
+
+
+def notify_officers_of_documents(application, document_type=None):
+	"""Tell the Admissions Officers that documents are waiting to be checked.
+
+	Until now a candidate could send every certificate we asked for and nobody
+	was told. The resubmit request went out from the console and the answer to
+	it arrived in silence -- an officer had to think to go and look.
+
+	Best-effort throughout. This runs inside a guest upload, and a mail problem
+	must never cost the candidate the document they have just sent.
+	"""
+	if not outgoing_configured():
+		return None
+
+	# Redis INCR, not get_value/set_value -- the same trap `public_form._rate_limit`
+	# documents. `set_value(..., expires_in_sec=...)` deliberately does not
+	# populate `frappe.local.cache`, while the `get_value` miss before it caches
+	# None there, so within one process the throttle silently never fires.
+	# INCR is also atomic, which get-then-set is not.
+	first = True
+	try:
+		cache = frappe.cache()
+		redis_key = cache.make_key(f"sibbcs:documents-alert:{application}")
+		count = cache.incr(redis_key)
+		if count == 1:
+			cache.expire(redis_key, DOCUMENT_ALERT_THROTTLE_SECONDS)
+		first = count == 1
+	except Exception:
+		# A cache outage costs a duplicate email, never a lost one, and each
+		# email is a complete picture rather than a diff -- so carrying on is
+		# the safe way to fail.
+		frappe.log_error(title=f"Document alert throttle lost the cache for {application}")
+
+	if not first:
+		return None
+
+	recipients = officer_emails()
+	if not recipients:
+		frappe.logger("sibbcs").info(
+			f"{application}: documents arrived but nobody holds {OFFICER}"
+		)
+		return None
+
+	doc = frappe.db.get_value(
+		"Admission Application", application, ["full_name", "program"], as_dict=True
+	)
+	if not doc:
+		return None
+
+	waiting = frappe.get_all(
+		"Application Document",
+		filters={"parent": application, "parenttype": "Admission Application", "verified": 0},
+		pluck="document_type",
+	)
+
+	from frappe.utils import escape_html
+
+	from sibbcs.finance.gateway import public_url
+
+	link = public_url(f"/staff/admissions/{application}")
+	listed = "".join(f"<li>{escape_html(item)}</li>" for item in waiting)
+
+	try:
+		frappe.sendmail(
+			recipients=recipients,
+			subject=_("Documents to check: {0} — {1}").format(doc.full_name, application),
+			message=_(
+				"<p>{0} ({1}, {2}) has sent documents.</p>"
+				"<p>Waiting to be checked:</p><ul>{3}</ul>"
+				'<p>Open the application to verify them:<br><a href="{4}">{4}</a></p>'
+			).format(doc.full_name, doc.program or "no programme", application, listed, link),
+			header=[_("Documents"), "orange"],
+			now=False,
+		)
+	except Exception:
+		frappe.log_error(title=f"Document alert failed for {application}")
+		return None
+	finally:
+		# Mail plumbing must never surface on the candidate upload page.
+		frappe.clear_messages()
+
+	return recipients
 
 
 def send_reference_row(doc, row, index=0):
@@ -157,6 +300,7 @@ def send_mentor_row(doc, row):
 		subject=subject,
 		message=message,
 		header=[_("Mentor Consent"), "blue"],
+		attachments=mentor_handbook_attachment(),
 		now=False,
 	)
 	frappe.db.set_value(

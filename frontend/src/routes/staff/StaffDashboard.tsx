@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { useConsoleDashboard } from '@/hooks/useStaff'
 import { boot } from '@/lib/frappe'
+import { stateLabel } from '@/lib/states'
 import { cn, formatDate, money } from '@/lib/utils'
 import type { AcademicPanel, ConsoleDashboard, FinancePanel, Funnel } from '@/types'
 
@@ -95,7 +96,7 @@ function Admissions({ funnel }: { funnel: Funnel }) {
 								key={row.state}
 								className={cn('h-full', STATE_TONE[row.state] ?? 'bg-muted-foreground/40')}
 								style={{ width: `${(row.count / total) * 100}%` }}
-								title={`${row.state}: ${row.count}`}
+								title={`${stateLabel(row.state)}: ${row.count}`}
 							/>
 						))}
 				</div>
@@ -108,7 +109,7 @@ function Admissions({ funnel }: { funnel: Funnel }) {
 									STATE_TONE[row.state] ?? 'bg-muted-foreground/40',
 								)}
 							/>
-							{row.state}
+							{stateLabel(row.state)}
 							<span className="text-foreground font-medium tabular-nums">{row.count}</span>
 						</span>
 					))}

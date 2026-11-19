@@ -461,7 +461,7 @@
 
     <div class="actions">
       <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
-        Submit application
+        Review my application
       </button>
       <p class="text-muted small" style="margin-top:10px">
         By submitting you agree that we may contact you about your application.
@@ -470,6 +470,33 @@
 
     <div id="form-message"></div>
   </form>
+
+  <div id="apply-review" hidden>
+    <div class="alert alert-info">
+      <h3>Please check your application before you send it</h3>
+      <p>
+        <b>Nothing has been saved yet.</b> Read it through, open each document to
+        be sure it is the right one, then confirm. You can go back and change
+        anything.
+      </p>
+    </div>
+
+    <div id="review-body"></div>
+
+    <div class="actions review-actions">
+      <button type="button" class="btn btn-primary btn-lg" id="confirm-btn">
+        Confirm and submit
+      </button>
+      <button type="button" class="btn btn-default btn-lg" id="back-btn">
+        Back and edit
+      </button>
+      <p class="text-muted small" style="margin-top:10px">
+        Your documents are sent after your details are saved, so nothing is lost
+        if one of them fails.
+      </p>
+      <div id="review-message"></div>
+    </div>
+  </div>
 
   <div id="apply-done" hidden>
     <div class="alert alert-warning">
@@ -548,7 +575,44 @@
   .hp { position: absolute; left: -9999px; height: 0; overflow: hidden; }
   .actions { margin-top: 8px; }
   .next-steps li { margin-bottom: 6px; }
-  #form-message { margin-top: 16px; }
+  #form-message, #review-message { margin-top: 16px; }
+  .review-group { margin: 0 0 22px; }
+  .review-group h4 {
+    font-size: 15px; font-weight: 700; margin: 0 0 8px;
+    padding-bottom: 6px; border-bottom: 1px solid rgba(0,0,0,.1);
+  }
+  .review-row {
+    display: flex; gap: 12px; padding: 5px 0; font-size: 14px;
+    border-bottom: 1px solid rgba(0,0,0,.04);
+  }
+  .review-row dt {
+    flex: 0 0 42%; margin: 0; font-weight: 400;
+    color: var(--text-muted, #767676);
+  }
+  .review-row dd { flex: 1; margin: 0; font-weight: 600; word-break: break-word; }
+  .review-missing { font-weight: 400; color: var(--text-muted, #767676); font-style: italic; }
+  .review-subhead {
+    margin: 14px 0 4px; font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em;
+    color: var(--text-muted, #767676);
+  }
+  .review-subhead:first-child { margin-top: 0; }
+  .review-docs { display: flex; flex-wrap: wrap; gap: 14px; }
+  .review-doc {
+    flex: 0 0 150px; padding: 10px; border-radius: 8px;
+    border: 1px solid rgba(0,0,0,.1); background: rgba(0,0,0,.02);
+    font-size: 12px; word-break: break-all;
+  }
+  .review-doc img {
+    width: 100%; max-height: 110px; object-fit: cover;
+    border-radius: 5px; display: block; margin-bottom: 6px;
+  }
+  .review-doc .doc-kind { font-weight: 700; display: block; margin-bottom: 4px; }
+  .review-actions { margin-top: 24px; }
+  @media (max-width: 560px) {
+    .review-row { display: block; }
+    .review-row dt { margin-bottom: 2px; }
+  }
 </style>
 
 {% if accepting %}
@@ -583,43 +647,35 @@
     return number ? '+' + (code || '91') + ' ' + number : '';
   };
 
-  form.addEventListener('submit', async function (event) {
-    event.preventDefault();
+  const message = document.getElementById('form-message');
+  const reviewMessage = document.getElementById('review-message');
+  const reviewPanel = document.getElementById('apply-review');
+  const reviewBody = document.getElementById('review-body');
+  const submitButton = document.getElementById('submit-btn');
+  const confirmButton = document.getElementById('confirm-btn');
 
-    const button = document.getElementById('submit-btn');
-    const message = document.getElementById('form-message');
-    message.innerHTML = '';
+  const REQUIRED = [
+    'full_name', 'mobile_number', 'email', 'program',
+    'ssc_status', 'hslc_status', 'ug_status', 'previous_theological_education'
+  ];
 
-    const required = [
-      'full_name', 'mobile_number', 'email', 'program',
-      'ssc_status', 'hslc_status', 'ug_status', 'previous_theological_education'
-    ];
-    const missing = required.filter((id) => !String(val(id)).trim());
-    if (missing.length) {
-      message.innerHTML =
-        '<div class="alert alert-danger">Please fill in every field marked *.</div>';
-      document.getElementById(missing[0]).focus();
-      return;
-    }
+  const FIELDS = [
+    'full_name','dob','gender','email','address',
+    'mother_tongue','nationality',
+    'church_name','church_denomination','current_role','years_of_ministry',
+    'has_bachelors','salvation_status','baptism_status','sense_of_call',
+    'ssc_status','ssc_year','hslc_status','hslc_year',
+    'ug_status','ug_year','previous_theological_education',
+    'program','intake_term',
+    'referee1_name','referee1_email','referee1_type',
+    'referee2_name','referee2_email','referee2_type',
+    'mentor_name','mentor_email','mentor_church',
+    'website'
+  ];
 
-    button.disabled = true;
-    button.textContent = 'Submitting…';
-
-    const fields = [
-      'full_name','dob','gender','email','address',
-      'mother_tongue','nationality',
-      'church_name','church_denomination','current_role','years_of_ministry',
-      'has_bachelors','salvation_status','baptism_status','sense_of_call',
-      'ssc_status','ssc_year','hslc_status','hslc_year',
-      'ug_status','ug_year','previous_theological_education',
-      'program','intake_term',
-      'referee1_name','referee1_email','referee1_type',
-      'referee2_name','referee2_email','referee2_type',
-      'mentor_name','mentor_email','mentor_church',
-      'website'
-    ];
+  function buildPayload() {
     const payload = {};
-    fields.forEach((id) => { payload[id] = val(id); });
+    FIELDS.forEach((id) => { payload[id] = val(id); });
 
     // Two boxes, one field. An empty number sends nothing at all rather than a
     // bare country code, which would look like a phone number to everyone
@@ -627,6 +683,206 @@
     payload.mobile = phone('mobile');
     payload.whatsapp = phone('whatsapp');
     payload.mentor_mobile = phone('mentor_mobile');
+    return payload;
+  }
+
+  function chosenDocuments() {
+    return Array.from(document.querySelectorAll('.doc-input'))
+      .filter((input) => input.files && input.files[0]);
+  }
+
+  // ----- the review -----
+
+  /* Read from the form's own labels rather than a second list of field names
+     kept here. A list would be one more thing to remember on the day a field
+     is added, and the failure is silent: the field is collected, saved, and
+     simply never shown to the person confirming it. */
+  function labelOf(control) {
+    const label = form.querySelector('label[for="' + control.id + '"]');
+    if (!label) return null;
+    const text = label.cloneNode(true);
+    text.querySelectorAll('.req').forEach((mark) => mark.remove());
+    return text.textContent.replace(/\s+/g, ' ').trim();
+  }
+
+  function shownValue(control) {
+    if (control.type === 'checkbox') return control.checked ? 'Yes' : 'No';
+    if (control.tagName === 'SELECT') {
+      const option = control.options[control.selectedIndex];
+      const text = option ? option.textContent.trim() : '';
+      return text.startsWith('—') ? '' : text;
+    }
+    return String(control.value || '').trim();
+  }
+
+  function kb(size) {
+    return size < 1024 * 1024
+      ? Math.max(1, Math.round(size / 1024)) + ' KB'
+      : (size / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  let previewUrls = [];
+
+  function buildReview() {
+    previewUrls.forEach(URL.revokeObjectURL);
+    previewUrls = [];
+    reviewBody.innerHTML = '';
+
+    form.querySelectorAll('fieldset').forEach((group) => {
+      const heading = group.querySelector('.sib-legend-bar');
+      const rows = document.createElement('dl');
+      rows.style.margin = '0';
+
+      // The sub-headings come along in document order. Without them the two
+      // references read as "Their name / Their email" twice over, on the one
+      // page whose whole job is letting somebody check which is which.
+      group.querySelectorAll('.sub-head, input, select, textarea').forEach((control) => {
+        if (control.classList.contains('sub-head')) {
+          const divider = document.createElement('div');
+          divider.className = 'review-subhead';
+          divider.textContent = control.textContent.replace(/\s+/g, ' ').trim();
+          rows.appendChild(divider);
+          return;
+        }
+        if (!control.id || control.type === 'file') return;
+        // The honeypot is hidden from humans; it must stay hidden here too.
+        if (control.id === 'website') return;
+        // A country code on its own is not a phone number -- the joined
+        // value is shown against the number's own label.
+        if (/_code$/.test(control.id)) return;
+
+        const label = labelOf(control);
+        if (!label) return;
+
+        let value = shownValue(control);
+        if (/_number$/.test(control.id)) {
+          value = phone(control.id.replace(/_number$/, ''));
+        }
+
+        const row = document.createElement('div');
+        row.className = 'review-row';
+        const term = document.createElement('dt');
+        term.textContent = label;
+        const detail = document.createElement('dd');
+        if (value) {
+          detail.textContent = value;
+        } else {
+          // Shown as blank rather than dropped. "Did I fill that in?" is the
+          // question a review page exists to answer, and a row that simply is
+          // not there answers it the wrong way.
+          detail.className = 'review-missing';
+          detail.textContent = 'Not given';
+        }
+        row.appendChild(term);
+        row.appendChild(detail);
+        rows.appendChild(row);
+      });
+
+      while (rows.lastElementChild && rows.lastElementChild.className === 'review-subhead') {
+        rows.removeChild(rows.lastElementChild);
+      }
+      if (!rows.querySelector('.review-row')) return;
+
+      const section = document.createElement('section');
+      section.className = 'review-group';
+      const title = document.createElement('h4');
+      title.textContent = heading ? heading.textContent.replace(/\s+/g, ' ').trim() : 'Your details';
+      section.appendChild(title);
+      section.appendChild(rows);
+      reviewBody.appendChild(section);
+    });
+
+    // ----- the documents, shown rather than listed -----
+    const section = document.createElement('section');
+    section.className = 'review-group';
+    const title = document.createElement('h4');
+    title.textContent = 'Documents you are sending';
+    section.appendChild(title);
+
+    const chosen = chosenDocuments();
+    if (!chosen.length) {
+      const none = document.createElement('p');
+      none.className = 'review-missing';
+      none.textContent =
+        'No documents chosen. You can send them later from the link we email you.';
+      section.appendChild(none);
+    } else {
+      const grid = document.createElement('div');
+      grid.className = 'review-docs';
+      chosen.forEach((input) => {
+        const file = input.files[0];
+        const card = document.createElement('div');
+        card.className = 'review-doc';
+
+        const kind = document.createElement('span');
+        kind.className = 'doc-kind';
+        kind.textContent = input.dataset.doctype;
+        card.appendChild(kind);
+
+        const url = URL.createObjectURL(file);
+        previewUrls.push(url);
+
+        if (/^image\//.test(file.type || '')) {
+          const image = document.createElement('img');
+          image.src = url;
+          image.alt = 'Preview of ' + file.name;
+          card.appendChild(image);
+        }
+
+        const open = document.createElement('a');
+        open.href = url;
+        open.target = '_blank';
+        open.rel = 'noopener';
+        open.textContent = file.name;
+        card.appendChild(open);
+
+        const size = document.createElement('div');
+        size.className = 'review-missing';
+        size.textContent = kb(file.size);
+        card.appendChild(size);
+
+        grid.appendChild(card);
+      });
+      section.appendChild(grid);
+    }
+    reviewBody.appendChild(section);
+  }
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    message.innerHTML = '';
+
+    const missing = REQUIRED.filter((id) => !String(val(id)).trim());
+    if (missing.length) {
+      message.innerHTML =
+        '<div class="alert alert-danger">Please fill in every field marked *.</div>';
+      document.getElementById(missing[0]).focus();
+      return;
+    }
+
+    buildReview();
+    reviewMessage.innerHTML = '';
+    form.hidden = true;
+    document.getElementById('apply-intro').hidden = true;
+    reviewPanel.hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  document.getElementById('back-btn').addEventListener('click', function () {
+    reviewPanel.hidden = true;
+    form.hidden = false;
+    document.getElementById('apply-intro').hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  confirmButton.addEventListener('click', async function () {
+    const backButton = document.getElementById('back-btn');
+    confirmButton.disabled = true;
+    backButton.disabled = true;
+    confirmButton.textContent = 'Submitting…';
+    reviewMessage.innerHTML = '';
+
+    const payload = buildPayload();
 
     try {
       const response = await fetch(
@@ -659,8 +915,7 @@
       // The application exists now, so the files have somewhere to belong.
       // Uploading afterwards means a guest can never put a file on the server
       // that is not tied to a real record.
-      const chosen = Array.from(document.querySelectorAll('.doc-input'))
-        .filter((input) => input.files && input.files[0]);
+      const chosen = chosenDocuments();
 
       if (chosen.length && result.upload_token) {
         let done = 0;
@@ -673,7 +928,7 @@
           // to move on success alone, so a file that was going to fail left the
           // button reading "Uploading documents…" unchanged for minutes --
           // indistinguishable from a frozen page, which is what it was taken for.
-          button.textContent =
+          confirmButton.textContent =
             'Uploading ' + (i + 1) + ' of ' + chosen.length + ' — ' +
             input.dataset.doctype + '…';
           try {
@@ -742,14 +997,16 @@
         document.getElementById('pay-manual').hidden = false;
       }
 
-      document.getElementById('apply-intro').hidden = true;
-      form.hidden = true;
+      previewUrls.forEach(URL.revokeObjectURL);
+      previewUrls = [];
+      reviewPanel.hidden = true;
       document.getElementById('apply-done').hidden = false;
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
-      button.disabled = false;
-      button.textContent = 'Submit application';
-      message.innerHTML =
+      confirmButton.disabled = false;
+      backButton.disabled = false;
+      confirmButton.textContent = 'Confirm and submit';
+      reviewMessage.innerHTML =
         '<div class="alert alert-danger">' +
         String(error.message || error).replace(/<[^>]*>/g, '') +
         '</div>';

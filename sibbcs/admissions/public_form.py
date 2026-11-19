@@ -437,6 +437,7 @@ def _notify(doc):
 	in the API response. And we clear the message log afterwards regardless, so
 	no internal mail plumbing can ever surface on the public form.
 	"""
+	from sibbcs.admissions.notifications import officer_emails
 	from sibbcs.admissions.uploads import candidate_document_url
 
 	if not outgoing_mail_configured():
@@ -471,10 +472,7 @@ def _notify(doc):
 				now=False,
 			)
 
-		officers = frappe.get_all(
-			"Has Role", filters={"role": "Admissions Officer", "parenttype": "User"}, pluck="parent"
-		)
-		officers = [e for e in officers if "@" in (e or "")]
+		officers = officer_emails()
 		if officers:
 			frappe.sendmail(
 				recipients=officers,

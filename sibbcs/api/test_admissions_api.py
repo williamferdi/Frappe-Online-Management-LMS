@@ -244,3 +244,67 @@ class TestApplicationDetail(FrappeTestCase):
 
 		for field in admissions_api.LIST_FIELDS:
 			self.assertIn(field, fieldnames, f"{field} is not on Admission Application")
+
+
+class TestWhatIsWaitingOnAnOfficer(FrappeTestCase):
+	"""The console's nav badge. Outstanding work, not unread notices: it clears
+	when the documents have been checked, not when somebody glanced at a list.
+	"""
+
+	def test_it_counts_applications_not_files(self):
+		"""A candidate who sends six certificates is one thing to open, not
+		six. A badge reading 6 for one candidate is a badge nobody trusts.
+		"""
+		doc = make_application()
+		for document_type in ("SSC/10th Mark Sheet", "National ID", "Photo"):
+			doc.append(
+				"application_documents",
+				{"document_type": document_type, "file": "/private/files/x.pdf", "verified": 0},
+			)
+		doc.save(ignore_permissions=True)
+
+		before = admissions_api.attention()["documents"]
+		self.assertGreaterEqual(before, 1)
+
+		other = make_application()
+		other.append(
+			"application_documents",
+			{"document_type": "Photo", "file": "/private/files/y.pdf", "verified": 0},
+		)
+		other.save(ignore_permissions=True)
+
+		self.assertEqual(admissions_api.attention()["documents"], before + 1)
+
+	def test_a_verified_document_stops_counting(self):
+		doc = make_application()
+		doc.append(
+			"application_documents",
+			{"document_type": "Photo", "file": "/private/files/z.pdf", "verified": 0},
+		)
+		doc.save(ignore_permissions=True)
+		with_it = admissions_api.attention()["documents"]
+
+		doc.application_documents[0].verified = 1
+		doc.save(ignore_permissions=True)
+
+		self.assertEqual(admissions_api.attention()["documents"], with_it - 1)
+
+	def test_a_row_with_no_file_is_not_work(self):
+		"""`documents.review` and the checklist both create rows before a file
+		exists; an empty row is a thing we are waiting on the *candidate* for.
+		"""
+		doc = make_application()
+		before = admissions_api.attention()["documents"]
+		doc.append("application_documents", {"document_type": "Photo", "verified": 0})
+		doc.save(ignore_permissions=True)
+
+		self.assertEqual(admissions_api.attention()["documents"], before)
+
+	def test_a_student_is_refused_outright(self):
+		original = frappe.session.user
+		try:
+			frappe.set_user("Guest")
+			with self.assertRaises(frappe.PermissionError):
+				admissions_api.attention()
+		finally:
+			frappe.set_user(original)

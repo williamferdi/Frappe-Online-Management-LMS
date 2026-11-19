@@ -1,14 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { frappeGet, frappePost } from '@/lib/frappe'
-import type { ApplicationDetail, ConsoleDashboard, PipelineResponse } from '@/types'
+import type {
+	ApplicationDetail,
+	AttentionCounts,
+	ConsoleDashboard,
+	PipelineResponse,
+} from '@/types'
 
 export const staffKeys = {
 	all: ['staff'] as const,
 	dashboard: ['staff', 'dashboard'] as const,
 	pipeline: (filters: PipelineFilters) => ['staff', 'pipeline', filters] as const,
 	application: (name: string) => ['staff', 'application', name] as const,
+	attention: ['staff', 'attention'] as const,
 }
+
+/** What is waiting on an officer. Polled, like the portal's unread badges. */
+export const useAttention = () =>
+	useQuery({
+		queryKey: staffKeys.attention,
+		queryFn: () => frappeGet<AttentionCounts>('sibbcs.api.admissions_api.attention'),
+		refetchInterval: 60_000,
+		staleTime: 30_000,
+	})
 
 export interface PipelineFilters {
 	state?: string
