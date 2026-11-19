@@ -1226,6 +1226,46 @@ The webhook verifies Razorpay's HMAC-SHA256 signature over the **raw body** with
 could mark invoices paid. It is idempotent on `razorpay_payment_id`, because Razorpay
 retries. **Not yet configured** — no keys are set, so links cannot be generated.
 
+**All three of its write paths were broken, and nothing said so — 19 Nov 2026.** The
+gateway-neutralisation refactor reached the builder and `razorpay.py` and never reached
+the schema: `ensure_doctype` leaves an existing DocType untouched, so `payment_provider`
+(declared in `phase4_finance` for both Fee Invoice and Payment Entry) existed on neither,
+and `Payment Entry.mode` still offered `Razorpay` while the webhook wrote `Online`. Link
+generation and both settlement paths would have failed on the first real payment, *after
+the money was taken*. `razorpay.py` had **no test file at all**; `test_razorpay.py` now
+reads the module's own source and checks every field and Select value it writes against
+the DocType metadata, so the next field renamed in the builder alone fails a test instead
+of a payment. `sibbcs.patches.gateway_neutral_payment_mode` moves any stored `Razorpay`
+onto `Online`, **pre_model_sync** — a Select is validated on save, so a row holding a
+dropped option could never be saved again.
+
+### Taking an application fee without a gateway — `fees.settle_application_fee`
+
+Until 19 Nov 2026 the Razorpay webhook was the *only* thing that could settle an
+application fee, so with no gateway configured an application could be submitted and then
+stand in Draft for ever. `Payment Entry.student` is mandatory and an applicant is not a
+Student until the conversion point, so there is no Payment Entry to write; and
+`Fee Invoice.compute_totals` derives `paid_amount` from the allocation rows, so marking
+the invoice Paid in Desk is undone by its own `validate`.
+
+`settle_application_fee(application, amount=None, mode=…, reference_no=…)` records it:
+mode is one of **UPI / Bank Transfer / Cash / Cheque** (`Online` is refused — that is the
+gateway's word for its own rows), how and by whom goes into the invoice's remarks, and a
+re-run is idempotent rather than taking the fee twice. A **part** payment leaves the gate
+shut and the application in Draft, which is the honest answer. It has no UI yet: it is run
+with `bench execute`, and the officer-facing button belongs on the candidate screen.
+
+**`Fee Invoice.direct_paid_amount` is why such a payment survives.** `get_paid_amount` now
+returns allocations **plus** that field. Writing `paid_amount` straight through — which
+the gateway path did — left a settlement the invoice reversed the moment anybody saved it,
+because an application fee has no allocation rows to recompute from. `payment_provider` is
+left blank for money taken by hand, and the field says so: blank means a human recorded it.
+
+**A waived application fee still has no route.** `Fee Invoice.status` offers `Waived` and
+`set_status` makes it stick, but nothing flips `application_fee_paid` from a waiver, so a
+waived candidate stays in Draft. `conversion.onboard` already treats a waived *admission*
+fee as settled; the application fee has no equivalent. Not built — nobody has asked yet.
+
 ### 2.5 Output — NOT BUILT
 `Degree Audit`, `Transcript` (print format), `Graduation Record`. Originally Phase 7,
 which now collides with the Phase 7 that removed the bundled `lms` app.

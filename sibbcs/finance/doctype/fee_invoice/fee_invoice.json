@@ -29,12 +29,14 @@
   "cb_amounts",
   "net_amount",
   "paid_amount",
+  "direct_paid_amount",
   "outstanding_amount",
   "sb_due",
   "due_date",
   "cb_due",
   "payment_link",
   "payment_reference",
+  "payment_provider",
   "sb_remarks",
   "remarks"
  ],
@@ -172,6 +174,13 @@
    "read_only": 1
   },
   {
+   "description": "Money recorded against this invoice without a Payment Entry: a gateway settlement, or an application fee taken before the payer became a Student. Counted in Paid alongside the allocations.",
+   "fieldname": "direct_paid_amount",
+   "fieldtype": "Currency",
+   "label": "Recorded Directly",
+   "read_only": 1
+  },
+  {
    "fieldname": "outstanding_amount",
    "fieldtype": "Currency",
    "label": "Outstanding",
@@ -221,12 +230,19 @@
    "hidden": 1,
    "label": "Gateway Reference",
    "read_only": 1
+  },
+  {
+   "description": "Which gateway handled this row. Blank means the money was recorded by hand.",
+   "fieldname": "payment_provider",
+   "fieldtype": "Data",
+   "label": "Gateway",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-08 17:10:45.532812",
+ "modified": "2026-11-19 15:17:50.269471",
  "modified_by": "Administrator",
  "module": "Finance",
  "name": "Fee Invoice",

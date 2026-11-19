@@ -57,15 +57,29 @@ class FeeInvoice(Document):
 		self.outstanding_amount = flt(flt(self.net_amount) - flt(self.paid_amount), 2)
 
 	def get_paid_amount(self):
-		"""Sum of allocations pointing at this invoice."""
+		"""Allocations pointing at this invoice, plus anything recorded directly.
+
+		`paid_amount` is derived, never assigned -- which is why marking an
+		invoice Paid in Desk does not stick. But not every payment can be a
+		Payment Entry: `Payment Entry.student` is mandatory and an application
+		fee is owed before the applicant becomes a Student, so the only record
+		of that money is `direct_paid_amount` on the invoice itself.
+
+		Counting it here is what makes such a payment survive. Both the gateway
+		and `fees.settle_application_fee` used to write `paid_amount` straight
+		through, and the next save of the invoice -- an officer adding a remark
+		would do it -- recomputed the figure from allocations alone and silently
+		put the invoice back to Unpaid.
+		"""
 		if self.is_new():
-			return 0.0
+			return flt(self.direct_paid_amount)
 		rows = frappe.get_all(
 			"Payment Allocation",
 			filters={"fee_invoice": self.name, "parenttype": "Payment Entry", "docstatus": ("<", 2)},
 			fields=["allocated_amount"],
 		)
-		return flt(sum(flt(r.allocated_amount) for r in rows), 2)
+		allocated = sum(flt(r.allocated_amount) for r in rows)
+		return flt(allocated + flt(self.direct_paid_amount), 2)
 
 	def set_status(self):
 		"""Waived and Cancelled are set by a human and must stick."""

@@ -19,6 +19,7 @@
   "reference_no",
   "cb_mode",
   "gateway_payment_id",
+  "payment_provider",
   "reconciled_by",
   "sb_allocation",
   "allocations",
@@ -88,7 +89,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Mode",
-   "options": "Razorpay\nUPI\nBank Transfer\nCash\nCheque",
+   "options": "Online\nUPI\nBank Transfer\nCash\nCheque",
    "reqd": 1
   },
   {
@@ -153,12 +154,19 @@
    "fieldtype": "Data",
    "label": "Gateway Payment ID",
    "read_only": 1
+  },
+  {
+   "description": "Which gateway handled this row. Blank means the money was recorded by hand.",
+   "fieldname": "payment_provider",
+   "fieldtype": "Data",
+   "label": "Gateway",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-08 17:10:46.165620",
+ "modified": "2026-11-19 15:17:50.772939",
  "modified_by": "Administrator",
  "module": "Finance",
  "name": "Payment Entry",

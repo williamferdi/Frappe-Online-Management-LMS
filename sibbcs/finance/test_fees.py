@@ -582,3 +582,133 @@ class TestRazorpaySignature(FrappeTestCase):
 		secret = "whsec_test"
 		signature = hmac.new(secret.encode(), b'{"amount":100}', hashlib.sha256).hexdigest()
 		self.assertFalse(verify_signature(b'{"amount":999999}', signature, secret))
+
+
+class TestApplicationFeeSettledByHand(FrappeTestCase):
+	"""`settle_application_fee` -- the only way to take an application fee
+	without a gateway, and the gateway is not configured.
+	"""
+
+	def _application(self):
+		from sibbcs.admissions.doctype.admission_application.test_admission_application import (
+			make_application,
+		)
+
+		app = make_application(
+			full_name="Fee Payer",
+			email=f"{frappe.generate_hash(length=10)}@example.invalid",
+		)
+		invoice = fees.raise_application_fee(app.name)
+		self.assertIsNotNone(invoice, "no Application Fee type seeded")
+		return app, invoice
+
+	def test_paying_it_places_the_application(self):
+		app, invoice = self._application()
+		self.assertEqual(app.workflow_state, "Draft")
+
+		state = fees.settle_application_fee(app.name, mode="UPI", reference_no="UTR-1")
+
+		self.assertEqual(state, "In Review")
+		app.reload()
+		self.assertTrue(app.application_fee_paid)
+		self.assertEqual(app.workflow_state, "In Review")
+
+		invoice.reload()
+		self.assertEqual(invoice.status, "Paid")
+		self.assertEqual(flt(invoice.outstanding_amount), 0)
+		self.assertEqual(flt(invoice.paid_amount), 350)
+		self.assertEqual(invoice.payment_reference, "UTR-1")
+
+	def test_the_payment_survives_the_next_save(self):
+		"""The bug this field exists for.
+
+		`paid_amount` is derived from the allocations, and an application fee
+		has none -- so writing it straight through left a settlement that the
+		next save of the invoice quietly reversed.
+		"""
+		app, invoice = self._application()
+		fees.settle_application_fee(app.name, mode="Cash")
+
+		invoice.reload()
+		invoice.remarks = (invoice.remarks or "") + " · receipt filed"
+		invoice.save(ignore_permissions=True)
+
+		invoice.reload()
+		self.assertEqual(invoice.status, "Paid")
+		self.assertEqual(flt(invoice.paid_amount), 350)
+		self.assertEqual(flt(invoice.outstanding_amount), 0)
+
+	def test_the_gateway_is_not_credited_for_money_taken_by_hand(self):
+		app, invoice = self._application()
+		fees.settle_application_fee(app.name, mode="Bank Transfer")
+		invoice.reload()
+		self.assertFalse(invoice.get("payment_provider"))
+
+	def test_who_took_it_and_how_is_on_the_record(self):
+		app, invoice = self._application()
+		fees.settle_application_fee(
+			app.name, mode="Cheque", reference_no="CHQ-77", remarks="counter"
+		)
+		invoice.reload()
+		self.assertIn("Cheque", invoice.remarks)
+		self.assertIn("CHQ-77", invoice.remarks)
+		self.assertIn("counter", invoice.remarks)
+		self.assertIn(frappe.session.user, invoice.remarks)
+		self.assertIn("Application fee for", invoice.remarks)  # the original is kept
+
+	def test_part_of_the_fee_leaves_it_in_draft(self):
+		app, invoice = self._application()
+		state = fees.settle_application_fee(app.name, amount=100, mode="Cash")
+
+		self.assertEqual(state, "Draft")
+		invoice.reload()
+		self.assertEqual(invoice.status, "Partly Paid")
+		self.assertEqual(flt(invoice.outstanding_amount), 250)
+		app.reload()
+		self.assertFalse(app.application_fee_paid)
+
+	def test_the_rest_of_a_part_payment_completes_it(self):
+		app, invoice = self._application()
+		fees.settle_application_fee(app.name, amount=100, mode="Cash")
+		state = fees.settle_application_fee(app.name, amount=250, mode="UPI")
+
+		self.assertEqual(state, "In Review")
+		invoice.reload()
+		self.assertEqual(invoice.status, "Paid")
+		self.assertEqual(flt(invoice.paid_amount), 350)
+
+	def test_more_than_is_owed_is_refused(self):
+		app, _invoice = self._application()
+		with self.assertRaises(frappe.ValidationError):
+			fees.settle_application_fee(app.name, amount=500, mode="Cash")
+
+	def test_nothing_is_refused(self):
+		app, _invoice = self._application()
+		with self.assertRaises(frappe.ValidationError):
+			fees.settle_application_fee(app.name, amount=0, mode="Cash")
+
+	def test_the_gateways_own_mode_is_refused(self):
+		"""`Online` is what the webhook writes for a row a gateway signed for."""
+		app, _invoice = self._application()
+		with self.assertRaises(frappe.ValidationError):
+			fees.settle_application_fee(app.name, mode="Online")
+
+	def test_running_it_twice_does_not_take_the_fee_twice(self):
+		app, invoice = self._application()
+		fees.settle_application_fee(app.name, mode="UPI")
+		state = fees.settle_application_fee(app.name, mode="UPI")
+
+		self.assertEqual(state, "In Review")
+		invoice.reload()
+		self.assertEqual(flt(invoice.paid_amount), 350)
+		self.assertEqual(flt(invoice.direct_paid_amount), 350)
+
+	def test_an_application_with_no_invoice_says_so(self):
+		from sibbcs.admissions.doctype.admission_application.test_admission_application import (
+			make_application,
+		)
+
+		app = make_application(email=f"{frappe.generate_hash(length=10)}@example.invalid")
+		frappe.db.delete("Fee Invoice", {"admission_application": app.name})
+		with self.assertRaises(frappe.ValidationError):
+			fees.settle_application_fee(app.name, mode="Cash")

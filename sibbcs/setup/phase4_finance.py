@@ -214,6 +214,17 @@ def _fee_invoice():
 			column("cb_amounts"),
 			f("net_amount", "Net", "Currency", read_only=1, in_list_view=1),
 			f("paid_amount", "Paid", "Currency", read_only=1),
+			f(
+				"direct_paid_amount",
+				"Recorded Directly",
+				"Currency",
+				read_only=1,
+				description=(
+					"Money recorded against this invoice without a Payment Entry: a "
+					"gateway settlement, or an application fee taken before the payer "
+					"became a Student. Counted in Paid alongside the allocations."
+				),
+			),
 			f("outstanding_amount", "Outstanding", "Currency", read_only=1),
 			section("sb_due", "Payment"),
 			f("due_date", "Due Date", "Date", reqd=1, in_list_view=1),

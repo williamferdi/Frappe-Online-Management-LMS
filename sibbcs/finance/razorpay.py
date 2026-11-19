@@ -309,8 +309,15 @@ def _record_application_payment(invoice, entity, amount, payment_id):
 	from sibbcs.finance.fees import mark_application_fee_paid
 
 	paid = min(amount, flt(invoice.net_amount))
+	# `direct_paid_amount` is the record, and `paid_amount` is written only so
+	# the figure is right before the next save recomputes it. Writing
+	# `paid_amount` alone -- which this did until 19 Nov 2026 -- left a
+	# settlement that the invoice's own `compute_totals` reversed the moment
+	# anybody saved it, because an application fee has no allocation rows to
+	# recompute from.
 	invoice.db_set(
 		{
+			"direct_paid_amount": paid,
 			"paid_amount": paid,
 			"outstanding_amount": flt(flt(invoice.net_amount) - paid, 2),
 			"status": "Paid" if paid >= flt(invoice.net_amount) else "Partly Paid",

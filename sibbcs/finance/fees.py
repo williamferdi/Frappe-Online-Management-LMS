@@ -179,6 +179,123 @@ def mark_application_fee_paid(application):
 	return state
 
 
+OFFLINE_MODES = ("UPI", "Bank Transfer", "Cash", "Cheque")
+
+
+def settle_application_fee(
+	application, amount=None, mode="Bank Transfer", reference_no=None,
+	received_on=None, remarks=None,
+):
+	"""Record an application fee that arrived outside a gateway, and place the
+	application.
+
+	    bench --site online.sibbc.org execute \\
+	        sibbcs.finance.fees.settle_application_fee \\
+	        --kwargs "{'application': 'APP-2026-00001', 'mode': 'UPI', \\
+	                   'reference_no': '4296...'}"
+
+	**Why this has to exist.** Until now nothing but the Razorpay webhook could
+	settle an application fee. `Payment Entry.student` is mandatory and an
+	applicant does not become a Student until the conversion point, several
+	states later -- so there is no Payment Entry to write -- and `Fee Invoice`
+	derives `paid_amount` from its allocations, so marking the invoice Paid in
+	Desk is undone by its own `validate`. With no gateway configured, which is
+	the position today and for as long as the college takes UPI and bank
+	transfers by hand, an application could be submitted and then stand in
+	Draft for ever with no way for anybody to say the money had arrived.
+
+	The money is recorded in `direct_paid_amount`, which `get_paid_amount`
+	counts: writing `paid_amount` straight through, as the gateway path did,
+	leaves a payment the next save of the invoice silently reverses.
+
+	`payment_provider` is left blank on purpose -- that field records *which
+	gateway* handled a row, and inventing a value for money counted at the
+	office would make a hand-written receipt indistinguishable from a
+	settlement a gateway signed for.
+	"""
+	from sibbcs.admissions.checklist import derive_state
+
+	invoice = application_fee_invoice(application)
+	if not invoice:
+		frappe.throw(
+			_("{0} has no application fee invoice to settle.").format(application),
+			title=_("Nothing to Pay"),
+		)
+
+	if invoice.status == "Cancelled":
+		frappe.throw(
+			_("{0} is cancelled and cannot be paid.").format(invoice.name),
+			title=_("Cancelled Invoice"),
+		)
+
+	if mode not in OFFLINE_MODES:
+		# "Online" is the gateway's own word for its own rows. Money recorded
+		# here came in some other way, and saying how is the whole audit trail.
+		frappe.throw(
+			_("Mode must be one of: {0}.").format(", ".join(OFFLINE_MODES)),
+			title=_("Unknown Payment Mode"),
+		)
+
+	# Idempotent: a second call after the money is in reports the state rather
+	# than recording the fee twice. An officer told to "just run it again"
+	# because the first run looked like it did nothing must not double-count.
+	if flt(invoice.outstanding_amount) <= 0 or invoice.status in ("Paid", "Waived"):
+		doc = frappe.get_doc("Admission Application", application)
+		if not doc.application_fee_paid:
+			# Settled, but the gate was never flipped -- finish the job.
+			return mark_application_fee_paid(application)
+		return derive_state(doc)
+
+	outstanding = flt(invoice.outstanding_amount)
+	taken = flt(amount) if amount is not None else outstanding
+
+	if taken <= 0:
+		frappe.throw(_("A payment must be for more than nothing."), title=_("Invalid Amount"))
+
+	if taken > outstanding + 0.01:
+		# Clamping is right for a gateway -- the money demonstrably arrived.
+		# A figure typed at the office is a typo until somebody confirms it.
+		frappe.throw(
+			_("{0} is owed {1}, but {2} was entered. Correct the figure, or raise the invoice.").format(
+				invoice.name, outstanding, taken
+			),
+			title=_("More Than Is Owed"),
+		)
+
+	when = getdate(received_on) if received_on else getdate(today())
+	note = _("Paid {0} by {1}").format(when, mode)
+	if reference_no:
+		note += _(" · ref {0}").format(reference_no)
+	note += _(" · recorded by {0}").format(frappe.session.user)
+	if remarks:
+		note += f" · {remarks}"
+
+	paid = flt(flt(invoice.direct_paid_amount) + taken, 2)
+	net = flt(invoice.net_amount)
+
+	# Through db_set, not save(): `compute_totals` would recompute paid_amount
+	# from `direct_paid_amount` anyway, but a save also re-runs every amount
+	# rule on an invoice nobody asked to re-validate. `modified_by` is left to
+	# move, because who recorded this money is part of the record.
+	invoice.db_set(
+		{
+			"direct_paid_amount": paid,
+			"paid_amount": paid,
+			"outstanding_amount": flt(net - paid, 2),
+			"status": "Paid" if paid >= net else "Partly Paid",
+			"payment_reference": reference_no or invoice.payment_reference,
+			"remarks": f"{invoice.remarks} · {note}" if invoice.remarks else note,
+		}
+	)
+
+	if paid < net:
+		# Part of the fee is not the fee. The gate stays shut and the
+		# application stays in Draft, which is the honest answer.
+		return derive_state(frappe.get_doc("Admission Application", application))
+
+	return mark_application_fee_paid(application)
+
+
 def raise_admission_fee(student, program_enrollment=None, program=None):
 	fee_type = get_fee_type(ADMISSION_FEE)
 	if not fee_type:
