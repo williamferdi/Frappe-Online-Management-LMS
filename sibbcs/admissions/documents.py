@@ -13,8 +13,6 @@ required box moves the step to Verified on the same save, without this module
 saying anything about it. One rule, in one place; two would eventually disagree.
 """
 
-from urllib.parse import quote
-
 import frappe
 from frappe import _
 from frappe.utils import cint, now_datetime
@@ -24,8 +22,11 @@ from sibbcs.admissions.doctype.admission_application.admission_application impor
 	REQUIRED_DOCUMENTS,
 )
 from sibbcs.admissions.notifications import outgoing_configured
-from sibbcs.admissions.uploads import OPEN_STATES, new_upload_token
-from sibbcs.finance.gateway import public_url
+from sibbcs.admissions.uploads import (
+	OPEN_STATES,
+	candidate_document_url,
+	new_upload_token,
+)
 
 REMARKS_MAX = 500
 
@@ -202,11 +203,10 @@ def request_resubmit(application, message=None):
 		# Applications created in Desk rather than through /apply never had one.
 		doc.upload_token = new_upload_token()
 
-	# Built here rather than through `token_url`, which assumes one token and
-	# no other parameters: the upload endpoint needs the application named too.
-	link = public_url(
-		f"/documents?application={quote(doc.name)}&token={doc.upload_token}"
-	)
+	# Built through `uploads.candidate_document_url` rather than `token_url`,
+	# which assumes one token and no other parameters: the upload endpoint needs
+	# the application named too.
+	link = candidate_document_url(doc.name, doc.upload_token)
 
 	context = {
 		"applicant_name": doc.full_name,

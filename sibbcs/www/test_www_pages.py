@@ -492,3 +492,90 @@ class TestTheDocumentsPageCanUpload(FrappeTestCase):
 
 	def test_the_page_uses_the_dropzone_include(self):
 		self.assertIn("templates/includes/dropzone.html", self.markup())
+
+
+class TestAnUploadSurvivesAMobileConnection(FrappeTestCase):
+	"""Both upload pages post a file as base64 inside a JSON body, which is a
+	third larger than the file. nginx closes a stalled request body after sixty
+	seconds, and on 19 Nov 2026 APP-2026-00014 lost every document it attached
+	-- twice -- to 408s that took three and a half minutes each to arrive, with
+	nothing moving on screen in between.
+
+	So: shrink a photograph before sending it, say which file is going up
+	before it is attempted, and leave the candidate a way back.
+	"""
+
+	INCLUDE = "templates/includes/image_shrink.html"
+
+	def page(self, name):
+		return open(os.path.join(WWW, name), encoding="utf-8").read()
+
+	def helper(self):
+		return open(
+			os.path.join(os.path.dirname(WWW), "templates", "includes", "image_shrink.html"),
+			encoding="utf-8",
+		).read()
+
+	def test_the_helper_exists(self):
+		self.assertIn("sibbcsPrepareUpload", self.helper())
+
+	def test_both_upload_pages_include_it(self):
+		for name in ("apply.html", "documents.html"):
+			with self.subTest(page=name):
+				self.assertIn(self.INCLUDE, self.page(name))
+
+	def test_both_upload_pages_go_through_it(self):
+		for name in ("apply.html", "documents.html"):
+			with self.subTest(page=name):
+				self.assertIn("sibbcsPrepareUpload", self.page(name))
+
+	def test_neither_page_reads_a_file_for_itself_any_more(self):
+		"""A second, unshrunk path would reintroduce the bug on whichever page
+		kept it, and nothing would say so until an applicant lost a document.
+		"""
+		for name in ("apply.html", "documents.html"):
+			with self.subTest(page=name):
+				self.assertNotIn("readAsDataURL", self.page(name))
+
+	def test_a_pdf_is_never_re_encoded(self):
+		"""It is already compressed, and a canvas cannot render one."""
+		self.assertIn(r"/^image\/(jpeg|png)$/i", self.helper())
+
+	def test_the_original_is_sent_when_shrinking_does_not_help(self):
+		helper = self.helper()
+		self.assertIn("blob.size >= file.size", helper)
+		self.assertIn("return asIs(file)", helper)
+
+	def test_a_re_encoded_file_is_renamed_with_its_new_type(self):
+		"""`uploads._validate_file` checks the extension, the declared content
+		type and the magic bytes against one another, so a PNG re-encoded as
+		JPEG that kept its name is refused outright.
+		"""
+		helper = self.helper()
+		self.assertIn("jpegName", helper)
+		self.assertIn("'image/jpeg'", helper)
+
+	def test_the_cameras_rotation_is_applied_before_it_is_discarded(self):
+		"""Frappe strips EXIF on save without rotating first, so a mark sheet
+		photographed in portrait would otherwise arrive on its side.
+		"""
+		self.assertIn("imageOrientation: 'from-image'", self.helper())
+
+	def test_the_apply_form_names_the_file_it_is_sending(self):
+		markup = self.page("apply.html")
+		self.assertIn("'Uploading ' + (i + 1) + ' of ' + chosen.length", markup)
+
+	def test_the_apply_form_leaves_a_way_to_finish_the_job(self):
+		markup = self.page("apply.html")
+		self.assertIn('id="doc-link"', markup)
+		self.assertIn("'/documents?application='", markup)
+
+	def test_the_apply_form_does_not_promise_a_state_that_does_not_exist(self):
+		"""`checklist.derive_state` returns In Review. "Submitted" belongs to
+		the Frappe workflow in phase2_workflow.py, which is not active on the
+		site -- so an applicant told to expect it never sees it, and neither
+		does the officer reading the same record.
+		"""
+		markup = self.page("apply.html")
+		self.assertIn("<b>In Review</b>", markup)
+		self.assertNotIn("<b>Submitted</b>", markup)

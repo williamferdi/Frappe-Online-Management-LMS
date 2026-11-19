@@ -945,6 +945,53 @@ A resubmit is refused, with advice rather than a raw error, when nothing is
 outstanding, the application has moved past `uploads.OPEN_STATES`, there is no
 email address, or no outgoing mail account is configured.
 
+### Uploading a document from a phone — 19 Nov 2026
+
+Both `/apply` and `/documents` post a file as **base64 inside a JSON body**, which is a
+third larger than the file itself. nginx closes a stalled request body after **60
+seconds** (`client_body_timeout`, left at its default) and answers 408. On a mobile
+uplink a 4 MB photograph of a mark sheet does not reliably survive that.
+
+That is the whole of what APP-2026-00014 was. The submit itself returned 200 in under a
+second on both attempts and the applicant was emailed each time — but every document
+then died at nginx: three 408s, each taking three and a half minutes to come back. The
+page read *"Uploading documents…"* throughout with nothing moving, because the counter
+only advanced on a **success**. It was taken for a frozen page, the candidate submitted
+again, and the application reached the console with no documents on it at all. The
+submit was never the problem; the evidence is one line per failed file in
+`/var/log/nginx/access.log`, which is the first place to look next time.
+
+Three changes, none of them to the endpoint:
+
+- **`templates/includes/image_shrink.html`** re-encodes a photograph to 2000px on the
+  long edge at JPEG q0.82 before sending — typically 4 MB down to a few hundred KB,
+  which goes up in seconds and never meets the timeout. PDFs and anything already small
+  pass through untouched, and **any** failure falls back to the original file: this may
+  cost an upload its size, never the upload itself. It applies the camera's own rotation
+  while drawing, which Frappe's `strip_exif_data` does *not* do before discarding the
+  metadata, so a portrait mark sheet no longer arrives on its side.
+  A re-encoded file is **renamed to `.jpg` with a matching content type** —
+  `uploads._validate_file` checks the extension, the declared type and the magic bytes
+  against one another, so one that kept its old name would be refused outright.
+- **The progress text names the file before the attempt**, not after a success.
+- **The candidate keeps a way back.** `uploads.candidate_document_url()` is the one
+  builder for `/documents?application=…&token=…`, and that address is now on the done
+  screen *and* in the acknowledgement email every applicant receives — not only in the
+  officer's resubmit message. Without it, a failed upload is recoverable only by somebody
+  noticing.
+
+`/documents` also parsed the response as JSON **before** checking `response.ok`, so a 408
+— an nginx HTML page — threw a SyntaxError about an unexpected `<`, and that was what the
+candidate was shown in place of the reason.
+
+The form also promised the application would move *"from Draft to **Submitted**"*. It
+moves to **In Review**: `checklist.derive_state` is what runs, and `Submitted` belongs to
+the Frappe workflow in `phase2_workflow.py`, which is not active on the site.
+
+**Still open, and it needs root:** `client_body_timeout` is nginx's default 60s for the
+whole server. Raising it (300s) at the `http` level in a `conf.d` file that sorts before
+`frappe-bench.conf` would survive `bench setup nginx` regenerating that file.
+
 ### The bundled `lms` app is gone — 18 Nov 2026
 
 Phase 7 removed it: uninstalled from both sites, removed from the bench, and the 69

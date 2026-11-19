@@ -1,0 +1,156 @@
+{#
+	Shrink a photographed document before it is uploaded. Shared by /apply and
+	/documents, both of which post files as base64 inside a JSON body.
+
+	Why this exists. That base64 body is a third larger than the file itself,
+	and nginx gives a stalled request body sixty seconds before it closes the
+	connection with a 408. A four-megabyte phone photo of a mark sheet, going
+	up a mobile uplink, does not reliably make it. That is exactly how
+	APP-2026-00014 lost every document it attached -- twice -- while the page
+	sat on "Uploading documents..." for four minutes a file with nothing on
+	screen moving.
+
+	A mark sheet is perfectly legible at 2000px on its long edge. Re-encoding
+	one at that size turns four megabytes into a few hundred kilobytes, which
+	goes up in seconds and never meets the timeout at all.
+
+	Four rules keep this from ever costing a candidate their document:
+
+	* A PDF is never touched. It is already compressed and cannot be re-encoded
+	  in a canvas.
+	* A file already under LEAVE_ALONE_BYTES goes exactly as it is. Re-encoding
+	  a small, sharp scan only makes it blurrier for no gain.
+	* If the re-encoded copy is not actually smaller, the original is sent.
+	* If anything at all fails -- an image the canvas cannot decode, a browser
+	  without `toBlob`, a tainted canvas -- the original is sent. This step may
+	  degrade an upload's size; it may never lose the upload.
+
+	The camera's own rotation is applied while drawing (`imageOrientation:
+	'from-image'`), so a mark sheet photographed in portrait does not arrive on
+	its side. Frappe strips EXIF when it saves an image and does not rotate
+	first, so for anything that comes through here that orientation is now
+	baked into the pixels rather than discarded with the metadata.
+
+	Exposes one function:
+
+	    sibbcsPrepareUpload(file)
+	        -> Promise<{content, filename, content_type, bytes, original_bytes}>
+
+	`content` is base64 without the data-URL prefix, which is what
+	`uploads.upload_document` takes. `filename` and `content_type` move
+	together when a PNG is re-encoded as JPEG -- the server checks the
+	extension, the declared type and the magic bytes against each other, so a
+	re-encoded file that kept its old name would be refused.
+#}
+<script>
+(function () {
+	var MAX_EDGE = 2000;
+	var QUALITY = 0.82;
+	var LEAVE_ALONE_BYTES = 700 * 1024;
+
+	function base64Of(blob) {
+		return new Promise(function (resolve, reject) {
+			var reader = new FileReader();
+			reader.onload = function () { resolve(String(reader.result).split(',')[1]); };
+			reader.onerror = function () { reject(new Error('That file could not be read.')); };
+			reader.readAsDataURL(blob);
+		});
+	}
+
+	function asIs(file) {
+		return base64Of(file).then(function (content) {
+			return {
+				content: content,
+				filename: file.name,
+				content_type: file.type,
+				bytes: file.size,
+				original_bytes: file.size,
+			};
+		});
+	}
+
+	function viaImageElement(file) {
+		return new Promise(function (resolve, reject) {
+			var url = URL.createObjectURL(file);
+			var image = new Image();
+			image.onload = function () { URL.revokeObjectURL(url); resolve(image); };
+			image.onerror = function () {
+				URL.revokeObjectURL(url);
+				reject(new Error('That image could not be read.'));
+			};
+			image.src = url;
+		});
+	}
+
+	function sourceFor(file) {
+		var attempt = null;
+		if (window.createImageBitmap) {
+			try {
+				attempt = createImageBitmap(file, { imageOrientation: 'from-image' });
+			} catch (e) {
+				attempt = null;
+			}
+		}
+		if (!attempt) return viaImageElement(file);
+		// An engine that has createImageBitmap but refuses the options object
+		// rejects rather than throwing, so the fallback belongs here too.
+		return Promise.resolve(attempt).catch(function () { return viaImageElement(file); });
+	}
+
+	function jpegName(name) {
+		var base = String(name || 'document').replace(/\.[^.]+$/, '');
+		return (base || 'document') + '.jpg';
+	}
+
+	function shrink(file) {
+		return sourceFor(file)
+			.then(function (source) {
+				var width = source.width || source.naturalWidth;
+				var height = source.height || source.naturalHeight;
+				if (!width || !height) throw new Error('That image has no size.');
+
+				var scale = Math.min(1, MAX_EDGE / Math.max(width, height));
+				var canvas = document.createElement('canvas');
+				canvas.width = Math.max(1, Math.round(width * scale));
+				canvas.height = Math.max(1, Math.round(height * scale));
+
+				var context = canvas.getContext('2d');
+				// JPEG has no transparency: a transparent PNG must flatten onto
+				// white, or every clear pixel comes out black.
+				context.fillStyle = '#ffffff';
+				context.fillRect(0, 0, canvas.width, canvas.height);
+				context.drawImage(source, 0, 0, canvas.width, canvas.height);
+				if (source.close) source.close();
+
+				return new Promise(function (resolve, reject) {
+					if (!canvas.toBlob) {
+						reject(new Error('This browser cannot re-encode images.'));
+						return;
+					}
+					canvas.toBlob(function (blob) {
+						if (blob) resolve(blob);
+						else reject(new Error('That image could not be re-encoded.'));
+					}, 'image/jpeg', QUALITY);
+				});
+			})
+			.then(function (blob) {
+				if (blob.size >= file.size) return asIs(file);
+				return base64Of(blob).then(function (content) {
+					return {
+						content: content,
+						filename: jpegName(file.name),
+						content_type: 'image/jpeg',
+						bytes: blob.size,
+						original_bytes: file.size,
+					};
+				});
+			});
+	}
+
+	window.sibbcsPrepareUpload = function (file) {
+		var photographed = /^image\/(jpeg|png)$/i.test(file.type || '');
+		if (!photographed || file.size <= LEAVE_ALONE_BYTES) return asIs(file);
+		return shrink(file).catch(function () { return asIs(file); });
+	};
+})();
+</script>

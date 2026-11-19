@@ -483,6 +483,11 @@
         Please keep your reference safe.
       </p>
       <p id="upload-note" class="small" hidden></p>
+      <p id="doc-link-line" class="small" hidden>
+        You can add, replace or finish uploading your documents at any time on
+        <a id="doc-link" href="#" rel="noopener">your own documents page</a>.
+        That link is yours alone — please do not pass it on.
+      </p>
     </div>
 
     <div id="pay-block" hidden>
@@ -511,7 +516,7 @@
 
     <h4>What happens after the fee clears</h4>
     <ol class="next-steps">
-      <li>Your application moves from Draft to <b>Submitted</b> automatically.</li>
+      <li>Your application moves from Draft to <b>In Review</b> automatically.</li>
       <li>We ask you for your certificates, ID and photograph.</li>
       <li>Your referees and mentor receive their private links by email.</li>
       <li>You sit a short qualifying exam, then an interview.</li>
@@ -548,6 +553,7 @@
 
 {% if accepting %}
 {% include "templates/includes/dropzone.html" %}
+{% include "templates/includes/image_shrink.html" %}
 <script>
 (function () {
   const form = document.getElementById('apply-form');
@@ -657,19 +663,23 @@
         .filter((input) => input.files && input.files[0]);
 
       if (chosen.length && result.upload_token) {
-        button.textContent = 'Uploading documents…';
         let done = 0;
         const failed = [];
 
-        for (const input of chosen) {
+        for (let i = 0; i < chosen.length; i += 1) {
+          const input = chosen[i];
           const file = input.files[0];
+          // Before the attempt, never only after one succeeds. The counter used
+          // to move on success alone, so a file that was going to fail left the
+          // button reading "Uploading documents…" unchanged for minutes --
+          // indistinguishable from a frozen page, which is what it was taken for.
+          button.textContent =
+            'Uploading ' + (i + 1) + ' of ' + chosen.length + ' — ' +
+            input.dataset.doctype + '…';
           try {
-            const b64 = await new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(String(reader.result).split(',')[1]);
-              reader.onerror = reject;
-              reader.readAsDataURL(file);
-            });
+            // Re-encoded small enough to survive a mobile uplink. Falls back to
+            // the file exactly as chosen if it cannot be.
+            const prepared = await window.sibbcsPrepareUpload(file);
 
             const up = await fetch(
               '/api/method/sibbcs.admissions.uploads.upload_document',
@@ -683,15 +693,14 @@
                   application: result.application,
                   upload_token: result.upload_token,
                   document_type: input.dataset.doctype,
-                  filename: file.name,
-                  content_type: file.type,
-                  content: b64,
+                  filename: prepared.filename,
+                  content_type: prepared.content_type,
+                  content: prepared.content,
                 }),
               }
             );
             if (!up.ok) throw new Error(input.dataset.doctype);
             done += 1;
-            button.textContent = 'Uploading documents… ' + done + '/' + chosen.length;
           } catch (e) {
             failed.push(input.dataset.doctype);
           }
@@ -701,11 +710,18 @@
         if (note) {
           note.textContent = failed.length
             ? done + ' of ' + chosen.length +
-              ' documents uploaded. These could not be accepted: ' +
-              failed.join(', ') + '. The Admissions Office will ask you for them.'
+              ' documents uploaded. These did not go through: ' +
+              failed.join(', ') + '. You can send them yourself using the link below.'
             : done + ' document' + (done === 1 ? '' : 's') + ' uploaded successfully.';
           note.hidden = false;
         }
+      }
+
+      if (result.upload_token) {
+        document.getElementById('doc-link').href =
+          '/documents?application=' + encodeURIComponent(result.application) +
+          '&token=' + encodeURIComponent(result.upload_token);
+        document.getElementById('doc-link-line').hidden = false;
       }
 
       document.getElementById('done-name').textContent = result.full_name || '';

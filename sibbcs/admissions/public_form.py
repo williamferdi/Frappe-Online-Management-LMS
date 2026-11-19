@@ -437,6 +437,8 @@ def _notify(doc):
 	in the API response. And we clear the message log afterwards regardless, so
 	no internal mail plumbing can ever surface on the public form.
 	"""
+	from sibbcs.admissions.uploads import candidate_document_url
+
 	if not outgoing_mail_configured():
 		frappe.logger("sibbcs").info(
 			f"{doc.name}: no outgoing email account, acknowledgement skipped"
@@ -445,6 +447,12 @@ def _notify(doc):
 
 	try:
 		if doc.email:
+			# The candidate's own documents page, in the one message every
+			# applicant is certain to get. The browser uploads the files it was
+			# given straight after this, but that upload can fail -- quietly and
+			# slowly, on a phone -- and without this the candidate's only route
+			# back is an officer noticing and asking.
+			documents_url = candidate_document_url(doc.name, doc.upload_token)
 			frappe.sendmail(
 				recipients=[doc.email],
 				subject=_("We have received your application — {0}").format(doc.name),
@@ -455,7 +463,11 @@ def _notify(doc):
 					"<p>Our Admissions Office will contact you about the application fee "
 					"and the documents we need next. Please quote your reference in any "
 					"correspondence.</p>"
-				).format(doc.full_name, doc.name),
+					"<p>You can add, replace or finish uploading your certificates, ID and "
+					"photograph at any time here:<br>"
+					'<a href="{2}">{2}</a></p>'
+					"<p>That link is yours alone — please do not pass it on.</p>"
+				).format(doc.full_name, doc.name, documents_url),
 				now=False,
 			)
 

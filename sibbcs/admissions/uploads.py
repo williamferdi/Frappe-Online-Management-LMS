@@ -55,6 +55,28 @@ def new_upload_token():
 	return secrets.token_urlsafe(32)
 
 
+def candidate_document_url(application, upload_token):
+	"""The candidate's own documents page, as an absolute address.
+
+	One place, because two different things now send it: the officer asking
+	for what is outstanding, and the acknowledgement that goes out the moment
+	an application is saved. The second matters because the browser's own
+	upload can fail -- slowly, on a mobile connection -- and a candidate who
+	has only ever been told "the Admissions Office will ask you" has no way to
+	finish the job themselves.
+
+	`public_url`, never `get_url`: the latter appends the development
+	webserver's port, and the address would be unreachable from a phone.
+	"""
+	from urllib.parse import quote
+
+	from sibbcs.finance.gateway import public_url
+
+	return public_url(
+		f"/documents?application={quote(str(application))}&token={quote(str(upload_token))}"
+	)
+
+
 def _resolve(application, upload_token):
 	if not (application and upload_token):
 		raise frappe.PermissionError("Upload not authorised.")

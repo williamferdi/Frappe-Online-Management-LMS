@@ -5,6 +5,7 @@
 {% block page_content %}
 {% include "templates/includes/csrf.html" %}
 {% include "templates/includes/dropzone.html" %}
+{% include "templates/includes/image_shrink.html" %}
 <div class="sibbcs-documents">
 
   {% if not valid %}
@@ -127,15 +128,6 @@
   var application = {{ application | tojson }};
   var token = {{ token | tojson }};
 
-  function read(file) {
-    return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function () { resolve(String(reader.result).split(',')[1]); };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
   Array.prototype.forEach.call(
     document.querySelectorAll('.doc-input'),
     function (input) {
@@ -158,7 +150,7 @@
         status.textContent = 'Uploading…';
 
         try {
-          var content = await read(file);
+          var prepared = await window.sibbcsPrepareUpload(file);
           var response = await fetch(
             '/api/method/sibbcs.admissions.uploads.upload_document',
             {
@@ -171,18 +163,25 @@
                 application: application,
                 upload_token: token,
                 document_type: input.dataset.doctype,
-                filename: file.name,
-                content_type: file.type,
-                content: content,
+                filename: prepared.filename,
+                content_type: prepared.content_type,
+                content: prepared.content,
               }),
             }
           );
 
-          var body = await response.json();
           if (!response.ok) {
-            // Frappe puts the readable half in _server_messages.
-            var text = 'That file could not be accepted.';
+            // Frappe puts the readable half in _server_messages -- but nginx
+            // answers a timed-out or oversized upload in HTML, so the body is
+            // read as text and only then tried as JSON. Parsing first threw a
+            // SyntaxError about an unexpected "<", and that was what the
+            // candidate saw instead of the reason.
+            var text = response.status === 408 || response.status === 413
+              ? 'That file was too slow or too large to send. ' +
+                'Try it again, or use a smaller copy.'
+              : 'That file could not be accepted.';
             try {
+              var body = JSON.parse(await response.text());
               var messages = JSON.parse(body._server_messages || '[]');
               if (messages.length) text = JSON.parse(messages[0]).message;
             } catch (e) { /* keep the plain wording */ }

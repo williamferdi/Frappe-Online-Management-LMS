@@ -886,3 +886,50 @@ class TestPhoneNumbers(FrappeTestCase):
 		doc = frappe.get_doc("Admission Application", result["application"])
 
 		self.assertEqual(doc.mentor_consents[0].mentor_mobile, "+918098619631")
+
+
+class TestTheAcknowledgementCanBeActedOn(FrappeTestCase):
+	"""APP-2026-00014, 19 Nov 2026: the browser's own upload of six documents
+	timed out at nginx, one file at a time, and every one was lost. The
+	candidate's only route back was an officer noticing and pressing a button.
+	The one message every applicant is certain to receive now carries their
+	own documents page.
+	"""
+
+	def _acknowledgement(self, **overrides):
+		from unittest.mock import patch
+
+		from sibbcs.admissions import public_form
+
+		sent = []
+		with patch.object(public_form, "outgoing_mail_configured", return_value=True), patch.object(
+			public_form.frappe, "sendmail", side_effect=lambda **kw: sent.append(kw)
+		):
+			result = submit_application(**payload(**overrides))
+
+		to_applicant = [
+			message
+			for message in sent
+			if overrides.get("email", "public1@example.invalid") in message["recipients"]
+		]
+		self.assertEqual(len(to_applicant), 1, "the applicant gets exactly one acknowledgement")
+		return result, to_applicant[0]
+
+	def test_it_carries_the_candidates_own_documents_page(self):
+		result, message = self._acknowledgement(email="ack1@example.invalid")
+		token = frappe.db.get_value("Admission Application", result["application"], "upload_token")
+
+		self.assertIn("/documents?application=", message["message"])
+		self.assertIn(result["application"], message["message"])
+		self.assertIn(token, message["message"])
+
+	def test_the_address_is_one_a_phone_can_reach(self):
+		"""get_url() appends the development webserver's port; public_url does
+		not. A link nobody outside the server can open is worse than none.
+		"""
+		_, message = self._acknowledgement(email="ack2@example.invalid")
+		self.assertNotIn(":8000", message["message"])
+
+	def test_it_says_the_link_is_personal(self):
+		_, message = self._acknowledgement(email="ack3@example.invalid")
+		self.assertIn("do not pass it on", message["message"])

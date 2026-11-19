@@ -15,7 +15,7 @@ from frappe.tests.utils import FrappeTestCase
 
 from sibbcs.admissions.public_form import submit_application
 from sibbcs.admissions.test_public_form import payload
-from sibbcs.admissions.uploads import MAX_BYTES, upload_document
+from sibbcs.admissions.uploads import MAX_BYTES, candidate_document_url, upload_document
 
 # Real images, not just the right magic bytes: Frappe strips EXIF from uploads
 # with PIL, which needs a file it can actually open.
@@ -281,3 +281,29 @@ class TestChecklistGateOnSave(FrappeTestCase):
 		doc.save(ignore_permissions=True)
 		doc.reload()
 		self.assertEqual(self._row(doc, NO["decision"]).status, "Admitted")
+
+
+class TestTheCandidatesOwnDocumentsLink(FrappeTestCase):
+	"""One builder, because two things send this address: the officer asking
+	for what is outstanding, and the acknowledgement sent the moment an
+	application is saved.
+	"""
+
+	def test_it_names_the_application_and_the_token(self):
+		url = candidate_document_url("APP-2026-00014", "tok-en_123")
+		self.assertIn("/documents?application=APP-2026-00014", url)
+		self.assertIn("token=tok-en_123", url)
+
+	def test_it_is_absolute(self):
+		self.assertTrue(candidate_document_url("APP-1", "t").startswith("http"))
+
+	def test_it_does_not_carry_the_development_port(self):
+		"""public_url, never get_url -- the latter appends :8000 on this
+		deployment and the candidate's phone cannot reach that address.
+		"""
+		self.assertNotIn(":8000", candidate_document_url("APP-1", "t"))
+
+	def test_an_awkward_value_is_escaped_rather_than_breaking_the_query(self):
+		url = candidate_document_url("APP 1&x=2", "t")
+		self.assertNotIn("APP 1&x=2", url)
+		self.assertIn("APP%201%26x%3D2", url)
