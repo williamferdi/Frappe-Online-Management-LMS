@@ -105,6 +105,14 @@ def enrol_applicant(application, email, full_name):
 	return person.get("activationUrl")
 
 
+# What Campus LMS Lite's not-found *handler* says, as against what its own
+# `notFound("Person")` says. Both come back as code `not_found`, so this is the
+# only thing that tells "you asked for an address I do not serve" apart from
+# "I have never heard of this person". Pinned on the LMS side by
+# `the not-found handler keeps the message the registrar reads`.
+ROUTE_MISSING = "Route not found."
+
+
 def reissue_activation_link(application):
 	"""A fresh activation link for a candidate who never used their first one.
 
@@ -136,17 +144,35 @@ def reissue_activation_link(application):
 		frappe.log_error(title=f"Campus LMS activation link failed for {application}")
 		return {"error": f"Campus LMS could not be reached: {exception}"}
 
+	# The LMS writes its refusals for a person to read -- a 422 is "they have
+	# already set a password" -- so they are passed on rather than paraphrased.
+	detail = ""
+	try:
+		body = response.json() or {}
+		detail = ((body.get("error") or {}) if isinstance(body.get("error"), dict) else {}).get(
+			"message"
+		) or ""
+	except ValueError:
+		body = {}
+
 	if response.status_code == 404:
-		return {"error": "Campus LMS has no account for this applicant yet."}
+		# Two different 404s, and they are the same shape: the LMS routes its
+		# own `notFound("Person")` and its not-found *handler* through one error
+		# body, so both arrive as `{"error": {"code": "not_found"}}`. Only the
+		# message separates them, and `ROUTE_MISSING` is the handler's own
+		# constant -- pinned by a test on that side, because reading it as the
+		# other is how an LMS that has not been restarted since this endpoint
+		# was added reports itself as a candidate who does not exist.
+		if detail.strip() == ROUTE_MISSING:
+			return {
+				"error": (
+					"Campus LMS does not offer this endpoint. It is running a build from "
+					"before activation links could be reissued -- restart it after deploying."
+				)
+			}
+		return {"error": detail or "Campus LMS has no account for this applicant yet."}
 
 	if response.status_code >= 400:
-		# The LMS writes these for a person to read -- 422 is "they have already
-		# set a password" -- so it is passed on rather than paraphrased.
-		detail = ""
-		try:
-			detail = ((response.json() or {}).get("error") or {}).get("message") or ""
-		except ValueError:
-			detail = ""
 		return {"error": detail or f"Campus LMS refused the request ({response.status_code})."}
 
 	data = response.json() or {}

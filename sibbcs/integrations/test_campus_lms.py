@@ -707,9 +707,24 @@ class TestAskingForAnotherActivationLink(FrappeTestCase):
 		self.assertEqual(answer["expires_in_hours"], 168)
 
 	def test_an_unknown_applicant_is_an_answer_not_a_fault(self):
-		answer = self._answer(404)
+		answer = self._answer(404, {"error": {"code": "not_found", "message": "Person not found."}})
 		self.assertIsNone(answer.get("url"))
-		self.assertIn("no account", answer["error"].lower())
+		self.assertIn("not found", answer["error"].lower())
+
+	def test_an_lms_without_the_endpoint_says_so_rather_than_blaming_the_candidate(self):
+		"""The LMS puts its own `notFound("Person")` and its not-found handler
+		through one error body, so both arrive as code `not_found` and only the
+		message separates them. Reading the handler's as the other is how an LMS
+		that has not been restarted since this endpoint was added reports itself
+		as a candidate who does not exist -- which is exactly what it did on the
+		first run against production.
+		"""
+		answer = self._answer(
+			404, {"error": {"code": "not_found", "message": campus_lms.ROUTE_MISSING}}
+		)
+		self.assertIsNone(answer.get("url"))
+		self.assertIn("does not offer this endpoint", answer["error"])
+		self.assertIn("restart", answer["error"])
 
 	def test_somebody_who_already_set_a_password_is_said_so_in_their_words(self):
 		"""The LMS writes that message for a person to read; passing it on
