@@ -309,17 +309,42 @@ def person_payload(doctype, name):
 
 
 def offering_payload(name):
+	"""One run of a course, as the LMS needs to show it.
+
+	The level and the programmes belong to the **Course**, not to this run of
+	it, so they are read from there rather than from the offering's own
+	`course_level` -- which is a mirrored Data field and goes stale the moment
+	somebody corrects the catalogue.
+
+	They are sent every time, including when empty. The LMS distinguishes "not
+	sent" from "sent as empty": a course that stops counting towards a
+	programme has to be able to say so, and leaving the key out would mean the
+	old list stood for ever.
+	"""
 	row = frappe.db.get_value(
 		"Course Offering", name, ["name", "course", "course_title", "term", "status"], as_dict=True
 	)
 	if not row:
 		return None
+
+	course = (
+		frappe.db.get_value("Course", row.course, ["level", "course_title"], as_dict=True) or {}
+	)
+	programs = frappe.get_all(
+		"Course Program Link",
+		filters={"parent": row.course, "parenttype": "Course"},
+		pluck="program",
+		order_by="idx asc",
+	)
+
 	return {
 		"externalId": row.name,
 		"code": row.course,
-		"name": row.course_title or row.course,
+		"name": row.course_title or course.get("course_title") or row.course,
 		"term": row.term,
 		"status": OFFERING_STATUS.get(row.status, "unpublished"),
+		"level": course.get("level") or None,
+		"programs": programs,
 	}
 
 
@@ -453,6 +478,46 @@ def on_instructor_change(doc, method=None):
 
 def on_offering_change(doc, method=None):
 	queue("Course Offering", doc.name)
+
+
+def _mirrored_from_course(doc):
+	"""The parts of a Course the LMS is shown, as a comparable value.
+
+	The programmes are a child table, so `has_value_changed` cannot be trusted
+	with them -- it compares the rows as documents, which differ on every save
+	whether or not a programme was added. Comparing the sorted codes answers
+	the question actually being asked.
+	"""
+	if not doc:
+		return None
+	rows = doc.get("programs") or []
+	return (
+		doc.get("level"),
+		doc.get("course_title"),
+		tuple(sorted(row.program for row in rows if getattr(row, "program", None))),
+	)
+
+
+def on_course_change(doc, method=None):
+	"""Re-send every run of a course when the catalogue entry changes.
+
+	The level and the programmes belong to the Course and travel with the
+	offering, so without this, correcting a level in the catalogue would leave
+	the LMS showing the old one until somebody happened to save the offering --
+	which might be never.
+
+	A course is saved for many reasons and most are not the LMS's business, so
+	nothing is sent unless one of the mirrored fields actually moved. An
+	insert has no previous version and no offerings yet, so it falls through
+	the loop and sends nothing either way.
+	"""
+	if not configured():
+		return
+	before = _mirrored_from_course(getattr(doc, "_doc_before_save", None))
+	if before is not None and before == _mirrored_from_course(doc):
+		return
+	for offering in frappe.get_all("Course Offering", filters={"course": doc.name}, pluck="name"):
+		queue("Course Offering", offering)
 
 
 def on_registration_change(doc, method=None):

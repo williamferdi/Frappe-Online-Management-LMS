@@ -310,6 +310,13 @@ doc_events = {
 		],
 		"on_trash": "sibbcs.academic.permissions.clear_scope_cache",
 	},
+	# The level and the programmes are the Course's, but the LMS only ever
+	# hears about a course through one of its offerings -- so a correction to
+	# the catalogue has to push the runs of it, or the LMS shows the old level
+	# until somebody happens to save the offering.
+	"Course": {
+		"on_update": "sibbcs.integrations.campus_lms.on_course_change",
+	},
 	"Course Offering": {
 		"on_update": [
 			"sibbcs.academic.permissions.clear_scope_cache",

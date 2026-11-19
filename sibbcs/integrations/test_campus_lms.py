@@ -606,3 +606,74 @@ class TestADeletedStudentAndOfferingAreReported(FrappeTestCase):
 				frappe.delete_doc("Student", self.student, ignore_permissions=True)
 
 		self.assertEqual([c for c in enqueue.call_args_list if _ours(c)], [])
+
+
+class TestTheCatalogueTravelsWithTheOffering(FrappeTestCase):
+	"""The level and the programmes are the Course's, and the LMS only ever
+	hears about a course through one of its runs."""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.term = make_term(f"TST-CAT-{frappe.generate_hash(length=6)}", status="Open").name
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		suffix = frappe.generate_hash(length=6)
+		self.course = make_course(f"TCAT {suffix[:4]}", level="2").name
+		self.offering = make_offering(self.course, self.term, status="Published").name
+
+	def programs(self, *codes):
+		doc = frappe.get_doc("Course", self.course)
+		doc.set("programs", [])
+		for code in codes:
+			doc.append("programs", {"program": code})
+		doc.save(ignore_permissions=True)
+		return doc
+
+	def test_the_level_comes_from_the_course_not_the_offering(self):
+		payload = campus_lms.offering_payload(self.offering)
+		self.assertEqual(payload["level"], "2")
+
+	def test_the_programmes_come_across_in_order(self):
+		self.programs("MDIV", "GDCS")
+		self.assertEqual(campus_lms.offering_payload(self.offering)["programs"], ["MDIV", "GDCS"])
+
+	def test_a_course_counting_towards_nothing_says_so(self):
+		"""Sent as empty, never left out -- omitting it would mean the last
+		list the LMS saw stood for ever."""
+		payload = campus_lms.offering_payload(self.offering)
+		self.assertIn("programs", payload)
+		self.assertEqual(payload["programs"], [])
+
+	def test_a_corrected_level_reaches_the_offering(self):
+		"""Nobody saves an offering when they fix the catalogue."""
+		with patch.dict(frappe.conf, LIVE):
+			with patch.object(frappe, "enqueue", side_effect=_inline_enqueue) as enqueue:
+				with patch.object(campus_lms, "_post") as post:
+					doc = frappe.get_doc("Course", self.course)
+					doc.level = "3"
+					doc.save(ignore_permissions=True)
+					self.assertTrue(any(_ours(call) for call in enqueue.call_args_list))
+					sent = [c.args[1] for c in post.call_args_list if c.args[0] == "/sync/courses"]
+					self.assertTrue(sent, "the run of the course should have been re-sent")
+					self.assertEqual(sent[-1]["level"], "3")
+
+	def test_saving_a_course_for_another_reason_sends_nothing(self):
+		"""A course is saved for many reasons; most are not the LMS's business."""
+		with patch.dict(frappe.conf, LIVE):
+			with patch.object(frappe, "enqueue", side_effect=_inline_enqueue) as enqueue:
+				doc = frappe.get_doc("Course", self.course)
+				doc.description = "Reworded, which the LMS does not mirror."
+				doc.save(ignore_permissions=True)
+				self.assertFalse([c for c in enqueue.call_args_list if _ours(c)])
+
+	def test_adding_a_programme_counts_as_a_change(self):
+		"""`has_value_changed` cannot see this: the rows differ on every save."""
+		with patch.dict(frappe.conf, LIVE):
+			with patch.object(frappe, "enqueue", side_effect=_inline_enqueue):
+				with patch.object(campus_lms, "_post") as post:
+					self.programs("MDIV")
+					sent = [c.args[1] for c in post.call_args_list if c.args[0] == "/sync/courses"]
+					self.assertTrue(sent)
+					self.assertEqual(sent[-1]["programs"], ["MDIV"])
