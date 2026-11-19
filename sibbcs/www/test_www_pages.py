@@ -448,3 +448,47 @@ class TestTheAppShellIsNotCached(FrappeTestCase):
 			"sibbcs.setup.website.no_store_on_app_shell",
 			frappe.get_hooks("after_request"),
 		)
+
+
+class TestTheDocumentsPageCanUpload(FrappeTestCase):
+	"""The upload handler must find its status element from the row.
+
+	`templates/includes/dropzone.html` wraps the file input in its own
+	`div.dropzone`, and `.doc-status` is a *sibling* of that wrapper, not a
+	child. So `input.parentElement.querySelector('.doc-status')` returned null,
+	the next line threw, and because the throw happened inside a promise the
+	page showed nothing: a candidate chose a document and absolutely nothing
+	happened, no upload and no error.
+
+	Found on 2026-11-19 by walking a real application through the form. The
+	dropzone include was added after this handler was written, which is exactly
+	how a working page breaks without anybody touching it.
+	"""
+
+	PAGE = os.path.join(WWW, "documents.html")
+
+	def markup(self):
+		return open(self.PAGE, encoding="utf-8").read()
+
+	def test_the_status_is_looked_up_from_the_row(self):
+		self.assertIn("closest('.doc-row')", self.markup())
+
+	def test_the_inputs_parent_is_never_searched(self):
+		"""The specific line that broke it."""
+		self.assertNotIn("input.parentElement", self.markup())
+
+	def test_the_status_is_a_sibling_of_the_dropzone_not_a_child(self):
+		"""Which is *why* the parent is the wrong place to look.
+
+		If somebody ever moves the status inside the dropzone this test fails,
+		and the handler above can go back to being simpler.
+		"""
+		markup = self.markup()
+		dropzone_at = markup.index('<div class="dropzone"')
+		status_at = markup.index('<span class="doc-status"')
+		closing = markup.index("</div>", markup.index('class="doc-input"'))
+		self.assertLess(dropzone_at, status_at, "the dropzone should come first")
+		self.assertLess(closing, status_at, "the status must sit outside the dropzone")
+
+	def test_the_page_uses_the_dropzone_include(self):
+		self.assertIn("templates/includes/dropzone.html", self.markup())

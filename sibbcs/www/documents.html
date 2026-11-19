@@ -143,7 +143,16 @@
         var file = input.files && input.files[0];
         if (!file) return;
 
-        var status = input.parentElement.querySelector('.doc-status');
+        // From the row, not from the input's parent. The dropzone include
+        // wraps the input in its own `div.dropzone`, so `parentElement` is
+        // that wrapper and the status element -- a sibling of the dropzone,
+        // not a child -- was never found. The lookup returned null, the next
+        // line threw, and the upload below never ran: choosing a document did
+        // nothing at all, with no error on screen because the throw happens
+        // inside a promise. `closest('.doc-row')` is what the rest of this
+        // handler already uses.
+        var row = input.closest('.doc-row');
+        var status = row.querySelector('.doc-status');
         input.disabled = true;
         status.className = 'doc-status';
         status.textContent = 'Uploading…';
@@ -182,7 +191,7 @@
 
           status.className = 'doc-status ok';
           status.textContent = 'Sent. The Admissions Office will check it.';
-          var note = input.closest('.doc-row').querySelector('.doc-note');
+          var note = row.querySelector('.doc-note');
           if (note) note.remove();
         } catch (error) {
           input.disabled = false;
