@@ -105,6 +105,54 @@ def enrol_applicant(application, email, full_name):
 	return person.get("activationUrl")
 
 
+def reissue_activation_link(application):
+	"""A fresh activation link for a candidate who never used their first one.
+
+	`enrol_applicant` gets one only when the account is new: the LMS issues the
+	token once, because issuing a second invalidates the first and a routine
+	re-sync would break the link somebody was about to use. That link lasts
+	seven days, so a resend after it lapses has to ask for a new one.
+
+	Answers `{"url": ...}` or `{"error": "..."}` and never raises. The officer
+	pressing Resend needs to be told what happened -- that the candidate has
+	already set a password, or that the LMS has never heard of them -- not
+	shown a Frappe traceback with our internals in it.
+	"""
+	if not configured():
+		return {"error": "Campus LMS is not configured."}
+
+	import requests
+
+	from urllib.parse import quote
+
+	try:
+		response = requests.post(
+			_url(f"/sync/people/{quote(str(application))}/activation-link"),
+			json={},
+			headers=_headers(),
+			timeout=TIMEOUT,
+		)
+	except Exception as exception:
+		frappe.log_error(title=f"Campus LMS activation link failed for {application}")
+		return {"error": f"Campus LMS could not be reached: {exception}"}
+
+	if response.status_code == 404:
+		return {"error": "Campus LMS has no account for this applicant yet."}
+
+	if response.status_code >= 400:
+		# The LMS writes these for a person to read -- 422 is "they have already
+		# set a password" -- so it is passed on rather than paraphrased.
+		detail = ""
+		try:
+			detail = ((response.json() or {}).get("error") or {}).get("message") or ""
+		except ValueError:
+			detail = ""
+		return {"error": detail or f"Campus LMS refused the request ({response.status_code})."}
+
+	data = response.json() or {}
+	return {"url": data.get("url"), "expires_in_hours": data.get("expiresInHours")}
+
+
 def enrol_in_course(application, course_external_id, email, full_name):
 	"""Put an applicant on one of the admissions courses, keeping their account.
 

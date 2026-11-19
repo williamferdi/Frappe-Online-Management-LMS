@@ -1104,6 +1104,68 @@ Note Frappe scans an uploaded PDF for embedded JavaScript, and pypdf refuses a
 stub that merely starts with `%PDF` — so a test fixture standing in for the
 handbook must not be named `.pdf`.
 
+### The exam invitation opens the right account — 19 Nov 2026
+
+The entrance exam is sat in **Campus LMS Lite**, and until now the invitation
+sent the candidate to **Frappe**. "Set your password" was a
+`/update-password?key=` link, so a candidate set a password on a portal where
+they hold no roles and have nothing to read; "Go to the entrance exam" pointed at
+`lms.sibbc.org` for an account they had **no way to open**. The LMS activation
+link existed the whole time — `enrol_applicant` returns it — and
+`create_and_send` put it in the officer's report and **never passed it to
+`send_invite`**. The account could not be opened at all unless somebody noticed
+the report and passed the link on by hand.
+
+The invitation now carries the LMS activation link and says it is good for seven
+days. `set_password_link` is gone, and **nothing in the app mints a Frappe
+password link any more**.
+
+**The Frappe account is still created**, silently. `conversion._create_user`
+adopts it by email at onboarding, so one person keeps one login on this side too.
+It carries no role and the candidate is never emailed about it.
+
+**The LMS issues an activation link exactly once**, when it creates the account,
+and it lasts 168 hours. A re-sync returns `activationUrl: null` deliberately —
+issuing a second token invalidates the first, and a routine sync would break the
+link somebody was about to use. So Campus LMS Lite gained
+**`POST /sync/people/:externalId/activation-link`**, guarded by the service
+token, and `campus_lms.reissue_activation_link()` is what the resend uses. It is
+**activation only**: an account that is already active has a password, and giving
+a service token the power to mint password resets for live accounts is a far
+larger thing than letting it finish an onboarding nobody completed. The 422 says
+so in words an officer can read, and `reissue_activation_link` passes the LMS's
+own message through rather than paraphrasing it.
+
+**Half an invitation is never sent.** With no activation link the step records
+the warning and stays at *Created* rather than *Link Sent*: telling somebody to
+sit an exam and giving them no way into the account it is sat under is worse than
+sending nothing.
+
+**A lapsed link is still not self-service.** Campus LMS Lite's Forgot password
+serves an account that is already **active**, never one that was never opened —
+so a candidate who misses the seven days needs the officer to press Resend.
+
+### An Email Template carries its message twice — 19 Nov 2026
+
+`Email Template` has **`response`** and **`response_html`**, the builders fill
+both, and `notifications.render_template` sends **`response_html`** and falls
+back to `response`. Every template on both sites has `use_html = 1`.
+
+Two template rewrites on 19 Nov 2026 touched only `response`. Both reported
+success, both left the delivered email exactly as it was, and nothing said so —
+the new wording read correctly in Desk's rich-text box while the HTML box beside
+it, which is the one that goes out, still held the old text. So:
+
+- **A patch that brings a template forward must write both fields.**
+  `patches/invite_names_the_lms_activation_link` and
+  `patches/mentor_consent_names_the_handbook` each do, and each rewrites only a
+  template still carrying the stale content, so a rewording survives.
+- **`render_template` prints an unknown variable rather than refusing it.** A
+  template naming a variable the code stopped passing delivers the characters
+  `{{ password_link }}` to the candidate where the button should be. That is
+  exactly what `lms_account_invite` would have done. `TestTheInvitationRendersWithNothingLeftOver`
+  asserts no `{{` survives in a sent invitation.
+
 ### The bundled `lms` app is gone — 18 Nov 2026
 
 Phase 7 removed it: uninstalled from both sites, removed from the bench, and the 69

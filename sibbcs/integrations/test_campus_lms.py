@@ -677,3 +677,57 @@ class TestTheCatalogueTravelsWithTheOffering(FrappeTestCase):
 					sent = [c.args[1] for c in post.call_args_list if c.args[0] == "/sync/courses"]
 					self.assertTrue(sent)
 					self.assertEqual(sent[-1]["programs"], ["MDIV"])
+
+
+class TestAskingForAnotherActivationLink(FrappeTestCase):
+	"""The LMS issues one when it creates the account and never again -- a
+	second token invalidates the first, and a routine re-sync would break the
+	link the candidate was about to use. So a resend has to ask.
+
+	Every answer comes back as data. The officer pressing Resend needs to be
+	told that the candidate has already set a password, not shown a Frappe
+	traceback with our internals in it.
+	"""
+
+	def _answer(self, status, payload=None, raises=None):
+		from unittest.mock import MagicMock, patch
+
+		response = MagicMock()
+		response.status_code = status
+		response.json.return_value = payload if payload is not None else {}
+
+		with patch.object(campus_lms, "configured", return_value=True), patch(
+			"requests.post", side_effect=raises or None, return_value=response
+		):
+			return campus_lms.reissue_activation_link("APP-2026-00013")
+
+	def test_a_fresh_link_comes_back(self):
+		answer = self._answer(200, {"url": "https://lms.test/activate?token=new", "expiresInHours": 168})
+		self.assertEqual(answer["url"], "https://lms.test/activate?token=new")
+		self.assertEqual(answer["expires_in_hours"], 168)
+
+	def test_an_unknown_applicant_is_an_answer_not_a_fault(self):
+		answer = self._answer(404)
+		self.assertIsNone(answer.get("url"))
+		self.assertIn("no account", answer["error"].lower())
+
+	def test_somebody_who_already_set_a_password_is_said_so_in_their_words(self):
+		"""The LMS writes that message for a person to read; passing it on
+		beats paraphrasing it here and drifting from what it says.
+		"""
+		answer = self._answer(
+			422,
+			{"error": {"message": "x@y.test has already set a password, so there is nothing to activate."}},
+		)
+		self.assertIn("already set a password", answer["error"])
+
+	def test_an_unreachable_lms_is_reported_rather_than_raised(self):
+		answer = self._answer(500, raises=OSError("connection refused"))
+		self.assertIn("could not be reached", answer["error"])
+
+	def test_an_unconfigured_lms_says_so(self):
+		from unittest.mock import patch
+
+		with patch.object(campus_lms, "configured", return_value=False):
+			answer = campus_lms.reissue_activation_link("APP-2026-00013")
+		self.assertIn("not configured", answer["error"])

@@ -6,19 +6,23 @@ so an applicant with no account cannot sit it.
 
 Three decisions worth recording.
 
-**One account, kept for life.** The login created here is the same one the
-applicant keeps as a student. `conversion._create_user` links an existing User
-by email rather than making a second, so an admitted applicant never has to
-learn a new address, and their exam attempt stays attached to them.
+**The link we send opens the LMS, not this site.** The exam is sat in Campus
+LMS Lite, and that is the account the candidate needs. Until 19 Nov 2026 this
+email carried a Frappe password link instead -- so a candidate set a password
+on a portal where they hold no roles and have nothing to read, while the LMS
+activation link they actually needed went into the officer's report and was
+never sent. The account could not be opened at all unless somebody passed the
+link on by hand.
 
-**No password is ever emailed.** We send a set-your-own-password link -- the
-same `/update-password?key=` mechanism Frappe uses for a forgotten password.
-A password in an inbox is a password in an inbox forever, and the office would
-end up knowing every applicant's.
+**No password is ever emailed**, by either system. The candidate chooses their
+own through a link that is good for seven days. A password in an inbox is a
+password in an inbox forever, and the office would end up knowing every
+applicant's.
 
-**The applicant is not yet a Student.** They get `LMS Student`, which opens the
-LMS, and nothing else. The `Student` role is granted at conversion, when it is
-true.
+**A Frappe account is still made here**, silently. `conversion._create_user`
+adopts it by email when the candidate is admitted, so one person keeps one
+login on this side too. It carries no role: the applicant needs nothing on
+this site until they are a student.
 
 Where the exam lives is config, not code:
 
@@ -30,8 +34,6 @@ LMS altogether. Otherwise the applicant is enrolled in Campus LMS Lite and sent
 there. `entrance_exam_lms_course` named a course in the bundled lms app and is
 no longer read: Phase 7 removed that app.
 """
-
-from urllib.parse import urlsplit
 
 import frappe
 from frappe import _
@@ -137,20 +139,6 @@ def ensure_user(doc):
 	return user.name, created
 
 
-def set_password_link(user_name):
-	"""A link that lets the applicant choose their own password.
-
-	`User._reset_password` builds its URL with frappe.utils.get_url(), which
-	appends the dev webserver port on this deployment -- the same trap that
-	poisoned the referee links. We keep its key and rebuild the address.
-	"""
-	user = frappe.get_doc("User", user_name)
-	raw = user._reset_password(send_email=False)
-	parts = urlsplit(raw)
-	tail = parts.path + (f"?{parts.query}" if parts.query else "")
-	return public_url(tail)
-
-
 def enroll_in_exam(user_name, doc=None):
 	"""Put the applicant into the exam course. Idempotent over there.
 
@@ -183,27 +171,36 @@ def enroll_in_exam(user_name, doc=None):
 FALLBACK_INVITE = (
 	"Your SIBBCS account and entrance exam",
 	"<p>Dear {{ applicant_name }},</p>"
-	"<p>An account has been created for you at South India Baptist Bible College "
-	"&amp; Seminary (Online). Your username is <b>{{ login_email }}</b>.</p>"
-	"<p>First, set your password:<br>"
-	'<a href="{{ password_link }}">{{ password_link }}</a></p>'
+	"<p>An account has been created for you so you can sit the entrance exam. "
+	"Your username is <b>{{ login_email }}</b>.</p>"
+	"<p>Choose your password here, within <b>7 days</b>:<br>"
+	'<a href="{{ activation_link }}">{{ activation_link }}</a></p>'
 	"{% if exam_link %}"
 	"<p>Then sit the entrance exam here:<br>"
 	'<a href="{{ exam_link }}">{{ exam_link }}</a></p>'
 	"{% endif %}"
+	"<p>If the first link has expired, write to us and we will send another.</p>"
 	"<p>Admissions Office</p>",
 )
 
 
-def send_invite(doc, user_name, link):
-	"""Email the applicant their login and the exam link."""
+def send_invite(doc, user_name, link, activation_link):
+	"""Email the applicant the way into the exam.
+
+	`activation_link` is the LMS's, not Frappe's. The exam is sat in Campus LMS
+	Lite, and until 19 Nov 2026 this email carried a Frappe `/update-password`
+	link instead: a candidate set a password on a portal where they hold no
+	roles and nothing to read, and the activation link they actually needed was
+	put in the officer's report and never sent. The LMS account could not be
+	opened at all without somebody passing it on by hand.
+	"""
 	from sibbcs.admissions.notifications import render_template
 
 	context = {
 		"applicant_name": doc.full_name,
 		"login_email": user_name,
 		"program": doc.program,
-		"password_link": set_password_link(user_name),
+		"activation_link": activation_link,
 		"exam_link": link,
 		"application_id": doc.name,
 	}
@@ -254,13 +251,25 @@ def create_and_send(application, send=True):
 		doc.db_set("lms_account_created_on", now_datetime(), update_modified=False)
 
 	enrolled = enroll_in_exam(user_name, doc=doc)
+	activation_link = None
 	if isinstance(enrolled, dict):
 		report["enrolled_in"] = enrolled["course"]
-		# Shown to the officer so they can pass it on if the email does not
-		# arrive; the LMS issues it only once, when the account is made.
-		report["activation_link"] = enrolled.get("activation_link")
+		activation_link = enrolled.get("activation_link")
 	else:
 		report["enrolled_in"] = enrolled
+
+	# The LMS issues an activation link only when it creates the account --
+	# issuing a second invalidates the first, and a routine re-sync would break
+	# the link the candidate was about to use. So a repeat of this step, or a
+	# resend, has to ask for a new one.
+	if not activation_link:
+		answer = campus_lms.reissue_activation_link(doc.name)
+		activation_link = answer.get("url")
+		if not activation_link and answer.get("error"):
+			report["warnings"].append(answer["error"])
+
+	# Shown to the officer so they can pass it on if the email does not arrive.
+	report["activation_link"] = activation_link
 
 	link = exam_link()
 	report["exam_link"] = link
@@ -272,14 +281,21 @@ def create_and_send(application, send=True):
 			"Set campus_lms_url or entrance_exam_url."
 		)
 
-	if send and link:
+	if send and link and not activation_link:
+		# Half an invitation is worse than none: the candidate is told to sit an
+		# exam and given no way into the account it is sat under.
+		report["warnings"].append(
+			"No Campus LMS activation link, so the invitation was not sent."
+		)
+
+	if send and link and activation_link:
 		if not outgoing_configured():
 			report["warnings"].append(
 				"No outgoing email account is configured, so nothing was sent."
 			)
 		else:
 			try:
-				report["emailed"] = send_invite(doc, user_name, link)
+				report["emailed"] = send_invite(doc, user_name, link, activation_link)
 				doc.db_set("exam_link_sent_on", now_datetime(), update_modified=False)
 			except Exception:
 				frappe.log_error(title=f"LMS invite failed for {doc.name}")
@@ -338,7 +354,15 @@ def create_account(application, send=1):
 	if report["enrolled_in"]:
 		lines.append(_("Enrolled in the entrance exam course."))
 	if report["emailed"]:
-		lines.append(_("Login and exam link sent to <b>{0}</b>.").format(report["emailed"]))
+		lines.append(
+			_("Activation and exam link sent to <b>{0}</b>.").format(report["emailed"])
+		)
+	elif report.get("activation_link"):
+		lines.append(
+			_("Activation link, if you need to pass it on by hand:<br><code>{0}</code>").format(
+				report["activation_link"]
+			)
+		)
 	for warning in report["warnings"]:
 		lines.append(f"<span style='color:var(--orange-600)'>{warning}</span>")
 
@@ -352,7 +376,13 @@ def create_account(application, send=1):
 
 @frappe.whitelist()
 def resend_exam_link(application):
-	"""Send the login and exam link again -- a fresh password link each time."""
+	"""Send the activation and exam links again, with a link that works.
+
+	A fresh activation link each time: the one issued when the account was made
+	lasts seven days, and after that the candidate has no self-service route --
+	Campus LMS Lite's Forgot password serves accounts that are already active,
+	not one that was never opened.
+	"""
 	doc = frappe.get_doc("Admission Application", application)
 	doc.check_permission("write")
 

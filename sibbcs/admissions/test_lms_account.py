@@ -1,6 +1,8 @@
 # Copyright (c) 2026, South India Baptist Bible College & Seminary and contributors
 # For license information, please see license.txt
 
+import ast
+import inspect
 from unittest.mock import patch
 
 import frappe
@@ -11,6 +13,7 @@ from sibbcs.admissions.checklist import NO, status_of
 
 APPLICANT_EMAIL = "step7.applicant@example.com"
 EXAM_URL = "https://exam.example.com/entrance"
+ACTIVATION_URL = "https://lms.example.invalid/activate?token=fixture"
 
 
 def make_application(email=APPLICANT_EMAIL, **overrides):
@@ -139,30 +142,43 @@ class TestLMSAccount(FrappeTestCase):
 		self.assertTrue(created)
 		self.assertEqual(name, "other.applicant@example.com")
 
-	# -- the password link -----------------------------------------------
+	# -- no Frappe password link lives here any more ----------------------
 
-	def test_password_link_never_carries_the_dev_port(self):
-		"""User._reset_password builds with get_url(), which appends :8000."""
-		app = make_application()
-		name, _created = lms_account.ensure_user(app)
-		link = lms_account.set_password_link(name)
+	def test_the_frappe_password_link_builder_is_gone(self):
+		"""The exam is sat in Campus LMS Lite. This module used to mint a
+		Frappe `/update-password` link and email it, so a candidate set a
+		password on a portal where they hold no roles and nothing to read --
+		while the LMS activation link they actually needed went into the
+		officer's report and was never sent.
 
-		self.assertNotIn(":8000", link)
-		self.assertIn("/update-password?key=", link)
+		Asserted on the module rather than on its source text: a grep for
+		"update-password" matches the paragraph above it, which is how this
+		codebase has fooled itself before.
+		"""
+		self.assertFalse(hasattr(lms_account, "set_password_link"))
 
-	def test_each_send_issues_a_fresh_password_key(self):
-		app = make_application()
-		name, _created = lms_account.ensure_user(app)
-
-		first = lms_account.set_password_link(name)
-		second = lms_account.set_password_link(name)
-		self.assertNotEqual(first, second, "the same reset key was handed out twice")
+		calls = [
+			node
+			for node in ast.walk(ast.parse(inspect.getsource(lms_account)))
+			if isinstance(node, ast.Attribute) and node.attr == "_reset_password"
+		]
+		self.assertEqual(calls, [], "something here still resets a Frappe password")
 
 	# -- the whole step --------------------------------------------------
 
-	def _run(self, app, send=True):
+	def _run(self, app, send=True, activation=ACTIVATION_URL):
+		"""The step as it runs with a working LMS behind it.
+
+		`reissue_activation_link` is what supplies the link here: these
+		fixtures do not stand up a Campus LMS, and the step now refuses to send
+		half an invitation without one.
+		"""
 		with patch.dict(
 			frappe.conf, {"entrance_exam_url": EXAM_URL, "entrance_exam_lms_course": ""}
+		), patch.object(
+			lms_account.campus_lms,
+			"reissue_activation_link",
+			return_value={"url": activation} if activation else {"error": "no account"},
 		), patch(
 			"sibbcs.admissions.notifications.outgoing_configured", return_value=True
 		), patch(
@@ -187,13 +203,14 @@ class TestLMSAccount(FrappeTestCase):
 		self.assertTrue(app.lms_account_created_on)
 		self.assertTrue(app.exam_link_sent_on)
 
-	def test_the_invitation_carries_the_exam_link_and_no_password(self):
+	def test_the_invitation_carries_the_exam_link_and_the_lms_activation(self):
 		app = make_application()
 		_report, sendmail = self._run(app)
 
 		body = sendmail.call_args.kwargs["message"]
 		self.assertIn(EXAM_URL, body)
-		self.assertIn("/update-password?key=", body)
+		self.assertIn(ACTIVATION_URL, body)
+		self.assertNotIn("/update-password", body)
 		self.assertNotIn(":8000", body)
 
 	def test_the_step_moves_to_link_sent(self):
@@ -224,6 +241,10 @@ class TestLMSAccount(FrappeTestCase):
 		app = make_application()
 		with patch.dict(
 			frappe.conf, {"entrance_exam_url": EXAM_URL, "entrance_exam_lms_course": ""}
+		), patch.object(
+			lms_account.campus_lms,
+			"reissue_activation_link",
+			return_value={"url": ACTIVATION_URL},
 		), patch(
 			"sibbcs.admissions.notifications.outgoing_configured", return_value=False
 		), patch(
@@ -345,3 +366,143 @@ class TestTheExamAccountInCampusLms(FrappeTestCase):
 		with patch.object(lms_account.campus_lms, "configured", return_value=True):
 			with patch.object(lms_account.campus_lms, "base_url", return_value="https://lms.test"):
 				self.assertEqual(lms_account.exam_link(), "https://lms.test")
+
+
+class TestTheInvitationOpensTheAccountItNames(FrappeTestCase):
+	"""Until 19 Nov 2026 this email sent a candidate to Frappe to set a
+	password for an account with no roles on it, and pointed them at an LMS
+	account they had no way to open. The activation link existed -- it went
+	into the officer's report and nowhere else.
+	"""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def _application(self):
+		from sibbcs.admissions.doctype.admission_application.test_admission_application import (
+			make_application,
+		)
+
+		tag = frappe.generate_hash(length=6)
+		return make_application(full_name=f"Invite {tag}", email=f"invite.{tag}@example.invalid")
+
+	def _send(self, doc, activation="https://lms.test/activate?token=abc", reissue=None):
+		sent = []
+		posts = {"activationUrl": activation}
+		with patch.dict(frappe.conf, {"entrance_exam_url": EXAM_URL}), patch.object(
+			lms_account.campus_lms, "configured", return_value=True
+		), patch.object(
+			lms_account.campus_lms, "_post", return_value=posts
+		), patch.object(
+			lms_account.campus_lms,
+			"reissue_activation_link",
+			return_value=reissue if reissue is not None else {"error": "not asked"},
+		), patch(
+			"sibbcs.admissions.notifications.outgoing_configured", return_value=True
+		), patch(
+			"frappe.sendmail", side_effect=lambda **kw: sent.append(kw)
+		):
+			report = lms_account.create_and_send(doc.name, send=True)
+		return report, sent
+
+	def test_the_button_opens_the_lms_account(self):
+		report, sent = self._send(self._application())
+
+		self.assertEqual(len(sent), 1)
+		self.assertIn("https://lms.test/activate?token=abc", sent[0]["message"])
+		self.assertEqual(report["activation_link"], "https://lms.test/activate?token=abc")
+
+	def test_no_frappe_password_link_goes_out(self):
+		_report, sent = self._send(self._application())
+		self.assertNotIn("/update-password", sent[0]["message"])
+
+	def test_the_exam_link_is_still_there(self):
+		_report, sent = self._send(self._application())
+		self.assertIn(EXAM_URL, sent[0]["message"])
+
+	def test_it_says_the_link_expires(self):
+		"""Seven days, and after that the candidate has no self-service route:
+		Campus LMS Lite's Forgot password serves an account that is already
+		active, not one that was never opened.
+		"""
+		_report, sent = self._send(self._application())
+		self.assertIn("7 days", sent[0]["message"])
+
+	def test_a_repeat_asks_the_lms_for_a_fresh_link(self):
+		"""`/sync/people` issues one only on creation -- a second token
+		invalidates the first, so a routine re-sync would break the link the
+		candidate was about to use.
+		"""
+		doc = self._application()
+		report, sent = self._send(
+			doc, activation=None, reissue={"url": "https://lms.test/activate?token=second"}
+		)
+
+		self.assertEqual(report["activation_link"], "https://lms.test/activate?token=second")
+		self.assertIn("token=second", sent[0]["message"])
+
+	def test_half_an_invitation_is_not_sent(self):
+		"""Telling somebody to sit an exam and giving them no way into the
+		account it is sat under is worse than sending nothing.
+		"""
+		doc = self._application()
+		report, sent = self._send(
+			doc, activation=None, reissue={"error": "Campus LMS has no account for this applicant yet."}
+		)
+
+		self.assertEqual(sent, [])
+		self.assertIsNone(report["emailed"])
+		self.assertIn(
+			"Campus LMS has no account for this applicant yet.", report["warnings"]
+		)
+		self.assertIn(
+			"No Campus LMS activation link, so the invitation was not sent.",
+			report["warnings"],
+		)
+
+	def test_the_frappe_account_is_still_made(self):
+		"""Conversion adopts it at onboarding, so one person keeps one login
+		either side. It is simply never emailed about.
+		"""
+		doc = self._application()
+		report, _sent = self._send(doc)
+		self.assertTrue(report["user"])
+		self.assertTrue(frappe.db.exists("User", report["user"]))
+
+
+class TestTheInvitationRendersWithNothingLeftOver(FrappeTestCase):
+	"""`render_template` leaves an unknown variable as literal text rather than
+	failing, so an Email Template naming a variable the code stopped passing
+	sends `{{ password_link }}` to the candidate in place of their link. That
+	is exactly what `lms_account_invite` would have done, and nothing would
+	have said so until somebody read a delivered email.
+	"""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_no_variable_is_left_unreplaced(self):
+		from sibbcs.admissions.doctype.admission_application.test_admission_application import (
+			make_application,
+		)
+
+		tag = frappe.generate_hash(length=6)
+		app = make_application(full_name=f"Render {tag}", email=f"render.{tag}@example.invalid")
+
+		sent = []
+		with patch.dict(frappe.conf, {"entrance_exam_url": EXAM_URL}), patch.object(
+			lms_account.campus_lms,
+			"reissue_activation_link",
+			return_value={"url": ACTIVATION_URL},
+		), patch(
+			"sibbcs.admissions.notifications.outgoing_configured", return_value=True
+		), patch(
+			"frappe.sendmail", side_effect=lambda **kw: sent.append(kw)
+		):
+			lms_account.create_and_send(app.name, send=True)
+
+		self.assertEqual(len(sent), 1)
+		body = sent[0]["message"]
+		self.assertNotIn("{{", body)
+		self.assertNotIn("}}", body)
+		self.assertIn(ACTIVATION_URL, body)

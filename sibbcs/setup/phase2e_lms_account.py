@@ -29,11 +29,11 @@ TEMPLATE = {
 <p>
 	Your username is <strong>{{ login_email }}</strong>. For your own security we
 	do not send passwords by email — please choose your own using the button
-	below.
+	below. <strong>The link below works for 7 days.</strong>
 </p>
 
 <p style="margin:24px 0">
-	<a href="{{ password_link }}"
+	<a href="{{ activation_link }}"
 	   style="background:#171717;color:#fff;padding:10px 18px;border-radius:6px;
 	          text-decoration:none;display:inline-block">
 		Set your password
@@ -55,15 +55,19 @@ TEMPLATE = {
 
 <p style="font-size:12px;color:#666">
 	If the buttons do not work, copy these addresses into your browser:<br>
-	{{ password_link }}<br>
+	{{ activation_link }}<br>
 	{{ exam_link }}
 </p>
 {% else %}
 <p style="font-size:12px;color:#666">
 	If the button does not work, copy this address into your browser:<br>
-	{{ password_link }}
+	{{ activation_link }}
 </p>
 {% endif %}
+
+<p style="font-size:12px;color:#666">
+	If that first link has expired, write to us and we will send you another.
+</p>
 
 <p style="font-size:12px;color:#666">
 	Your application reference is {{ application_id }}. Please quote it in any

@@ -183,3 +183,87 @@ class TestWhoCountsAsAnAdmissionsOfficer(FrappeTestCase):
 		listed = notifications.officer_emails()
 		self.assertNotIn("Administrator", listed)
 		self.assertNotIn("Guest", listed)
+
+
+class TestAnEmailTemplateIsReadFromTheFieldItSends(FrappeTestCase):
+	"""`Email Template` carries the same message twice -- `response` and
+	`response_html` -- and the builders fill both. `render_template` sends
+	`response_html` and falls back to `response`.
+
+	Two template rewrites on 19 Nov 2026 touched only `response`. Both reported
+	success, both left the sent email exactly as it was, and nothing said so:
+	the stored text read correctly in Desk's rich-text box while the HTML box
+	beside it, which is the one that goes out, still held the old wording.
+	"""
+
+	def _template(self, response, response_html):
+		name = f"sibbcs_render_probe_{frappe.generate_hash(length=8)}"
+		doc = frappe.get_doc(
+			{
+				"doctype": "Email Template",
+				"name": name,
+				"subject": "Probe",
+				"use_html": 1,
+				"response": response,
+				"response_html": response_html,
+			}
+		)
+		doc.flags.ignore_permissions = True
+		doc.insert(ignore_permissions=True)
+		self.addCleanup(frappe.delete_doc, "Email Template", name, force=True)
+		return name
+
+	def test_response_html_is_the_one_that_goes_out(self):
+		name = self._template("<p>from response</p>", "<p>from response_html</p>")
+		_subject, body = notifications.render_template(name, {}, "s", "b")
+		self.assertIn("from response_html", body)
+		self.assertNotIn("from response", body.replace("from response_html", ""))
+
+	def test_response_is_used_only_when_the_html_field_is_empty(self):
+		name = self._template("<p>from response</p>", "")
+		_subject, body = notifications.render_template(name, {}, "s", "b")
+		self.assertIn("from response", body)
+
+	def test_an_unknown_variable_is_printed_rather_than_refused(self):
+		"""Which is why a template naming a variable the code stopped passing
+		is a silent fault: the braces are delivered to the candidate.
+		"""
+		name = self._template("", "<p>{{ no_such_variable }}</p>")
+		_subject, body = notifications.render_template(name, {}, "s", "b")
+		self.assertIn("{{ no_such_variable }}", body)
+
+	def test_both_fields_are_seeded_together(self):
+		"""Every builder writes the same text to both, so a patch that brings a
+		template forward has to move both as well.
+		"""
+		from sibbcs.setup.phase2_email_templates import TEMPLATES
+		from sibbcs.setup.phase2e_lms_account import TEMPLATE as INVITE
+
+		import inspect
+
+		for module in ("sibbcs.setup.phase2_email_templates", "sibbcs.setup.phase2e_lms_account"):
+			source = inspect.getsource(__import__(module, fromlist=["build"]))
+			with self.subTest(module=module):
+				self.assertIn('"response_html"', source)
+				self.assertIn('"response"', source)
+
+		self.assertTrue(TEMPLATES and INVITE["response"])
+
+	def test_both_template_patches_are_registered(self):
+		registered = open(
+			frappe.get_app_path("sibbcs", "..", "sibbcs", "patches.txt"), encoding="utf-8"
+		).read()
+		self.assertIn("sibbcs.patches.invite_names_the_lms_activation_link", registered)
+		self.assertIn("sibbcs.patches.mentor_consent_names_the_handbook", registered)
+
+	def test_each_patch_moves_both_fields(self):
+		import inspect
+
+		from sibbcs.patches import invite_names_the_lms_activation_link as invite
+		from sibbcs.patches import mentor_consent_names_the_handbook as mentor
+
+		for module in (invite, mentor):
+			source = inspect.getsource(module)
+			with self.subTest(patch=module.__name__):
+				self.assertIn("doc.response_html =", source)
+				self.assertIn("doc.response =", source)
