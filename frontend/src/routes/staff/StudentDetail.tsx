@@ -159,6 +159,19 @@ function Banner({ data }: { data: Detail }) {
 								</Link>
 							</Button>
 						)}
+						{/* The level is not a field on the student: it moves through a
+						    Level Promotion, which records who approved it and on what
+						    evidence. This opens one that already knows the enrolment and
+						    the level it is coming from. */}
+						{enrollment && (
+							<Button variant="outline" size="sm" asChild>
+								<Link
+									to={`/staff/data/${encodeURIComponent('Level Promotion')}/new?program_enrollment=${encodeURIComponent(enrollment.name)}&from_level=${encodeURIComponent(enrollment.current_level ?? '')}`}
+								>
+									<TrendingUp /> Change level
+								</Link>
+							</Button>
+						)}
 						<Button size="sm" asChild>
 							<Link to={`/staff/data/Student/${encodeURIComponent(student.name)}`}>
 								<Pencil /> Edit

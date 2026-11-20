@@ -1,4 +1,4 @@
-import { useNavigate, useParams, Link } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom'
 
 import { PageHeader } from '@/components/PageHeader'
 import { QueryState } from '@/components/QueryState'
@@ -9,6 +9,7 @@ import { ArrowLeft } from 'lucide-react'
 
 export function RecordDetail() {
 	const { doctype = '', name = '' } = useParams()
+	const [params] = useSearchParams()
 	const navigate = useNavigate()
 	const isNew = name === 'new'
 
@@ -36,6 +37,19 @@ export function RecordDetail() {
 						.map((field) => [field.fieldname, field.default]),
 				)
 
+				// A link may seed a new record: "change this student's level" arrives as
+				// ?program_enrollment=…&from_level=2, so the registrar lands on a form
+				// that already knows who it is about. Only fieldnames this DocType
+				// actually has are taken, and the server still decides what is writable,
+				// so a crafted URL buys nothing that typing the value would not.
+				const seeded = isNew
+					? Object.fromEntries(
+							described.fields
+								.filter((field) => params.has(field.fieldname))
+								.map((field) => [field.fieldname, params.get(field.fieldname)]),
+						)
+					: {}
+
 				return (
 					<>
 						<PageHeader
@@ -53,7 +67,7 @@ export function RecordDetail() {
 						<RecordForm
 							meta={described}
 							name={isNew ? undefined : name}
-							initial={isNew ? defaults : (record.data?.values ?? {})}
+							initial={isNew ? { ...defaults, ...seeded } : (record.data?.values ?? {})}
 							onSaved={(saved) =>
 								navigate(
 									`/staff/data/${encodeURIComponent(doctype)}/${encodeURIComponent(saved)}`,

@@ -243,6 +243,26 @@ describe('the student profile', () => {
 		)
 	})
 
+	it('offers the two doors a registrar needs: correct the record, move the level', async () => {
+		await renderProfile()
+
+		// Edit pointed at a page that could only answer "Student cannot be
+		// edited from the console", because Student was absent from the
+		// allow-list behind /staff/data.
+		expect(screen.getByRole('link', { name: /Edit/ })).toHaveAttribute(
+			'href',
+			'/staff/data/Student/SIB-2026-0007',
+		)
+
+		// The level is not a field on the student. It moves through a Level
+		// Promotion, and this opens one that already knows the enrolment it is
+		// for and the level it is coming from.
+		expect(screen.getByRole('link', { name: /Change level/ })).toHaveAttribute(
+			'href',
+			'/staff/data/Level%20Promotion/new?program_enrollment=ENR-0007&from_level=1',
+		)
+	})
+
 	it('shows the schooling the application asked for', async () => {
 		// None of this is on the Student record; it only exists because the
 		// profile reads the admission application behind it.

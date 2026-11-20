@@ -867,6 +867,18 @@ ends up setting a password. `users_api` handles accounts, narrowly, and
 `create_user` takes **no password parameter at all**: Frappe emails a set-password
 link so nobody here ever chooses or sees one.
 
+**`Student` was missing from it and the Edit button proved it — 21 Nov 2026.**
+`StudentDetail` linked at `/staff/data/Student/<name>`, which could only ever answer
+"Student cannot be edited from the console." It is in the academic list now: the record
+carries no permlevel-gated and no password field, so the generic form is the whole of
+what correcting one takes. **The academic level is not on it**, and must not be — it
+lives on `Program Enrollment.current_level`, which is permlevel-gated and moves only
+through a **Level Promotion**, the document that records who approved the move and on
+what evidence. `/staff/data/:doctype/new` seeds a new record from the query string
+(fieldnames the DocType actually has, nothing else), so the student page's **Change
+level** button opens a promotion that already knows the enrolment and the level it is
+coming from.
+
 **Writable fields come from the metadata, never the payload.** `_assignable()` builds
 the set from the DocType, so naming `docstatus`, `owner` or a read-only field in the
 request changes nothing. Reads use `frappe.get_list` (applies permissions and user

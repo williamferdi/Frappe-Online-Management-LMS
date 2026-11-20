@@ -36,6 +36,13 @@ ALLOWED = {
 		"Instructor",
 		"Grade Scale",
 		"Weekday",
+		# A student's own record -- name, date of birth, contact, status and the
+		# login it is tied to. It carries no permlevel-gated field and no
+		# password field, so the generic form is the whole of what the Registrar
+		# needs to correct one, and the Edit button on the student page has
+		# somewhere to go. The academic **level** is deliberately not here: it
+		# lives on Program Enrollment and moves only through a Level Promotion.
+		"Student",
 		"Program Enrollment",
 		"Course Registration",
 		"Level Promotion",

@@ -240,3 +240,45 @@ class TestSections(FrappeTestCase):
 					frappe.has_permission(row["doctype"], "read"),
 					f"{row['doctype']} listed without read permission",
 				)
+
+
+class TestTheStudentRecord(FrappeTestCase):
+	"""The Edit button on a student's page has somewhere to go.
+
+	`Student` was missing from the allow-list while `StudentDetail` linked at
+	`/staff/data/Student/<name>`, so that page could only ever answer "Student
+	cannot be edited from the console." The record carries no permlevel-gated
+	and no password field, so the generic form is the whole of what correcting
+	one takes.
+	"""
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+
+	def test_a_student_can_be_described_read_and_corrected(self):
+		student, _enrollment, _email = make_student()
+
+		names = {field["fieldname"] for field in records.describe("Student")["fields"]}
+		self.assertIn("full_name", names)
+		self.assertIn("mobile", names)
+		self.assertIn("status", names)
+
+		self.assertEqual(records.record("Student", student.name)["name"], student.name)
+
+		records.save("Student", {"mobile": "+91 90000 00001"}, name=student.name)
+		self.assertEqual(
+			frappe.db.get_value("Student", student.name, "mobile"), "+91 90000 00001"
+		)
+
+	def test_the_level_is_not_a_field_on_the_student(self):
+		"""It belongs to the enrollment, and moves only through a Level
+		Promotion that records who approved it and on what evidence. A field
+		here would be a second, silent way to change it."""
+		names = {field["fieldname"] for field in records.describe("Student")["fields"]}
+		self.assertNotIn("current_level", names)
+		self.assertNotIn("level", names)
+
+	def test_the_door_widened_by_exactly_one_doctype(self):
+		self.assertIn("Student", records.EVERY_ALLOWED)
+		self.assertIn("Level Promotion", records.EVERY_ALLOWED)
+		self.assertNotIn("User", records.EVERY_ALLOWED)
