@@ -27,7 +27,6 @@ from frappe.utils import now_datetime
 
 from sibbcs.admissions.checklist import NO
 from sibbcs.admissions.doctype.admission_application.admission_application import token_url
-from sibbcs.finance.gateway import public_url
 from sibbcs.integrations import campus_lms
 
 STEP = NO["manual_reading"]
@@ -242,7 +241,12 @@ def send_manual_row(doc, row):
 	course_url = None
 	if course:
 		enroll_in_course(doc, course)
-		course_url = public_url(f"/lms/courses/{course}")
+		# Campus LMS Lite, not this site. The enrolment two lines above goes
+		# over there, and until 20 Nov 2026 the link in the same letter went to
+		# `/lms/courses/...` here -- an address the bundled lms app served
+		# until Phase 7 removed it, so the candidate was enrolled in one system
+		# and sent to a 404 in another.
+		course_url = campus_lms.course_url()
 
 	context = {
 		"applicant_name": doc.full_name,

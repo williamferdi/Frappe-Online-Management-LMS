@@ -31,6 +31,12 @@ def get_context(context):
 	)
 	context.update(details or {})
 	context.registrations = my_registrations(enrollment)
+	# Where each course opens. The same call the React portal makes, because
+	# this page is still served and its Open link pointed at `/lms/courses` on
+	# this site -- the bundled lms app, gone since Phase 7.
+	from sibbcs.api.student import _lms_links
+
+	_lms_links(context.registrations)
 	context.offerings = available_offerings(enrollment)
 	context.open_count = sum(1 for o in context.offerings if o["eligibility"]["allowed"])
 

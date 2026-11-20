@@ -97,6 +97,10 @@ def my_registrations(enrollment=None):
 			"name", "course", "course_title", "term", "status",
 			"credits", "grade", "final_marks", "passed", "lms_enrollment_created",
 			"registration_fee_invoice",
+			# Which run of the course this is. `api.student._lms_links` needs it
+			# to find the learning site's own id and open the course itself
+			# rather than its front door.
+			"course_offering",
 		],
 		order_by="registration_date desc",
 	)

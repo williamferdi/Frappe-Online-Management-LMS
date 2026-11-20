@@ -27,7 +27,10 @@
   "sb_academic",
   "course_level",
   "cb_academic",
-  "credits"
+  "credits",
+  "sb_learning_site",
+  "lms_course_id",
+  "students_notified_on"
  ],
  "fields": [
   {
@@ -156,12 +159,33 @@
    "fieldtype": "Float",
    "label": "Credits",
    "read_only": 1
+  },
+  {
+   "fieldname": "sb_learning_site",
+   "fieldtype": "Section Break",
+   "label": "Learning Site"
+  },
+  {
+   "description": "The learning site's own id for this run of the course, learned from the sync. It is what a direct link to the course is built from; the registrar's own name for the offering is not an address over there.",
+   "fieldname": "lms_course_id",
+   "fieldtype": "Data",
+   "label": "LMS Course ID",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "description": "When eligible students were emailed that this course is open for registration. Clear it to have them told again.",
+   "fieldname": "students_notified_on",
+   "fieldtype": "Datetime",
+   "label": "Students Notified On",
+   "no_copy": 1,
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-08 17:10:28.792911",
+ "modified": "2026-11-20 21:18:12.115054",
  "modified_by": "Administrator",
  "module": "Academic",
  "name": "Course Offering",

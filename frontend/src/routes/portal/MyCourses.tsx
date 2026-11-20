@@ -214,14 +214,15 @@ function CourseRow({
 						) : (
 							<>
 								{/* Lessons, coursework and quizzes are all in Campus LMS
-								    Lite now, so there is one way in rather than three.
-								    It opens the LMS itself and not a course address: the
-								    registration number means nothing over there, and the
-								    LMS lands a student on the courses they are enrolled
-								    on anyway. */}
+								    Lite, so there is one way in rather than three. The
+								    server decides how deep it goes: straight to this run
+								    of the course where the sync has learned the learning
+								    site's id for it, and to the LMS front door where it
+								    has not -- our own offering name is not an address
+								    over there. */}
 								{registration.lms_url ? (
 									<Button size="sm" asChild>
-										<a href={registration.lms_url}>
+										<a href={registration.lms_url} target="_blank" rel="noreferrer">
 											Open course <ArrowUpRight />
 										</a>
 									</Button>

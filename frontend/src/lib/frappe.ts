@@ -16,6 +16,8 @@ export interface Boot {
 	enrollment: string | null
 	site_name: string
 	app_version: string
+	/** Campus LMS Lite, or '' where no learning site is configured. */
+	lms_url: string
 }
 
 const GUEST: Boot = {
@@ -28,6 +30,7 @@ const GUEST: Boot = {
 	enrollment: null,
 	site_name: '',
 	app_version: '',
+	lms_url: '',
 }
 
 /**
@@ -56,6 +59,7 @@ export function readBoot(): Boot {
 		enrollment: str('enrollment') || null,
 		site_name: str('site_name'),
 		app_version: str('app_version'),
+		lms_url: str('lms_url'),
 	}
 }
 

@@ -321,10 +321,15 @@ doc_events = {
 		"on_update": [
 			"sibbcs.academic.permissions.clear_scope_cache",
 			"sibbcs.integrations.campus_lms.on_offering_change",
+			# Published is the moment a course becomes something a student can
+			# do about anything, so it is the moment they are told. Stamped on
+			# the offering, so saving it again says nothing twice.
+			"sibbcs.academic.offer_notice.on_offering_change",
 		],
 		"after_insert": [
 			"sibbcs.academic.permissions.clear_scope_cache",
 			"sibbcs.integrations.campus_lms.on_offering_change",
+			"sibbcs.academic.offer_notice.on_offering_change",
 		],
 		"on_trash": [
 			"sibbcs.academic.permissions.clear_scope_cache",
@@ -349,7 +354,19 @@ scheduler_events["daily"] = [
 	# Bills only on the day a term actually starts; per-term idempotent.
 	"sibbcs.finance.fees.run_term_tuition_scheduled",
 	"sibbcs.finance.hooks_handlers.sweep_missing_registration_fees",
+	# Catches the offerings the publish hook could not announce -- chiefly one
+	# published before its term opened for registration, which the hook has to
+	# skip and only a later run can send.
+	"sibbcs.academic.offer_notice.announce_open_offerings",
 ]
+
+# Frappe builds every "set your password" address with `get_url()`, which
+# appends the dev webserver's port on a bench this site is not served from.
+# `_reset_password` is the one method the forgot-password form, the Desk button
+# and the welcome mail all pass through. See `sibbcs/overrides/user.py`.
+override_doctype_class = {
+	"User": "sibbcs.overrides.user.SIBBCSUser",
+}
 
 # --- the React front end ------------------------------------------------
 # Every /portal and /console address is one page; React Router decides what

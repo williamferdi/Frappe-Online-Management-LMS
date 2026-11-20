@@ -57,8 +57,8 @@
 							</td>
 							<td>{{ r.grade or "—" }}</td>
 							<td>
-								{% if r.lms_enrollment_created %}
-									<a href="/lms/courses">Open</a>
+								{% if r.lms_enrollment_created and r.lms_url %}
+									<a href="{{ r.lms_url }}" target="_blank" rel="noreferrer">Open</a>
 								{% elif not r.fee.settled %}
 									<span class="text-muted small">Opens on payment</span>
 								{% else %}

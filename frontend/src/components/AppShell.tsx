@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { Menu, PanelLeftClose, PanelLeftOpen, X, type LucideIcon } from 'lucide-react'
+import {
+	GraduationCap,
+	Menu,
+	PanelLeftClose,
+	PanelLeftOpen,
+	X,
+	type LucideIcon,
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { UserMenu } from '@/components/UserMenu'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { boot } from '@/lib/frappe'
 import { cn } from '@/lib/utils'
 
 export interface NavItem {
@@ -177,6 +185,7 @@ export function AppShell({ product, sections }: AppShellProps) {
 						{collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
 					</Button>
 					<div className="ml-auto flex items-center gap-1">
+						<LmsLink />
 						<ThemeToggle />
 						<UserMenu />
 					</div>
@@ -187,6 +196,30 @@ export function AppShell({ product, sections }: AppShellProps) {
 				</main>
 			</div>
 		</div>
+	)
+}
+
+/** The way across to the learning site, from wherever the reader is.
+ *
+ *  Lessons, coursework, quizzes and the marks behind a grade are all in
+ *  Campus LMS Lite; this app is the registrar's half. Until now the only door
+ *  between them was a button on a course row in My Courses, so a student on
+ *  any other page had to go back to find it.
+ *
+ *  Drawn only when a learning site is configured -- `boot.lms_url` is '' when
+ *  it is not, and a link to nothing is worse than no link. On a phone the
+ *  label goes and the icon stays, because the header has four controls and
+ *  about 20rem to put them in. */
+function LmsLink() {
+	if (!boot.lms_url) return null
+
+	return (
+		<Button variant="ghost" size="sm" asChild>
+			<a href={boot.lms_url} target="_blank" rel="noreferrer">
+				<GraduationCap />
+				<span className="sr-only sm:not-sr-only">LMS</span>
+			</a>
+		</Button>
 	)
 }
 

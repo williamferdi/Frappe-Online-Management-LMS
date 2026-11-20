@@ -25,6 +25,7 @@ export interface Registration {
 	fee: FeeState
 	lms_course: string | null
 	lms_url: string | null
+	course_offering?: string
 	progress: number
 	/** Why the course will or will not open, decided by the server. */
 	access?: CourseAccess

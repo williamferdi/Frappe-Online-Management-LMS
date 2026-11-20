@@ -399,3 +399,42 @@ class TestTheMovedCourseEnrolsInCampusLms(FrappeTestCase):
 
 		self.assertIsNone(result)
 		self.assertFalse(enrol.called)
+
+
+class TestTheCourseLinkInTheLetter(FrappeTestCase):
+	"""Where "Open the orientation course" actually goes.
+
+	Reported by the college on 20 Nov 2026: the candidate was enrolled in
+	Campus LMS Lite by this very function and then sent to
+	`online.sibbc.org/lms/courses/...` -- the bundled lms app, which Phase 7
+	removed. The two halves of one email pointed at two different systems, and
+	only one of them existed.
+	"""
+
+	def setUp(self):
+		for name in frappe.get_all("Reading Manual", pluck="name"):
+			frappe.db.set_value("Reading Manual", name, "is_active", 0)
+		self.course = make_course()
+		make_manual(self.course)
+
+	def _course_url(self):
+		app = admit(make_application())
+		with lms_says():
+			with patch(
+				"sibbcs.admissions.notifications.outgoing_configured", return_value=True
+			):
+				# `send_manual_row` imports this from `notifications` when it
+				# runs, so that is the name to replace.
+				with patch(
+					"sibbcs.admissions.notifications.render_template",
+					return_value=("s", "b"),
+				) as render:
+					with patch("frappe.sendmail"):
+						manuals.send_manuals(app.name)
+		return render.call_args.args[1]["course_url"]
+
+	def test_it_points_at_the_learning_site(self):
+		self.assertEqual(self._course_url(), "https://lms.example.invalid")
+
+	def test_it_never_points_at_this_site(self):
+		self.assertNotIn("/lms/courses/", self._course_url())

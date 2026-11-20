@@ -27,6 +27,8 @@ import frappe
 from frappe import _
 from frappe.utils import add_years, flt, nowdate, today
 
+from sibbcs.admissions import welcome
+
 DEFAULT_ORIENTATION_COURSE = "GEST O501"
 
 
@@ -84,6 +86,14 @@ def convert(application_name, ignore_permissions=False):
 
 	app.db_set("student", student.name, update_modified=False)
 	app.db_set("enrolled_on", frappe.utils.now_datetime(), update_modified=False)
+
+	# Last, and after the application is stamped: the letter names the Student
+	# number and the level, so everything it quotes has to be settled before it
+	# is written. It never raises -- a mail server that is down must not undo
+	# an enrolment the Registrar has accepted.
+	report["welcomed"] = welcome.send(student, enrollment.name, user)
+	if user and not report["welcomed"]:
+		_deferred(report, "welcome", "the welcome email could not be sent")
 
 	return report
 
@@ -157,7 +167,11 @@ def _create_user(student, app):
 				"email": student.email,
 				"first_name": student.full_name,
 				"user_type": "Website User",
-				"send_welcome_email": 1,
+				# Ours goes out at the end of convert() instead, and it names
+				# the portal, the Student number and the programme. Frappe's
+				# would arrive alongside it saying something more general, with
+				# a second password link that invalidates the first.
+				"send_welcome_email": 0,
 			}
 		)
 

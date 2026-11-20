@@ -36,11 +36,15 @@ def get_context(context):
 		# A course-backed manual holds the signature back until every lesson is
 		# done. The page needs to say how far they have got, not just refuse.
 		from sibbcs.admissions.manuals import course_progress, manual_course
+		from sibbcs.integrations import campus_lms
 
 		course = manual_course(context.row.get("manual"))
 		context.course = course
 		context.progress = course_progress(context.application, course) if course else None
-		context.course_url = f"/lms/courses/{course}" if course else None
+		# Campus LMS Lite, where the course is and where the candidate was
+		# enrolled. `/lms/courses/...` on this site was the bundled lms app,
+		# which Phase 7 removed, so this button went nowhere.
+		context.course_url = campus_lms.course_url() if course else None
 		# The file is private, so it is fetched through the token endpoint
 		# rather than a /files/ link the candidate cannot open.
 		context.attachment_url = (

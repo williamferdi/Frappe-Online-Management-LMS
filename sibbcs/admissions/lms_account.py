@@ -40,7 +40,6 @@ from frappe import _
 from frappe.utils import now_datetime
 
 from sibbcs.admissions.checklist import NO
-from sibbcs.finance.gateway import public_url
 from sibbcs.integrations import campus_lms
 
 STEP = NO["lms_account"]
@@ -72,10 +71,10 @@ def exam_link():
 	if campus_lms.configured():
 		return campus_lms.base_url()
 
-	course = exam_course()
-	if course:
-		return public_url(f"/lms/courses/{course}")
-
+	# No third answer. `exam_course()` is the exam in Campus LMS Lite or
+	# nothing at all, so the branch that built a `/lms/courses/...` address on
+	# this site could only ever have fired when there was no course to name --
+	# and that address is the bundled lms app, which Phase 7 removed.
 	return None
 
 

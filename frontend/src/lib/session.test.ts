@@ -13,6 +13,7 @@ const session = (roles: string[], user = 'a@example.com'): Boot => ({
 	enrollment: null,
 	site_name: 'test.local',
 	app_version: '',
+	lms_url: '',
 })
 
 describe('roles decide where someone lands', () => {

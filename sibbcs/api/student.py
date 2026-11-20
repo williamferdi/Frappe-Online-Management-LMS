@@ -65,12 +65,18 @@ def _enrollment_header(enrollment):
 
 
 def _lms_links(registrations):
-	"""Where each registration's course lives, and how far along the student is.
+	"""Where each registration's course lives.
 
-	Teaching is Campus LMS Lite's. A student opens their course over there, and
-	this only has to hand them the address -- so every row gets the same one:
-	the LMS shows a person the courses they are enrolled on and nothing else,
-	which is the same boundary that keeps an applicant to their entrance exam.
+	Teaching is Campus LMS Lite's; this only has to hand the student the
+	address. Straight to the course where we know the id, and to the LMS front
+	door where we do not -- which is a real answer rather than a shrug, since
+	the LMS shows a person the courses they are enrolled on and nothing else.
+
+	The id has to be the LMS's own. `/courses/:courseId` is validated as a
+	UUID over there, so `BISTO502-2026-T6` opens nothing; `lms_course_id` on
+	the offering is what the sync learns from the answer to `/sync/courses`,
+	and it is blank until an offering has been pushed at least once since
+	20 Nov 2026.
 
 	Progress is deliberately not fetched here. It is one call per course to
 	another system over a 265ms link, on a screen that draws every registration
@@ -80,11 +86,27 @@ def _lms_links(registrations):
 	"""
 	from sibbcs.integrations import campus_lms
 
-	url = campus_lms.base_url() if campus_lms.configured() else None
+	if not campus_lms.configured():
+		for row in registrations:
+			row["lms_url"] = None
+			row["progress"] = 0
+		return
+
+	# One query for every offering on the screen, rather than one per row.
+	offerings = [row.get("course_offering") for row in registrations if row.get("course_offering")]
+	ids = {}
+	if offerings and frappe.db.has_column("Course Offering", "lms_course_id"):
+		ids = {
+			row.name: row.lms_course_id
+			for row in frappe.get_all(
+				"Course Offering",
+				filters={"name": ("in", offerings)},
+				fields=["name", "lms_course_id"],
+			)
+		}
+
 	for row in registrations:
-		# No per-course address: the LMS lands a student on the courses they are
-		# enrolled on, and a registration number means nothing over there.
-		row["lms_url"] = url
+		row["lms_url"] = campus_lms.course_url(ids.get(row.get("course_offering")))
 		row["progress"] = 0
 
 

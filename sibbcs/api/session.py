@@ -14,6 +14,8 @@ so navigation can be drawn; every endpoint still checks its own permissions.
 
 import frappe
 
+from sibbcs.integrations import campus_lms
+
 # Roles that get the staff console. Mirrors `setup/permissions.py`, plus Dean,
 # which `level_promotion.APPROVER_ROLES` recognises but the matrix does not name.
 STAFF_ROLES = (
@@ -67,6 +69,11 @@ def session_payload():
 		"enrollment": enrollment or "",
 		"site_name": frappe.local.site,
 		"app_version": frappe.get_attr("sibbcs.__version__") or "",
+		# The learning site, so the shell can offer a way across from every
+		# page instead of only from a course row on My Courses. Empty when it
+		# is not configured, and the link is then not drawn at all -- which is
+		# the honest answer on a site that has no LMS behind it.
+		"lms_url": campus_lms.base_url() if campus_lms.configured() else "",
 	}
 
 

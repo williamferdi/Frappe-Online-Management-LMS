@@ -1881,6 +1881,85 @@ argue about who is on a course.
   saved again. An insert fires both `after_insert` and `on_update`, so everything an
   offering sends on creation is sent twice; the endpoints upsert on `externalId`, so the
   tests assert on the distinct payloads rather than the count.
+
+- **Every door to the learning site, and where it opens — 20 Nov 2026.** There are four,
+  and two of them were shut. `send_manual_row` enrolled a candidate in Campus LMS Lite
+  and then, in the same letter, sent them to `/lms/courses/...` on **this** site — the
+  bundled lms app, which Phase 7 removed. `/manual-reading` carried the same address, and
+  so did the Open link on the old `/my-courses` page. All of them go through
+  **`campus_lms.course_url(course_id=None)`** now.
+
+  **With an id it opens the course; without one, the LMS front door — and that is a real
+  answer, not a shrug.** The LMS shows a person the courses they are enrolled on and
+  nothing else, so an applicant lands on their exam and their orientation. The id has to
+  be the LMS's own: `/courses/:courseId` over there is validated as a UUID, so
+  `BISTO502-2026-T6` opens nothing. `/sync/courses` answers with the record it wrote, and
+  **`_remember_course_id` keeps that `id` on `Course Offering.lms_course_id`** — typed,
+  not merely truthy, because it is another system's answer and it ends up in a link handed
+  to a student. Written with `update_modified=False` and no `save`: this runs inside the
+  push job, and stamping `modified` would re-fire `on_update`, which enqueues the push
+  again. `patches/learn_the_lms_course_ids` re-pushes every offering so the ids are known
+  for courses already running.
+
+  `api.student._lms_links` reads them **in one query however many courses are on the
+  screen**, and `session_payload` carries `lms_url` so the app shell can offer a way
+  across from every page rather than only from a course row.
+
+- **A password link nobody could open — 20 Nov 2026.** Every one this site sent carried
+  `online.sibbc.org:8000`. `frappe.utils.get_url` appends `conf.http_port or
+  conf.webserver_port` unless `restart_supervisor_on_update` or
+  `restart_systemd_on_update` is set, and this bench is neither — it runs under its own
+  `sibbcs-bench` unit. `host_name` being right does not help: the port is appended to it.
+
+  Fixed **twice, on purpose**. On the site, with
+  `bench --site online.sibbc.org set-config -p webserver_port 0` — which corrects every
+  Frappe-generated address, the footer of every outgoing mail included. The key is set on
+  the **site**, never on `common_site_config.json`, where bench still needs the real 8000
+  to write the Procfile and the nginx upstream. And in code, in
+  **`sibbcs/overrides/user.py`** via `override_doctype_class`, because a site config is
+  one restored backup away from being the old one and a dead password link locks somebody
+  out of their own account.
+
+  **`_reset_password`, underscored**, is the one method all three mails pass through: the
+  forgot-password form (through the module-level `reset_password(user)` function), the
+  Desk **Reset Password** button, and `send_welcome_mail_to_user`. The override calls
+  `super()` with `send_email=False`, corrects the host, then sends — so key generation,
+  its hash and the issued-at stamp stay the base class's job.
+
+- **Onboarding now writes to the student — 20 Nov 2026.** It wrote to nobody. A candidate
+  heard from the college at nearly every step and then, at the one step that changes what
+  they are, nothing: no Student number, no portal address, no password.
+  `admissions/welcome.py` sends it at the end of `conversion.convert`, and never raises —
+  a mail server that is down must not undo an enrolment the Registrar has accepted.
+
+  **A link, not a password.** And a link in every case, not only for a new account: the
+  Frappe User is made silently at step 6 so the candidate keeps one login for life, but
+  nobody ever sets a password on it — the one they chose when they applied is Campus LMS
+  Lite's. `send_welcome_email` is **0** on the User now; Frappe's generic mail would
+  otherwise arrive alongside ours with a second password link that invalidates the first.
+
+- **Students are told when a course opens — 20 Nov 2026.** Registration was a pull: sign
+  in, open Register, find out — inside a window a fortnight wide.
+  `academic/offer_notice.py` pushes it, at the level the college asked about.
+
+  **Who is asked is `eligibility.evaluate`, not a level comparison** — the same engine the
+  Register page runs, so the letter can never point at a course the page will then refuse.
+  Two filters come first and both are real: the roll is scoped to the programmes the
+  course counts toward (an empty `Course.programs` is universal, as everywhere else), and
+  `check_level` runs as a pure function with no queries. Without them the nightly sweep
+  evaluates the whole college against every course, at six queries a pair.
+
+  **`students_notified_on` is the whole of the idempotency**, and it is stamped even when
+  nobody was eligible: "nobody yet" is an answer, and a sweep that retried it would ask
+  the same question every morning until the term closed. A term whose registration has
+  not opened is the one case left unstamped, so the daily
+  `offer_notice.announce_open_offerings` finds it again when it does. Clearing the field,
+  or `announce_now(offering, force=True)`, is how to say it again.
+
+  One letter per offering, not a digest. If publishing a whole catalogue in an afternoon
+  turns out to be noisy, the grouping belongs in `announce_open_offerings`, which already
+  has every offering in hand.
+
 **An offering taught there must be graded as one bucket.** `gradebook.use_single_component`
 puts it on a single **Coursework** component worth 100%, because `compute_grade` holds the
 letter back until *every* bucket is marked — so with several buckets one release can never

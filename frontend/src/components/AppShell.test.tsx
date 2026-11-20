@@ -6,6 +6,22 @@ import { BookOpen, LayoutDashboard } from 'lucide-react'
 
 import { AppShell, type NavSection } from './AppShell'
 
+vi.mock('@/lib/frappe', async (original) => {
+	const actual = await original<typeof import('@/lib/frappe')>()
+	return {
+		...actual,
+		// A getter, because `boot` is a module constant read once at load and
+		// each test needs its own answer. Spread over the real one so the rest
+		// of it -- the roles UserMenu reads, for instance -- is still there.
+		get boot() {
+			return { ...actual.boot, ...bootStub }
+		},
+	}
+})
+
+/** Replaced per test; see the getter above. */
+let bootStub: { lms_url: string } = { lms_url: '' }
+
 const sections: NavSection[] = [
 	{
 		items: [
@@ -33,7 +49,10 @@ function renderShell(initial = '/portal') {
 	)
 }
 
-beforeEach(() => window.localStorage.clear())
+beforeEach(() => {
+	window.localStorage.clear()
+	bootStub = { lms_url: '' }
+})
 afterEach(() => vi.restoreAllMocks())
 
 describe('the main menu', () => {
@@ -87,5 +106,37 @@ describe('the main menu', () => {
 		renderShell()
 
 		expect(screen.getByRole('link', { name: 'My Courses' })).toBeInTheDocument()
+	})
+})
+
+describe('the way across to the learning site', () => {
+	it('sits in the header, on every page', () => {
+		// Not only on a course row in My Courses, which is where the single
+		// door used to be -- a student on Grades had to go back to find it.
+		bootStub = { lms_url: 'https://lms.example.invalid' }
+
+		renderShell()
+
+		expect(screen.getByRole('link', { name: 'LMS' })).toHaveAttribute(
+			'href',
+			'https://lms.example.invalid',
+		)
+	})
+
+	it('opens in its own tab', () => {
+		// It is a different application. Replacing the portal with it would
+		// take the back button with it.
+		bootStub = { lms_url: 'https://lms.example.invalid' }
+
+		renderShell()
+
+		expect(screen.getByRole('link', { name: 'LMS' })).toHaveAttribute('target', '_blank')
+	})
+
+	it('is not drawn at all where no learning site is configured', () => {
+		// A link to nothing is worse than no link.
+		renderShell()
+
+		expect(screen.queryByRole('link', { name: 'LMS' })).not.toBeInTheDocument()
 	})
 })

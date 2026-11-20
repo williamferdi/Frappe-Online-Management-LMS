@@ -89,6 +89,26 @@ def base_url():
 	return _setting("campus_lms_url").rstrip("/")
 
 
+def course_url(course_id=None):
+	"""Where somebody opens their learning over there.
+
+	Without an id this is the LMS front door, which is a real answer rather
+	than a lazy one: the LMS lands a person on the courses they are enrolled
+	on and shows them nothing else, so an applicant arrives at their exam and
+	their orientation and a student at the courses they registered for.
+
+	With an id it is the course itself, which is the difference between "sign
+	in and find it" and a link that opens the thing the email is about. The id
+	has to be the LMS's own: `/courses/:courseId` over there is validated as a
+	UUID, so `BISTO502-2026-T6` is not an address anybody can open -- which is
+	why `lms_course_id` is kept on the offering as the sync learns it.
+	"""
+	base = base_url()
+	if not base:
+		return None
+	return f"{base}/courses/{course_id}" if course_id else base
+
+
 def enrol_applicant(application, email, full_name):
 	"""Give an applicant an account and a place in the entrance exam.
 
@@ -533,6 +553,36 @@ def registration_payload(name):
 # ---------------------------------------------------------------------------
 
 
+def _remember_course_id(offering, answer):
+	"""Keep the LMS's own id for a course, so a link can open the course itself.
+
+	`/sync/courses` answers with the record it wrote. Its `id` is the only
+	address the LMS's own routes accept -- `/courses/:courseId` is validated as
+	a UUID over there, so the registrar's `BISTO502-2026-T6` opens nothing, and
+	without this every link to a course could only be the front door.
+
+	`update_modified=False`, and no `save`: this runs inside the push job, and
+	stamping `modified` here would make every offering look edited by the sync
+	it had just triggered -- and re-trigger `on_update`, which enqueues the
+	push again.
+	"""
+	answer = answer if isinstance(answer, dict) else {}
+	course = answer.get("course")
+	course_id = course.get("id") if isinstance(course, dict) else None
+	# Typed, not merely truthy. This is another system's answer, and what it
+	# sends is what would be written into a link we hand a student -- so a
+	# shape we did not expect is passed over rather than stored.
+	if not isinstance(course_id, str) or not course_id:
+		return
+	# The field arrives with a migration, and the push runs from a worker that
+	# may still be holding the schema from before it.
+	if not frappe.db.has_column("Course Offering", "lms_course_id"):
+		return
+	if frappe.db.get_value("Course Offering", offering, "lms_course_id") == course_id:
+		return
+	frappe.db.set_value(
+		"Course Offering", offering, "lms_course_id", course_id, update_modified=False
+	)
 def push_teaching(offering):
 	"""Put an offering's staff on the course over there.
 
@@ -568,7 +618,7 @@ def push(doctype, name):
 	if doctype == "Course Offering":
 		payload = offering_payload(name)
 		if payload:
-			_post("/sync/courses", payload)
+			_remember_course_id(name, _post("/sync/courses", payload))
 			push_teaching(name)
 		return
 
@@ -583,7 +633,9 @@ def push(doctype, name):
 		if not offering:
 			return
 		_post("/sync/people", student)
-		_post("/sync/courses", offering)
+		_remember_course_id(
+			registration["courseExternalId"], _post("/sync/courses", offering)
+		)
 		_post("/sync/enrollments", registration)
 
 
