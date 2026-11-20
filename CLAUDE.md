@@ -1166,6 +1166,78 @@ it, which is the one that goes out, still held the old text. So:
   exactly what `lms_account_invite` would have done. `TestTheInvitationRendersWithNothingLeftOver`
   asserts no `{{` survives in a sent invitation.
 
+### A status may not claim a fact that never happened — 20 Nov 2026
+
+The checklist's gates say *when* a step may be completed. They never asked
+whether the thing a status claims had actually happened, and for three statuses
+those are different questions.
+
+APP-2026-00013 read **Onboarded** for a day on a site with **zero Student
+records**. Every gate was legitimately open — admitted, manuals acknowledged —
+and somebody pressed the `Onboarded` status button, which sits on the board
+immediately beside the **Onboard student** button that does the work.
+`checklist.set_status` wrote the row, `derive_state` moved the application to
+`Onboarded`, and nothing else happened: no Student, no Program Enrollment, no
+Fee Invoice. `/staff/students` was empty and correct. The whole record of it was
+one `Version` row showing two fields had changed, and the Error Log was clean,
+because nothing had failed — the work was simply never asked for.
+
+**Why it never self-corrected.** `mirror_gates_to_checklist` already derives
+these statuses from their facts (`applicant_user`, `exam_link_sent_on`,
+`student`) and moves the step forward when one appears. But it only ever walks
+a step *forward*, deliberately — so a status claimed with no fact behind it
+stands indefinitely, and the pipeline goes on saying a candidate is enrolled
+while the roll says the college has no students.
+
+`checklist.EVIDENCE` is the fix: step → status → what must exist.
+
+```python
+EVIDENCE = {
+	(NO["lms_account"], "Created"):    _an_account_exists,   # applicant_user
+	(NO["lms_account"], "Link Sent"):  _the_invitation_was_sent,  # exam_link_sent_on
+	(NO["onboarding"], "Onboarded"):   _a_student_exists,    # student
+}
+```
+
+- **Both ways in are guarded.** `set_status` covers the API and the console;
+  `AdmissionApplication.validate_checklist` covers an officer editing the child
+  grid in Desk and pressing Save, which goes nowhere near `set_status`. A guard
+  on one path only would have been found out by the first person to use Desk.
+- **The refusal names the button.** "Press *Onboard student* — it creates the
+  Student, the Program Enrollment and the fee records, and records this status
+  itself." An error that only says no leaves the officer where they started.
+- **The board stops offering them.** `board()` returns `needs_action` per row
+  and the console disables those buttons with a line saying which action
+  records them. The server refusal is the boundary; this is the courtesy.
+- **Only these three.** Every other status records an opinion — "Reviewed"
+  means somebody read the reference and formed a view, and there is nothing to
+  check it against. Asking for evidence of a judgement would make the board
+  unusable. `admission_fee` "Paid" is deliberately left alone too: a Registrar
+  does record cash in hand, and `conversion._fee_settled` does not trust that
+  status anyway.
+- **Fixtures had to become honest.** `ready_to_onboard` and two other test
+  helpers set step 6 to `Link Sent` on applications that had sent nothing, and
+  `demo_data` did the same — the seeder swallows a refusal, so without the
+  stamp its demo candidates would silently lose step 6 and the exam pass gated
+  on it. A fixture standing in the state that broke production is a fixture
+  that cannot catch it.
+
+**Samuel Sas was onboarded properly afterwards** — `SIB-2026-0002`,
+`SIB-2026-0002-M.DIV.` at Level 1 in `2026-T6`, his approved scholarship
+(₹1,500/month, ₹24,000 cap) copied onto the enrollment, the `Student` role
+granted on his existing login, and Campus LMS Lite re-filed him from
+`APP-2026-00013` to `SIB-2026-0002` so his orientation progress and exam attempt
+stayed attached to him.
+
+Two things that onboarding surfaced and nobody has decided:
+
+- **`orientation_course_code` is still `DEMO GEST501`**, demo data purged in
+  August, so `_register_orientation` defers with "not in the course catalog" for
+  every student onboarded. The live catalog holds one course, `BISTO502`.
+- **M.DIV. has `requires_ata_fee = 0`** on the live Program, though §2.4 and
+  `conversion._raise_ata_invoice` treat the ATA fee as M.Div's. No ATA invoice is
+  raised for anybody.
+
 ### The bundled `lms` app is gone — 18 Nov 2026
 
 Phase 7 removed it: uninstalled from both sites, removed from the bench, and the 69

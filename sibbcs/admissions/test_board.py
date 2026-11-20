@@ -11,7 +11,18 @@ wrong. These tests pin the shape.
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from sibbcs.admissions.checklist import ACTIONS, NO, STEPS, board, set_status, update_step
+from sibbcs.admissions.checklist import (
+	ACTIONS,
+	EVIDENCE,
+	NO,
+	STEPS,
+	board,
+	missing_evidence,
+	set_status,
+	status_of,
+	statuses_for,
+	update_step,
+)
 
 REQUIRED_KEYS = {
 	"step_no",
@@ -22,6 +33,7 @@ REQUIRED_KEYS = {
 	"done",
 	"done_statuses",
 	"blocked",
+	"needs_action",
 	"remarks",
 	"updated_by",
 	"updated_on",
@@ -150,3 +162,105 @@ class TestChecklistBoard(FrappeTestCase):
 		app = make_application()
 		with self.assertRaises(frappe.ValidationError):
 			update_step(app.name, NO["application_review"], "Onboarded")
+
+
+class TestAStatusMayNotClaimSomethingThatNeverHappened(FrappeTestCase):
+	"""Three of the thirteen steps' statuses stand for a row in a database --
+	an account, a sent email, a Student -- and not for an officer's judgement.
+	The board draws those statuses as buttons sitting beside the button that
+	does the work, so the wrong one is one click away.
+
+	APP-2026-00013 was marked Onboarded that way on 20 Nov 2026. No Student was
+	created, the pipeline read Onboarded for a day, /staff/students was empty,
+	and nothing anywhere reported the contradiction: `mirror_gates_to_checklist`
+	only walks a step forward, so it never put the status back.
+	"""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	# -- refused from the API ---------------------------------------------
+
+	def test_created_is_refused_while_there_is_no_account(self):
+		app = make_application(email="evidence.created@example.com")
+		with self.assertRaises(frappe.ValidationError):
+			update_step(app.name, NO["lms_account"], "Created")
+
+		app.reload()
+		self.assertEqual(status_of(app, NO["lms_account"]), "Awaiting")
+
+	def test_link_sent_is_refused_while_nothing_has_been_sent(self):
+		app = make_application(email="evidence.sent@example.com")
+		with self.assertRaises(frappe.ValidationError):
+			update_step(app.name, NO["lms_account"], "Link Sent")
+
+		app.reload()
+		self.assertEqual(status_of(app, NO["lms_account"]), "Awaiting")
+
+	def test_the_refusal_names_the_button_that_would_work(self):
+		app = make_application(email="evidence.advice@example.com")
+		reason = missing_evidence(app, NO["lms_account"], "Link Sent")
+		self.assertIn("Create LMS account", reason)
+
+	# -- refused from the Desk grid too -----------------------------------
+
+	def test_the_grid_cannot_claim_it_either(self):
+		"""An officer editing the child table never goes through update_step,
+		which is exactly where a decorative guard would be found out.
+		"""
+		app = make_application(email="evidence.grid@example.com")
+		for row in app.checklist:
+			if int(row.step_no) == NO["lms_account"]:
+				row.status = "Link Sent"
+		with self.assertRaises(frappe.ValidationError):
+			app.save(ignore_permissions=True)
+
+	# -- accepted once the fact is there ----------------------------------
+
+	def test_the_status_is_accepted_once_the_invitation_has_gone(self):
+		app = make_application(email="evidence.ok@example.com")
+		app.db_set("exam_link_sent_on", frappe.utils.now_datetime(), update_modified=False)
+		app.reload()
+
+		update_step(app.name, NO["lms_account"], "Link Sent")
+		app.reload()
+		self.assertEqual(status_of(app, NO["lms_account"]), "Link Sent")
+
+	def test_an_ordinary_status_is_left_alone(self):
+		"""Only the three are guarded. A reference review is an opinion, and
+		asking for evidence of an opinion would make the board unusable.
+		"""
+		app = make_application(email="evidence.opinion@example.com")
+		update_step(app.name, NO["reference_1"], "Reviewed")
+		app.reload()
+		self.assertEqual(status_of(app, NO["reference_1"]), "Reviewed")
+
+	# -- and the board says so before anybody clicks ----------------------
+
+	def test_the_board_names_the_statuses_only_the_button_can_record(self):
+		app = make_application(email="evidence.board@example.com")
+		rows = {row["step_no"]: row for row in board(app.name)["rows"]}
+
+		self.assertEqual(
+			sorted(rows[NO["lms_account"]]["needs_action"]), ["Created", "Link Sent"]
+		)
+		self.assertEqual(rows[NO["onboarding"]]["needs_action"], ["Onboarded"])
+		self.assertEqual(rows[NO["reference_1"]]["needs_action"], [])
+
+	def test_a_status_stops_needing_an_action_once_its_fact_exists(self):
+		app = make_application(email="evidence.cleared@example.com")
+		app.db_set("exam_link_sent_on", frappe.utils.now_datetime(), update_modified=False)
+		app.reload()
+
+		rows = {row["step_no"]: row for row in board(app.name)["rows"]}
+		self.assertEqual(rows[NO["lms_account"]]["needs_action"], ["Created"])
+
+	def test_every_guarded_status_is_one_the_step_actually_offers(self):
+		"""A guard on a status no step lists would never fire, and nothing
+		else would say so.
+		"""
+		for (step_no, status) in EVIDENCE:
+			self.assertIn(status, statuses_for(step_no))
+			self.assertIn(
+				step_no, ACTIONS, f"step {step_no} is guarded but offers no action"
+			)

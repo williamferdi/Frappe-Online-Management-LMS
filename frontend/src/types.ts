@@ -448,6 +448,12 @@ export interface ChecklistRow {
 	done: boolean
 	done_statuses: string[]
 	blocked: string | null
+	/**
+	 * Statuses on this step that stand for a record -- an account, a sent
+	 * email, a Student -- rather than for a judgement, and whose record does
+	 * not exist yet. The server refuses them; the board does not offer them.
+	 */
+	needs_action: string[]
 	remarks: string | null
 	updated_by: string | null
 	updated_on: string | null

@@ -253,6 +253,10 @@ class TestChecklistGateOnSave(FrappeTestCase):
 
 	def test_grid_edit_works_once_the_gate_opens(self):
 		doc = frappe.get_doc("Admission Application", self._application("gg3@example.invalid"))
+		# Created stands for an account existing; checklist.EVIDENCE will not
+		# take it on trust, from the grid any more than from the API.
+		doc.db_set("applicant_user", "Administrator", update_modified=False)
+		doc.reload()
 		self._row(doc, NO["lms_account"]).status = "Created"
 		doc.save(ignore_permissions=True)
 		doc.reload()

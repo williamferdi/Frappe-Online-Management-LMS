@@ -42,7 +42,12 @@ class AdmissionApplication(Document):
 		application already sitting in a valid combination stays editable, and
 		a backfilled record is never made unsavable by history.
 		"""
-		from sibbcs.admissions.checklist import blocked_reason, is_done, statuses_for
+		from sibbcs.admissions.checklist import (
+			blocked_reason,
+			is_done,
+			missing_evidence,
+			statuses_for,
+		)
 
 		previous = self.get_doc_before_save()
 		was = {}
@@ -73,6 +78,10 @@ class AdmissionApplication(Document):
 				reason = blocked_reason(self, step_no)
 				if reason:
 					frappe.throw(reason, title=_("Step Blocked"))
+
+			reason = missing_evidence(self, step_no, row.status)
+			if reason:
+				frappe.throw(reason, title=_("Nothing Recorded Yet"))
 
 	def before_insert(self):
 		self.issue_tokens()

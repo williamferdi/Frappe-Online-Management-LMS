@@ -109,6 +109,11 @@ def make_application(**overrides):
 
 
 def admit(app):
+	# Step 6 records a sent email, so the fixture sends one: the guard in
+	# checklist.EVIDENCE refuses the status on trust, which is the whole
+	# reason it exists.
+	app.db_set("exam_link_sent_on", frappe.utils.now_datetime(), update_modified=False)
+	app.reload()
 	set_status(app, NO["lms_account"], "Link Sent")
 	app.reload()
 	set_status(app, NO["entrance_exam"], "Passed")

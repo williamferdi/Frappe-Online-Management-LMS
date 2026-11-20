@@ -9,7 +9,14 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from sibbcs.admissions import conversion, manuals
-from sibbcs.admissions.checklist import NO, blocked_reason, set_status, status_of
+from sibbcs.admissions.checklist import (
+	NO,
+	blocked_reason,
+	missing_evidence,
+	set_status,
+	status_of,
+	update_step,
+)
 
 MANUAL = "Test Onboarding Manual"
 
@@ -65,6 +72,11 @@ def ready_to_onboard(app, level=None, fee="Paid"):
 			}
 		).insert(ignore_permissions=True)
 
+	# Step 6 records a sent email, so the fixture sends one: the guard in
+	# checklist.EVIDENCE refuses the status on trust, which is the whole
+	# reason it exists.
+	app.db_set("exam_link_sent_on", frappe.utils.now_datetime(), update_modified=False)
+	app.reload()
 	set_status(app, NO["lms_account"], "Link Sent")
 	app.reload()
 	set_status(app, NO["entrance_exam"], "Passed")
@@ -104,6 +116,8 @@ class TestOnboarding(FrappeTestCase):
 
 	def test_onboarding_is_blocked_while_a_manual_is_unread(self):
 		app = make_application()
+		app.db_set("exam_link_sent_on", frappe.utils.now_datetime(), update_modified=False)
+		app.reload()
 		set_status(app, NO["lms_account"], "Link Sent")
 		app.reload()
 		set_status(app, NO["entrance_exam"], "Passed")
@@ -180,6 +194,50 @@ class TestOnboarding(FrappeTestCase):
 		self.assertEqual(
 			frappe.db.count("Student", {"admission_application": app.name}), 1
 		)
+
+	# -- the status is not a thing an officer may simply type ------------
+
+	def test_onboarded_is_refused_while_there_is_no_student(self):
+		"""Every gate open, and still refused: the gates say the step *may* be
+		completed, not that it *has* been. Without this the roll stays empty
+		while the pipeline reads Onboarded -- which is what happened to
+		APP-2026-00013 on 20 Nov 2026.
+		"""
+		app = ready_to_onboard(make_application())
+		self.assertIsNone(blocked_reason(app, NO["onboarding"]))
+
+		with self.assertRaises(frappe.ValidationError):
+			update_step(app.name, NO["onboarding"], "Onboarded")
+
+		app.reload()
+		self.assertEqual(status_of(app, NO["onboarding"]), "Awaiting Onboarding")
+		self.assertFalse(frappe.db.exists("Student", {"admission_application": app.name}))
+
+	def test_the_refusal_points_at_the_button_that_does_the_work(self):
+		app = ready_to_onboard(make_application())
+		reason = missing_evidence(app, NO["onboarding"], "Onboarded")
+		self.assertIn("Onboard student", reason)
+
+	def test_the_grid_cannot_claim_onboarded_either(self):
+		app = ready_to_onboard(make_application())
+		for row in app.checklist:
+			if int(row.step_no) == NO["onboarding"]:
+				row.status = "Onboarded"
+		with self.assertRaises(frappe.ValidationError):
+			app.save(ignore_permissions=True)
+
+	def test_onboarding_properly_still_records_the_step(self):
+		"""The guard must not stand in the way of the one path that is real:
+		conversion.onboard() makes the Student and then marks the step, so by
+		the time it asks for the status the evidence exists.
+		"""
+		app = ready_to_onboard(make_application())
+		conversion.onboard(app.name)
+
+		app.reload()
+		self.assertTrue(app.student)
+		self.assertEqual(status_of(app, NO["onboarding"]), "Onboarded")
+		self.assertIsNone(missing_evidence(app, NO["onboarding"], "Onboarded"))
 
 	def test_the_applicant_keeps_the_login_from_step_7(self):
 		from sibbcs.admissions import lms_account

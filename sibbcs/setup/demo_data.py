@@ -701,6 +701,16 @@ def _applications():
 			}
 		).insert(ignore_permissions=True)
 
+		# Step 6's statuses stand for an account and a sent email rather than
+		# for an officer's opinion, and checklist.EVIDENCE refuses them without
+		# one. Stamp what Link Sent means before asking for it, or the step is
+		# silently skipped below and the exam pass gated on it goes with it.
+		if steps.get("lms_account") == "Link Sent":
+			application.db_set(
+				"exam_link_sent_on", frappe.utils.now_datetime(), update_modified=False
+			)
+			application.reload()
+
 		# Advance by stable key. `update_step` enforces the gates, so a status
 		# that would need a prerequisite simply will not take -- which is the
 		# behaviour worth demonstrating, not worth working around.

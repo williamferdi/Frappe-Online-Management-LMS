@@ -204,6 +204,7 @@ function Step({
 
 	const blocked = Boolean(row.blocked)
 	const editable = canWrite && !blocked
+	const actionLabel = row.action ? (ACTION_LABEL[row.action] ?? row.action) : null
 
 	function setStatus(status: string) {
 		update.mutate(
@@ -273,18 +274,39 @@ function Step({
 
 					{open && editable && (
 						<div className="mt-2 flex flex-wrap gap-1">
-							{row.statuses.map((status) => (
-								<Button
-									key={status}
-									size="sm"
-									variant={status === row.status ? 'default' : 'outline'}
-									className="h-7 text-xs"
-									disabled={update.isPending}
-									onClick={() => setStatus(status)}
-								>
-									{status}
-								</Button>
-							))}
+							{row.statuses.map((status) => {
+								// Some statuses are a record of something the
+								// action button does, not an opinion to type:
+								// "Onboarded" means a Student exists. Pressed
+								// without one, the server refuses -- so the
+								// board points at the button instead.
+								const byAction = (row.needs_action ?? []).includes(status)
+								return (
+									<Button
+										key={status}
+										size="sm"
+										variant={status === row.status ? 'default' : 'outline'}
+										className="h-7 text-xs"
+										disabled={update.isPending || byAction}
+										title={
+											byAction && actionLabel
+												? `Use "${actionLabel}" -- it records this itself`
+												: undefined
+										}
+										onClick={() => setStatus(status)}
+									>
+										{status}
+									</Button>
+								)
+							})}
+						</div>
+					)}
+					{open && editable && (row.needs_action ?? []).length > 0 && actionLabel && (
+						<div className="text-muted-foreground mt-1.5 text-xs">
+							{(row.needs_action ?? []).join(' and ')}{' '}
+							{row.needs_action.length > 1 ? 'are' : 'is'} recorded by{' '}
+							<span className="font-medium">{actionLabel}</span>, which does the work
+							first.
 						</div>
 					)}
 				</div>
@@ -293,7 +315,7 @@ function Step({
 					{row.action && editable && (
 						<Button size="sm" variant="outline" onClick={runAction} disabled={run.isPending}>
 							{run.isPending ? <LoaderCircle className="animate-spin" /> : <Send />}
-							{ACTION_LABEL[row.action] ?? row.action}
+							{actionLabel}
 						</Button>
 					)}
 					{editable && (

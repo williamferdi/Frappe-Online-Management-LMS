@@ -211,6 +211,81 @@ def blocked_reason(application, step_no):
 			)
 	return None
 
+
+# ---------------------------------------------------------------------------
+# statuses that record a fact, as against statuses that record an opinion
+# ---------------------------------------------------------------------------
+
+
+def _an_account_exists(doc):
+	if not doc.applicant_user:
+		return _(
+			"This candidate has no account yet, so step {0} cannot read Created. "
+			"Press <b>Create LMS account</b> on the step: it makes the login, "
+			"enrols them in the entrance exam and then records this status."
+		).format(NO["lms_account"])
+	return None
+
+
+def _the_invitation_was_sent(doc):
+	if not doc.exam_link_sent_on:
+		return _(
+			"No invitation has been sent, so step {0} cannot read Link Sent. "
+			"Press <b>Create LMS account</b> on the step -- it asks Campus LMS "
+			"for an activation link and emails it, then records this status."
+		).format(NO["lms_account"])
+	return None
+
+
+def _a_student_exists(doc):
+	if not doc.student:
+		return _(
+			"There is no Student record for this candidate, so they are not "
+			"onboarded. Press <b>Onboard student</b> on step {0}: it creates the "
+			"Student, the Program Enrollment and the fee records, and records "
+			"this status itself. Setting it by hand leaves the roll empty."
+		).format(NO["onboarding"])
+	return None
+
+
+# A gate says *when* a step may be completed. This says whether the thing a
+# status claims has actually happened, and the two are different questions.
+#
+# Most statuses record an opinion. "Reviewed" means somebody read the reference
+# and formed a view; it is theirs to record and there is nothing else to check
+# it against. Three of them instead record a row in a database: an account, a
+# sent email, a Student. `mirror_gates_to_checklist` already moves each of
+# those forward the moment its fact appears -- they are the mirror's to set,
+# not an officer's to type.
+#
+# The mirror only ever walks a step *forward*, so a status claimed by hand with
+# no fact behind it is never corrected afterwards. The pipeline goes on saying
+# a candidate is enrolled while the roll says the college has no students, and
+# nothing anywhere says the two disagree.
+#
+# APP-2026-00013 spent a day in exactly that state. Step 13 was set to
+# Onboarded from the row of status buttons, which sit beside the button that
+# does the work; no Student was ever created, /staff/students was empty, and
+# the only record of what had happened was a Version row showing that one
+# field had changed.
+EVIDENCE = {
+	(NO["lms_account"], "Created"): _an_account_exists,
+	(NO["lms_account"], "Link Sent"): _the_invitation_was_sent,
+	(NO["onboarding"], "Onboarded"): _a_student_exists,
+}
+
+
+def missing_evidence(application, step_no, status):
+	"""Why this status cannot be claimed for this application, or None."""
+	check = EVIDENCE.get((int(step_no), status))
+	return check(_as_doc(application)) if check else None
+
+
+def needs_an_action(step_no):
+	"""The statuses on this step that only its action button can record."""
+	return [status for (no, status) in EVIDENCE if no == int(step_no)]
+
+
 # Statuses that mean somebody has decided something, which nothing derived from
 # a record may overwrite.
 DECIDED = ("Reviewed", "Verified", "Approved", "Rejected", "Not Applicable")
@@ -289,6 +364,12 @@ def set_status(application, step_no, status, remarks=None, ignore_gates=False):
 		reason = blocked_reason(doc, step_no)
 		if reason:
 			frappe.throw(reason, title=_("Step Blocked"))
+
+	# And a status that stands for a record needs the record behind it.
+	if not ignore_gates:
+		reason = missing_evidence(doc, step_no, status)
+		if reason:
+			frappe.throw(reason, title=_("Nothing Recorded Yet"))
 
 	row.status = status
 	row.updated_by = frappe.session.user
@@ -409,6 +490,13 @@ def board(application):
 				"done": bool(current and is_done(step_no, current)),
 				"done_statuses": BY_NO[step_no][4],
 				"blocked": blocked_reason(doc, step_no),
+				# The server refuses these anyway; the board greys them out so
+				# an officer is pointed at the button instead of at an error.
+				"needs_action": [
+					status
+					for status in needs_an_action(step_no)
+					if status != current and missing_evidence(doc, step_no, status)
+				],
 				"remarks": row.remarks if row else None,
 				"updated_by": row.updated_by if row else None,
 				"updated_on": str(row.updated_on) if row and row.updated_on else None,

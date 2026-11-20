@@ -82,6 +82,7 @@ const detail: Detail = {
 				done: true,
 				done_statuses: ['Approved'],
 				blocked: null,
+				needs_action: [],
 				remarks: null,
 				updated_by: null,
 				updated_on: null,
@@ -96,6 +97,7 @@ const detail: Detail = {
 				done: false,
 				done_statuses: ['Onboarded'],
 				blocked: 'Manual Reading Review must be complete first.',
+				needs_action: ['Onboarded'],
 				remarks: null,
 				updated_by: null,
 				updated_on: null,
@@ -393,6 +395,45 @@ describe('the application detail screen', () => {
 			application: 'APP-2026-00011',
 			row: 'REF-1',
 		})
+	})
+
+	it('will not let an officer type a status the action button has to record', async () => {
+		// Step 13 unblocked, so the controls are live -- and still the status
+		// that stands for a Student must not be one click away from the button
+		// that creates one. APP-2026-00013 was marked Onboarded that way, and
+		// the roll stayed empty.
+		const ready = {
+			...detail,
+			checklist: {
+				...detail.checklist,
+				rows: detail.checklist.rows.map((row) =>
+					row.step_no === 13 ? { ...row, blocked: null } : row,
+				),
+			},
+		}
+		await renderScreen(ready)
+
+		const step = screen.getByText(/Onboarding Status/).closest('li') as HTMLElement
+		await userEvent.click(within(step).getByRole('button', { name: 'Change' }))
+
+		expect(within(step).getByRole('button', { name: 'Onboarded' })).toBeDisabled()
+		expect(
+			within(step).getByRole('button', { name: 'Awaiting Onboarding' }),
+		).toBeEnabled()
+		// The line under the buttons names the action, and so does the button
+		// itself -- so read the line, rather than counting the words.
+		const advice = within(step).getByText(/recorded by/i)
+		expect(advice.textContent).toContain('Onboarded is recorded by Onboard student')
+	})
+
+	it('leaves an ordinary status alone', async () => {
+		await renderScreen()
+
+		const step = screen.getByText(/Full Application Review/).closest('li') as HTMLElement
+		await userEvent.click(within(step).getByRole('button', { name: 'Change' }))
+
+		expect(within(step).getByRole('button', { name: 'Under Review' })).toBeEnabled()
+		expect(within(step).queryByText(/recorded by/i)).toBeNull()
 	})
 
 	it('writes out the reason a step is gated', async () => {
