@@ -1845,6 +1845,42 @@ argue about who is on a course.
   key rather than making a second account. Without that it correctly *refuses* an address
   already linked.
 
+- **Who teaches an offering travels with it — 20 Nov 2026.** The LMS reads a course's
+  teachers from its *enrolments*, the same table the students are in, and until today
+  nothing here wrote them: `offering_payload` carried the code, the term, the level and
+  the programmes, and never the staff. So "Introduction to Old Testament"
+  (`BISTO502-2026-T6`) had Ramsemz as its instructor on this side and **no teacher at
+  all** on that one, which is how it was noticed. The course had been synced, the
+  instructor was set, and there was simply nothing in the integration that said so.
+
+  `campus_lms.TEACHING_ROLE` is the whole mapping: `instructor → teacher`,
+  `facilitator → ta`. The registrar draws no line between the two — `SCOPE_FIELDS` in
+  `academic/permissions.py` scopes an offering by either, and the staff course list says
+  "A course appears here once you are named as its instructor or facilitator" — so the
+  LMS's two staff roles are spent on keeping the instructor of record the one who can
+  also *manage* the course. Neither is wider than the access the registrar already
+  grants the same person here.
+
+  **The enrolment is filed under the person, not the slot:**
+  `MARKER-{instructor}-{offering}`, the same shape `phase6_admissions_lms` puts on the
+  entrance exam. `/sync/enrollments` finds its row by `externalId` and then sets the
+  role and the status on it — it never moves that row to somebody else — so an id of
+  `{offering}-TEACHER` would leave the outgoing instructor teaching the course for ever
+  and never let the new one in.
+
+  **A leaver is named by the hook, not by the job.** `push` reads the offering inside
+  the background job and can only see who teaches it *now*, so `on_offering_change`
+  compares against `_doc_before_save` and queues the retirement while the previous
+  version is still in front of it — the same reason `queue_payload` exists for
+  deletions. That retirement **sends the role they held**: `/sync/enrollments` defaults
+  a missing role to `student`, so leaving it out would not retire an instructor, it
+  would re-file them as a student of their own course. Moving somebody between the two
+  slots is not leaving — the row is theirs, so the push just rewrites its role.
+
+  `patches/teaching_reaches_the_lms.py` is the catch-up for offerings that may never be
+  saved again. An insert fires both `after_insert` and `on_update`, so everything an
+  offering sends on creation is sent twice; the endpoints upsert on `externalId`, so the
+  tests assert on the distinct payloads rather than the count.
 **An offering taught there must be graded as one bucket.** `gradebook.use_single_component`
 puts it on a single **Coursework** component worth 100%, because `compute_grade` holds the
 letter back until *every* bucket is marked — so with several buckets one release can never

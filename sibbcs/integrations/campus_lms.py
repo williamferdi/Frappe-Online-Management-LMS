@@ -64,6 +64,16 @@ REGISTRATION_STATUS = {
 # marking somebody "active" who has not set a password yet would strand them,
 # because the LMS issues an activation link only while the account is pending.
 CLOSED_STUDENT_STATUS = {"Withdrawn", "Dismissed"}
+# Who the LMS is told teaches a run of a course, and under which of its own
+# staff roles. The registrar draws no line between the two: `SCOPE_FIELDS` in
+# `academic.permissions` scopes an offering by `instructor` *or* `facilitator`,
+# and the staff course list says as much -- "A course appears here once you are
+# named as its instructor or facilitator". The LMS has two staff roles where
+# the registrar has one kind of access, so the instructor of record gets
+# `teacher`, which may also manage the course, and the facilitator gets `ta`,
+# which marks and edits content but cannot. Neither is wider than what the
+# registrar already grants the same person here.
+TEACHING_ROLE = {"instructor": "teacher", "facilitator": "ta"}
 
 
 def _setting(key):
@@ -422,6 +432,68 @@ def offering_payload(name):
 	}
 
 
+def teaching_external_id(instructor, offering):
+	"""The id a teaching enrolment is filed under over there.
+
+	It names the **person**, not just the slot. `/sync/enrollments` finds its
+	row by `externalId` and then sets the role and the status on it; it never
+	moves that row to somebody else. So an id of `{offering}-TEACHER` would
+	leave the outgoing instructor teaching the course for ever and never let
+	the new one in. Naming the person means replacing an instructor writes a
+	second row and deactivates the first, which is also the truthful record of
+	what happened.
+
+	Deliberately the same shape as the markers `phase6_admissions_lms` puts on
+	the entrance exam, so every teaching enrolment over there reads alike
+	whichever side of admissions it came from.
+	"""
+	return f"MARKER-{instructor}-{offering}"
+
+
+def teaching_staff(offering):
+	"""Who teaches one offering, as `{instructor: LMS role}`.
+
+	Takes a name or a document, because a deletion has to read the staff off
+	the copy in front of it rather than from a row that is about to go.
+	"""
+	row = offering
+	if isinstance(offering, str):
+		row = frappe.db.get_value(
+			"Course Offering", offering, ["instructor", "facilitator"], as_dict=True
+		)
+	if not row:
+		return {}
+
+	staff = {}
+	for field, role in TEACHING_ROLE.items():
+		instructor = row.get(field)
+		# One person in both slots keeps the wider role, rather than whichever
+		# field happened to be read second. Saving that only warns, so such
+		# records do exist.
+		if instructor and instructor not in staff:
+			staff[instructor] = role
+	return staff
+
+
+def teaching_payloads(offering):
+	"""The enrolments that put an offering's staff on the course over there.
+
+	The LMS reads a course's teachers from its *enrolments* -- the same table
+	the students are in -- so an instructor named on the offering and never
+	enrolled is a course with nobody teaching it. Which is what
+	BISTO502-2026-T6 was until 20 Nov 2026: instructor set here, blank there.
+	"""
+	name = offering if isinstance(offering, str) else offering.name
+	return [
+		{
+			"externalId": teaching_external_id(instructor, name),
+			"personExternalId": instructor,
+			"courseExternalId": name,
+			"role": role,
+			"status": "active",
+		}
+		for instructor, role in teaching_staff(offering).items()
+	]
 def registration_payload(name):
 	row = frappe.db.get_value(
 		"Course Registration", name, ["name", "student", "course_offering", "status"], as_dict=True
@@ -461,6 +533,22 @@ def registration_payload(name):
 # ---------------------------------------------------------------------------
 
 
+def push_teaching(offering):
+	"""Put an offering's staff on the course over there.
+
+	The person goes first, for the reason `push` gives about a registration:
+	`/sync/enrollments` refuses an enrolment naming somebody the LMS has not
+	heard of, and an instructor who has not been saved since this integration
+	was switched on has never been sent. `person_payload` returns None without
+	an address, which is the right answer too -- no address, no account to
+	enrol.
+	"""
+	for enrolment in teaching_payloads(offering):
+		person = person_payload("Instructor", enrolment["personExternalId"])
+		if not person:
+			continue
+		_post("/sync/people", person)
+		_post("/sync/enrollments", enrolment)
 def push(doctype, name):
 	"""Send one record. Runs in a background job; safe to run again at any time.
 
@@ -481,6 +569,7 @@ def push(doctype, name):
 		payload = offering_payload(name)
 		if payload:
 			_post("/sync/courses", payload)
+			push_teaching(name)
 		return
 
 	if doctype == "Course Registration":
@@ -542,6 +631,24 @@ def queue_payload(path, payload):
 # ---------------------------------------------------------------------------
 
 
+def _stops_teaching(instructor, offering, role):
+	"""Somebody taken off a course they no longer teach.
+
+	Inactive rather than deleted, for the reason `on_registration_trash`
+	gives: they may have marked work, and the LMS's record of who marked it
+	refers to the enrolment.
+
+	**The role is sent, and it is the one they held.** `/sync/enrollments`
+	defaults a missing role to `student`, so leaving it out would not retire
+	an instructor; it would re-file them as a student of their own course.
+	"""
+	return {
+		"externalId": teaching_external_id(instructor, offering),
+		"personExternalId": instructor,
+		"courseExternalId": offering,
+		"role": role,
+		"status": "inactive",
+	}
 def on_student_change(doc, method=None):
 	queue("Student", doc.name)
 
@@ -551,7 +658,28 @@ def on_instructor_change(doc, method=None):
 
 
 def on_offering_change(doc, method=None):
+	"""Send the offering, and take off anybody who has stopped teaching it.
+
+	A leaver has to be named while the previous version is still in front of
+	us. `push` reads the offering inside the job and can only see who teaches
+	it *now*, so by the time it runs the person who no longer does is
+	invisible -- the same problem `queue_payload` exists to solve for
+	deletions.
+
+	Moving somebody between the two slots is not leaving. The enrolment is
+	filed under the person, so the push rewrites the role on the row they
+	already have.
+	"""
 	queue("Course Offering", doc.name)
+
+	before = getattr(doc, "_doc_before_save", None)
+	if not before:
+		return
+	teaching_now = teaching_staff(doc)
+	for field, role in TEACHING_ROLE.items():
+		was = before.get(field)
+		if was and was not in teaching_now:
+			queue_payload("/sync/enrollments", _stops_teaching(was, doc.name, role))
 
 
 def _mirrored_from_course(doc):
@@ -648,6 +776,13 @@ def on_offering_trash(doc, method=None):
 			"onlyIfPresent": True,
 		},
 	)
+
+	# And take the staff off it. Archived already stops anybody opening the
+	# course, but an offering can be re-created under the same name -- a
+	# BISTO502-2026-T6 keyed in again means the same run of the same course --
+	# and the next sync would publish it with a teacher nobody chose.
+	for enrolment in teaching_payloads(doc):
+		queue_payload("/sync/enrollments", dict(enrolment, status="inactive"))
 
 
 def on_registration_trash(doc, method=None):

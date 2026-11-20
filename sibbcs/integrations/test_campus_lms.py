@@ -15,7 +15,10 @@ from frappe.tests.utils import FrappeTestCase
 
 from sibbcs.academic.doctype.academic_term.test_academic_term import make_term
 from sibbcs.academic.doctype.course.test_course import make_course
-from sibbcs.academic.doctype.course_offering.test_course_offering import make_offering
+from sibbcs.academic.doctype.course_offering.test_course_offering import (
+	make_instructor,
+	make_offering,
+)
 from sibbcs.academic.doctype.program_enrollment.test_program_enrollment import (
 	make_enrollment,
 	make_student,
@@ -679,6 +682,223 @@ class TestTheCatalogueTravelsWithTheOffering(FrappeTestCase):
 					self.assertEqual(sent[-1]["programs"], ["MDIV"])
 
 
+class TestWhoTeachesItTravelsWithTheOffering(FrappeTestCase):
+	"""An instructor named here has to become a teacher over there.
+
+	The LMS shows the teachers of a course from its enrolments, so naming
+	somebody on the offering and never enrolling them is a course with nobody
+	teaching it. BISTO502-2026-T6 was exactly that until 20 Nov 2026.
+	"""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.term = make_term(f"TST-TEACH-{frappe.generate_hash(length=6)}", status="Open").name
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		suffix = frappe.generate_hash(length=6)
+		self.course = make_course(f"TTCH {suffix[:4]}").name
+		self.teacher = make_instructor(
+			f"TST Teaching {suffix}", email=f"teach.{suffix}@example.invalid"
+		).name
+		self.helper = make_instructor(
+			f"TST Helping {suffix}",
+			email=f"help.{suffix}@example.invalid",
+			is_facilitator=1,
+		).name
+
+	def _sent(self, post, path):
+		return [call.args[1] for call in post.call_args_list if call.args[0] == path]
+
+	def _enrolments(self, post):
+		"""The distinct enrolments sent.
+
+		An insert runs both `after_insert` and `on_update`, so everything an
+		offering sends on creation is sent twice. That is true of the course
+		itself and was long before any of this, and the endpoints upsert on
+		`externalId`, so the second copy changes nothing. What matters is which
+		enrolments were asked for, not how many times.
+		"""
+		seen = []
+		for payload in self._sent(post, "/sync/enrollments"):
+			if payload not in seen:
+				seen.append(payload)
+		return seen
+
+	def _live(self, act):
+		"""Run `act` with the LMS configured and its jobs run inline."""
+		with patch.dict(frappe.conf, LIVE):
+			with patch.object(frappe, "enqueue", side_effect=_inline_enqueue):
+				with patch.object(campus_lms, "_post") as post:
+					act()
+					return post
+
+	def _offer(self, **kw):
+		def act():
+			self.offering = make_offering(
+				self.course, self.term, status="Published", **kw
+			).name
+
+		return self._live(act)
+
+	def _change(self, **changes):
+		def act():
+			doc = frappe.get_doc("Course Offering", self.offering)
+			doc.update(changes)
+			doc.save(ignore_permissions=True)
+
+		return self._live(act)
+
+	# --- naming somebody ---------------------------------------------------
+
+	def test_the_instructor_is_sent_as_the_teacher(self):
+		post = self._offer(instructor=self.teacher)
+
+		sent = self._enrolments(post)
+		self.assertEqual(len(sent), 1, sent)
+		self.assertEqual(sent[0]["role"], "teacher")
+		self.assertEqual(sent[0]["personExternalId"], self.teacher)
+		self.assertEqual(sent[0]["courseExternalId"], self.offering)
+		self.assertEqual(sent[0]["status"], "active")
+
+	def test_the_facilitator_is_sent_as_a_ta(self):
+		"""Staff over there, but not able to manage the course -- which is no
+		wider than the access the registrar already gives them here."""
+		post = self._offer(facilitator=self.helper)
+
+		sent = self._enrolments(post)
+		self.assertEqual([row["role"] for row in sent], ["ta"])
+		self.assertEqual(sent[0]["personExternalId"], self.helper)
+
+	def test_both_go_when_both_are_named(self):
+		post = self._offer(instructor=self.teacher, facilitator=self.helper)
+
+		sent = self._sent(post, "/sync/enrollments")
+		self.assertEqual(
+			{row["personExternalId"]: row["role"] for row in sent},
+			{self.teacher: "teacher", self.helper: "ta"},
+		)
+
+	def test_an_offering_with_nobody_named_enrols_nobody(self):
+		post = self._offer()
+
+		self.assertEqual(self._sent(post, "/sync/enrollments"), [])
+		self.assertTrue(self._sent(post, "/sync/courses"), "the course itself still goes")
+
+	def test_the_account_goes_before_the_enrolment(self):
+		"""`/sync/enrollments` refuses an enrolment naming somebody the LMS has
+		never heard of."""
+		post = self._offer(instructor=self.teacher)
+
+		paths = [call.args[0] for call in post.call_args_list]
+		self.assertLess(paths.index("/sync/people"), paths.index("/sync/enrollments"))
+
+	def test_an_instructor_with_no_address_is_not_enrolled(self):
+		"""No address, no account to enrol."""
+		frappe.db.set_value("Instructor", self.teacher, {"email": "", "user": ""})
+		post = self._offer(instructor=self.teacher)
+
+		self.assertEqual(self._sent(post, "/sync/enrollments"), [])
+
+	def test_the_enrolment_is_filed_under_the_person(self):
+		"""Not under the slot. `/sync/enrollments` sets the role and the status
+		on the row it finds and never moves it to somebody else, so an id
+		naming only the offering would lock the outgoing instructor in."""
+		post = self._offer(instructor=self.teacher)
+
+		sent = self._sent(post, "/sync/enrollments")
+		self.assertIn(self.teacher, sent[0]["externalId"])
+		self.assertEqual(
+			sent[0]["externalId"],
+			campus_lms.teaching_external_id(self.teacher, self.offering),
+		)
+
+	# --- stopping teaching -------------------------------------------------
+
+	def test_a_replaced_instructor_is_taken_off_the_course(self):
+		self._offer(instructor=self.teacher)
+		hash = frappe.generate_hash(length=6)
+		replacement = make_instructor(
+			f"TST Replacing {hash}", email=f"replacing.{hash}@example.invalid"
+		).name
+
+		post = self._change(instructor=replacement)
+
+		sent = {row["personExternalId"]: row for row in self._sent(post, "/sync/enrollments")}
+		self.assertEqual(sent[self.teacher]["status"], "inactive")
+		self.assertEqual(sent[replacement]["status"], "active")
+		self.assertEqual(sent[replacement]["role"], "teacher")
+
+	def test_the_leaver_keeps_the_role_they_held(self):
+		"""`/sync/enrollments` defaults a missing role to `student`, so leaving
+		it out would not retire the instructor -- it would re-file them as a
+		student of their own course."""
+		self._offer(instructor=self.teacher)
+
+		post = self._change(instructor=None)
+
+		sent = self._sent(post, "/sync/enrollments")
+		self.assertEqual(len(sent), 1, sent)
+		self.assertEqual(sent[0]["personExternalId"], self.teacher)
+		self.assertEqual(sent[0]["status"], "inactive")
+		self.assertEqual(sent[0]["role"], "teacher")
+
+	def test_moving_somebody_between_the_slots_is_not_leaving(self):
+		"""The enrolment is filed under the person, so the push rewrites the
+		role on the row they already have."""
+		self._offer(instructor=self.helper)
+
+		post = self._change(instructor=None, facilitator=self.helper)
+
+		sent = self._sent(post, "/sync/enrollments")
+		self.assertEqual([row["role"] for row in sent], ["ta"])
+		self.assertEqual(sent[0]["status"], "active")
+
+	def test_saving_an_offering_for_another_reason_takes_nobody_off(self):
+		self._offer(instructor=self.teacher)
+
+		post = self._change(capacity=30)
+
+		for row in self._sent(post, "/sync/enrollments"):
+			self.assertEqual(row["status"], "active", row)
+
+	def test_a_deleted_offering_takes_its_staff_off(self):
+		"""Archiving the course already shuts it, but an offering can be keyed
+		in again under the same name and would come back with a teacher nobody
+		chose."""
+		self._offer(instructor=self.teacher)
+		offering = self.offering
+
+		post = self._live(
+			lambda: frappe.delete_doc("Course Offering", offering, ignore_permissions=True)
+		)
+
+		sent = self._sent(post, "/sync/enrollments")
+		self.assertEqual(len(sent), 1, sent)
+		self.assertEqual(sent[0]["status"], "inactive")
+		self.assertEqual(sent[0]["role"], "teacher")
+
+	# --- the staff list itself ---------------------------------------------
+
+	def test_one_person_in_both_slots_keeps_the_wider_role(self):
+		"""Saving that only warns, so such records do exist."""
+		staff = campus_lms.teaching_staff(
+			frappe._dict({"instructor": self.helper, "facilitator": self.helper})
+		)
+
+		self.assertEqual(staff, {self.helper: "teacher"})
+
+	def test_every_slot_maps_to_a_role_the_lms_has(self):
+		self.assertEqual(set(campus_lms.TEACHING_ROLE), {"instructor", "facilitator"})
+		self.assertTrue(set(campus_lms.TEACHING_ROLE.values()) <= {"teacher", "ta"})
+
+	def test_nothing_is_sent_when_the_lms_is_not_configured(self):
+		with patch.dict(frappe.conf, {"campus_lms_url": "", "campus_lms_token": ""}):
+			with patch("frappe.enqueue") as enqueue:
+				make_offering(self.course, self.term, instructor=self.teacher)
+
+		self.assertEqual([c for c in enqueue.call_args_list if _ours(c)], [])
 class TestAskingForAnotherActivationLink(FrappeTestCase):
 	"""The LMS issues one when it creates the account and never again -- a
 	second token invalidates the first, and a routine re-sync would break the

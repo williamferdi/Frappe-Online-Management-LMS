@@ -72,7 +72,7 @@ def ensure_courses(status="unpublished"):
 			campus_lms._post(
 				"/sync/enrollments",
 				{
-					"externalId": f"MARKER-{instructor}-{external_id}",
+					"externalId": campus_lms.teaching_external_id(instructor, external_id),
 					"personExternalId": instructor,
 					"courseExternalId": external_id,
 					"role": "teacher",
