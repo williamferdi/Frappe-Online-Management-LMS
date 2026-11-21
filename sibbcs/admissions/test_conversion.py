@@ -215,3 +215,77 @@ class TestConversionScholarship(FrappeTestCase):
 		# 3 months at 800 = 2400 wanted, but only 2000 remains
 		self.assertEqual(enrollment.discount_for_months(3), 2000)
 		self.assertEqual(enrollment.discount_for_months(2), 1600)
+
+
+class TestTheLevelIsSettledAtConversion(FrappeTestCase):
+	"""`onboard_level` decides the level once, and then stops deciding anything.
+
+	On 21 Nov 2026 two live applications read Level 2 while the students they
+	had created sat at Level 1. Both had been edited the day after conversion,
+	and nothing on screen said the edit could not reach the student.
+	"""
+
+	def test_a_blank_onboard_level_lands_the_student_at_level_one(self):
+		"""The reported cause: nobody had decided, so the fallback decided."""
+		app = ready_application(email="level1@example.com", onboard_level="")
+		report = convert(app.name)
+
+		self.assertEqual(
+			frappe.db.get_value(
+				"Program Enrollment", report["created"]["program_enrollment"], "current_level"
+			),
+			"1",
+		)
+
+	def test_an_onboard_level_is_honoured_when_it_is_set_in_time(self):
+		app = ready_application(email="level2@example.com", onboard_level="2")
+		report = convert(app.name)
+
+		self.assertEqual(
+			frappe.db.get_value(
+				"Program Enrollment", report["created"]["program_enrollment"], "current_level"
+			),
+			"2",
+		)
+
+	def test_changing_it_afterwards_is_refused_and_says_where_to_go(self):
+		app = ready_application(email="level3@example.com", onboard_level="1")
+		report = convert(app.name)
+
+		doc = frappe.get_doc("Admission Application", app.name)
+		doc.onboard_level = "2"
+		with self.assertRaises(frappe.ValidationError) as caught:
+			doc.save(ignore_permissions=True)
+
+		message = str(caught.exception)
+		self.assertIn("Level Promotion", message)
+		self.assertIn(report["created"]["student"], message)
+
+		# And the refusal left the enrolment exactly where it was.
+		self.assertEqual(
+			frappe.db.get_value(
+				"Program Enrollment", report["created"]["program_enrollment"], "current_level"
+			),
+			"1",
+		)
+
+	def test_the_advisory_entry_level_is_still_free_to_edit(self):
+		"""It records what was asked for, is never read by conversion, and so
+		cannot mislead anybody about where a student is."""
+		app = ready_application(email="level4@example.com", onboard_level="1")
+		convert(app.name)
+
+		doc = frappe.get_doc("Admission Application", app.name)
+		doc.entry_level = "3"
+		doc.save(ignore_permissions=True)
+		self.assertEqual(frappe.db.get_value("Admission Application", app.name, "entry_level"), "3")
+
+	def test_before_conversion_the_level_is_still_the_registrar_s_to_set(self):
+		app = ready_application(email="level5@example.com", onboard_level="1")
+
+		doc = frappe.get_doc("Admission Application", app.name)
+		doc.onboard_level = "3"
+		doc.save(ignore_permissions=True)
+		self.assertEqual(
+			frappe.db.get_value("Admission Application", app.name, "onboard_level"), "3"
+		)

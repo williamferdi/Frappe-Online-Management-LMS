@@ -14,6 +14,7 @@ import {
 
 import { DocumentsCard, ResponsesCard } from '@/components/AdmissionEvidence'
 import { QueryState } from '@/components/QueryState'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -370,6 +371,30 @@ function Onboarding({ data }: { data: Detail }) {
 					/>
 					<Field label="Applicant login" value={record.applicant_user} />
 				</dl>
+
+				{/* The onboarding level is copied to the enrolment once, when the student
+				    record is created, and the enrolment owns it from then on. When the two
+				    disagree somebody has edited the application after the fact and nothing
+				    told them it had no effect. */}
+				{enrollment &&
+					record.onboard_level &&
+					String(record.onboard_level) !== String(enrollment.current_level) && (
+						<Alert variant="warning">
+							<AlertDescription>
+								This application records admission at Level {record.onboard_level}, but{' '}
+								{student.full_name} is at <strong>Level {enrollment.current_level}</strong>.
+								The level here was copied to the enrolment when the student record was
+								created; editing it afterwards does not move the student. Use{' '}
+								<Link
+									className="underline underline-offset-2"
+									to={`/staff/data/${encodeURIComponent('Level Promotion')}/new?program_enrollment=${encodeURIComponent(enrollment.name)}&from_level=${encodeURIComponent(enrollment.current_level ?? '')}`}
+								>
+									a Level Promotion
+								</Link>{' '}
+								to change it.
+							</AlertDescription>
+						</Alert>
+					)}
 
 				<div className="flex flex-wrap gap-2">
 					<Gate label="Application fee" done={Boolean(record.application_fee_paid)} />

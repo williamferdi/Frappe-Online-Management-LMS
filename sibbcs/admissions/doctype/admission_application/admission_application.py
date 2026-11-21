@@ -30,6 +30,69 @@ class AdmissionApplication(Document):
 		self.validate_references()
 		self.set_docs_verified()
 		self.validate_checklist()
+		self.warn_level_is_settled()
+
+	def warn_level_is_settled(self):
+		"""Once a Student exists, the level here is history, not a control.
+
+		`conversion` copies `onboard_level` into `Program Enrollment` **once**,
+		at the moment the Student is created, and the enrolment owns it from
+		then on. An edit afterwards changes nothing anybody can see -- which is
+		how two applications came to read Level 2 on 21 Nov 2026 while the
+		students they had created sat at Level 1, a day after the fact, with
+		nothing on screen to say so.
+
+		This refuses rather than merely noting it, for two reasons: a
+		non-blocking `msgprint` is invisible in the staff console, which reads
+		server messages only on failure; and letting the edit through leaves
+		the field quietly disagreeing with the student it describes, which is
+		the same trap one step further on. Nothing is lost by refusing -- the
+		edit had no effect to begin with -- and the message names the document
+		that does move a level.
+
+		`entry_level` is left alone. It is advisory, it is never read by
+		conversion, and it is the record of what was asked for rather than what
+		was granted.
+		"""
+		if self.is_new():
+			return
+
+		before = self.get_doc_before_save()
+		if not before:
+			return
+		if (self.onboard_level or "") == (before.onboard_level or ""):
+			return
+
+		student = frappe.db.get_value(
+			"Student", {"admission_application": self.name}, ["name", "full_name"], as_dict=True
+		)
+		if not student:
+			return
+
+		enrollment = (
+			frappe.db.get_value(
+				"Program Enrollment",
+				{"student": student.name},
+				["name", "current_level"],
+				as_dict=True,
+			)
+			or {}
+		)
+
+		frappe.throw(
+			_(
+				"{0} has already been onboarded from this application, so the onboarding "
+				"level here no longer decides anything: it was copied to the enrolment when "
+				"the student record was created. {1} is at Level {2}. To move them, create a "
+				"Level Promotion against {3}."
+			).format(
+				student.full_name or student.name,
+				student.name,
+				enrollment.get("current_level") or "1",
+				enrollment.get("name") or _("their enrolment"),
+			),
+			title=_("The Level Is Already Settled"),
+		)
 
 	def validate_checklist(self):
 		"""Enforce the step gates on a plain form save.

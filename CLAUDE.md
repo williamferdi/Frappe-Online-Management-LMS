@@ -296,6 +296,19 @@ intake term. A **waived** admission fee counts as settled: a waiver is a decisio
 at step 10, not a payment, so `admission_fee_paid` stays false and a fee-paid-only check
 would block every waived candidate.
 
+**`onboard_level` decides the level once, and then stops deciding anything — 21 Nov 2026.**
+It is copied into `Program Enrollment.current_level` at the instant the Student is created,
+and the enrolment owns it from then on. Two live applications read Level 2 while the
+students they had created sat at Level 1: both had been edited the day *after* conversion,
+and one had been **blank** at conversion, so the `or "1"` fallback decided. Nothing on
+screen said the edit could not reach the student. `warn_level_is_settled()` now refuses to
+change `onboard_level` once a Student exists, naming the student, the level they are
+actually on and the Level Promotion that moves it — a refusal rather than a note because
+the staff console reads `_server_messages` **only on failure**, so a `msgprint` on a
+successful save is invisible there. `entry_level` stays editable: it is advisory, never read
+by conversion, and so cannot mislead anybody. The student page also warns when the two
+disagree, which is the state the live records were already in.
+
 ### The entrance exam
 
 Three essays, **25 marks each, 75 total, pass at 40%**, one attempt, marked by hand.

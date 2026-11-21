@@ -263,6 +263,34 @@ describe('the student profile', () => {
 		)
 	})
 
+	it('says so when the application and the enrolment disagree about the level', async () => {
+		// Editing the application after onboarding moves nothing. Before this the two
+		// numbers simply sat on the page contradicting each other, with nothing to say
+		// which one the student actually has.
+		const withLevel = (level: string): Detail => ({
+			...detail,
+			admission: detail.admission && {
+				...detail.admission,
+				application: { ...detail.admission.application, onboard_level: level },
+			},
+		})
+
+		await renderProfile(withLevel('2'))
+
+		const alert = screen.getByRole('alert')
+		expect(alert).toHaveTextContent('Level 2')
+		expect(alert).toHaveTextContent('is at Level 1')
+		expect(within(alert).getByRole('link', { name: /Level Promotion/ })).toHaveAttribute(
+			'href',
+			'/staff/data/Level%20Promotion/new?program_enrollment=ENR-0007&from_level=1',
+		)
+	})
+
+	it('stays quiet when the two agree', async () => {
+		await renderProfile()
+		expect(screen.queryByRole('alert')).toBeNull()
+	})
+
 	it('shows the schooling the application asked for', async () => {
 		// None of this is on the Student record; it only exists because the
 		// profile reads the admission application behind it.
