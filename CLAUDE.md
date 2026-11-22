@@ -1771,6 +1771,21 @@ bench --site online.sibbc.org console
 forms only (Phase 6). Faculty scoping needs a User Permission on Course Offering *plus* a
 permission query condition, or faculty see the whole gradebook.
 
+**`Student` carries `desk_access = 0`, and must keep it — 21 Nov 2026.** Frappe promotes
+anybody holding a role with desk access to **System User**, whatever `user_type` the code
+asked for. The role was created with the `ensure_role` default of 1, which silently
+overrode the `"user_type": "Website User"` that `conversion._create_user` spells out — so
+every onboarded student could open `/app`. Fixed in `phase1_academic.build` for new sites
+and by `patches/students_are_not_desk_users` for this one, which demotes only users whose
+roles are *nothing but* Student: a registrar who is also enrolled keeps their console.
+Note that `_only_a_student()` in `academic/permissions.py` is **not** that test — it asks
+whether a *teaching* role outranks Student, so a Registrar passes it.
+
+**And `Fee Invoice` now has a query condition.** It had none, so a student listing it got
+every invoice on the site, names and amounts included. The portal was never the hole; the
+Desk list and the generic records API were. Faculty and Facilitator still see every
+invoice — a separate question, deliberately not answered here.
+
 ## 8. Open decisions that block later phases
 
 | # | Question | Blocks |

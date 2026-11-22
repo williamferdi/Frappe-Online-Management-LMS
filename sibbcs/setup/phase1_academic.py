@@ -525,7 +525,12 @@ def build():
 	ensure_module(MODULE)
 
 	for role in ROLES:
-		ensure_role(role)
+		# A student has a portal, not a desk. Frappe promotes anybody holding a
+		# role with desk access to System User, so creating Student with the
+		# default would hand every student the whole of /app -- which it did,
+		# silently overriding the `user_type: "Website User"` that
+		# `conversion._create_user` asks for by name.
+		ensure_role(role, desk_access=0 if role == "Student" else 1)
 
 	_weekday()
 	_grade_scale()

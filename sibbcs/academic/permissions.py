@@ -476,3 +476,41 @@ def program_enrollment_permission(doc, ptype="read", user=None):
 		return doc.get("student") == student_for(user)
 	return True
 
+
+
+def fee_invoice_query(user=None):
+	"""A student sees their own invoices and nobody else's.
+
+	Fee Invoice carries a name, a programme and an amount for one person, so an
+	unscoped list is somebody else's money on the screen. It had no condition at
+	all until 21 Nov 2026: `frappe.get_list("Fee Invoice")` run as a live
+	student returned **every** invoice on the site. The portal was never the
+	hole -- it reads its own endpoint, which filters by the signed-in student --
+	but the Desk list view and the generic records API both go through here, and
+	both were open.
+
+	Only the student case is narrowed. Faculty and Facilitator still see every
+	invoice, which is its own question and not this one's to answer.
+	"""
+	user = user or frappe.session.user
+	if is_unrestricted(user):
+		return ""
+	if _only_a_student(user):
+		student = student_for(user)
+		return _within("Fee Invoice", "student", [student] if student else [])
+	return ""
+
+
+def fee_invoice_permission(doc, ptype="read", user=None):
+	"""The same rule for a record fetched by name.
+
+	The query condition filters a list; this guards the document somebody
+	reaches directly. Both halves are needed -- a name is easy to guess when
+	invoices are numbered in a series.
+	"""
+	user = user or frappe.session.user
+	if not doc or is_unrestricted(user):
+		return True
+	if _only_a_student(user):
+		return doc.get("student") == student_for(user)
+	return True

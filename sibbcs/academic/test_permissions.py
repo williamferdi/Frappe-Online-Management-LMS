@@ -278,3 +278,133 @@ class TestAcademicScoping(FrappeTestCase):
 		frappe.set_user(stranger)
 
 		self.assertEqual(frappe.get_list("Course Registration", pluck="name"), [])
+
+
+class TestFeeInvoiceScoping(FrappeTestCase):
+	"""A student's invoices are their own.
+
+	Until 21 Nov 2026 `Fee Invoice` had no query condition at all, so a student
+	listing it -- in Desk, or through the generic records API -- was handed
+	every invoice on the site, with the names and the amounts on them.
+	"""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		from sibbcs.finance.test_fees import make_invoice
+
+		suffix = frappe.generate_hash(length=6)
+		cls.mine_user = make_user(f"fee.mine.{suffix}@example.invalid", ["Student"], "Fee Mine")
+		cls.theirs_user = make_user(
+			f"fee.theirs.{suffix}@example.invalid", ["Student"], "Fee Theirs"
+		)
+		cls.mine = make_student(full_name=f"Fee Mine {suffix}", user=cls.mine_user).name
+		cls.theirs = make_student(full_name=f"Fee Theirs {suffix}", user=cls.theirs_user).name
+		cls.mine_invoice = make_invoice(cls.mine).name
+		cls.theirs_invoice = make_invoice(cls.theirs).name
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+
+	def test_a_student_lists_only_their_own_invoices(self):
+		frappe.set_user(self.mine_user)
+
+		names = frappe.get_list("Fee Invoice", pluck="name")
+
+		self.assertIn(self.mine_invoice, names)
+		self.assertNotIn(self.theirs_invoice, names)
+
+	def test_a_student_cannot_reach_another_invoice_by_name(self):
+		"""The query condition filters a list; this is the other half of it.
+		Invoices are numbered in a series, so a name is easy to guess."""
+		theirs = frappe.get_doc("Fee Invoice", self.theirs_invoice)
+		mine = frappe.get_doc("Fee Invoice", self.mine_invoice)
+
+		self.assertFalse(permissions.fee_invoice_permission(theirs, "read", self.mine_user))
+		self.assertTrue(permissions.fee_invoice_permission(mine, "read", self.mine_user))
+
+	def test_a_student_with_no_student_record_sees_nothing(self):
+		"""Fails closed. An empty scope has to be `1 = 0`, not an empty
+		condition, or a missing record becomes a master key."""
+		orphan = make_user(
+			f"fee.orphan.{frappe.generate_hash(length=6)}@example.invalid", ["Student"]
+		)
+		frappe.set_user(orphan)
+
+		self.assertEqual(frappe.get_list("Fee Invoice", pluck="name"), [])
+
+	def test_the_registrar_still_sees_every_invoice(self):
+		registrar = make_user(
+			f"fee.registrar.{frappe.generate_hash(length=6)}@example.invalid", ["Registrar"]
+		)
+		frappe.set_user(registrar)
+
+		names = frappe.get_list("Fee Invoice", pluck="name")
+
+		self.assertIn(self.mine_invoice, names)
+		self.assertIn(self.theirs_invoice, names)
+
+
+class TestStudentsHaveNoDesk(FrappeTestCase):
+	"""Frappe promotes anybody holding a role with `desk_access` to System
+	User, whatever `user_type` the code asked for. The Student role was
+	created with the `ensure_role` default of 1, which silently overrode the
+	`"user_type": "Website User"` that `conversion._create_user` spells out,
+	and handed every onboarded student the whole of /app.
+	"""
+
+	def setUp(self):
+		# The state the patch and `phase1_academic.build` both establish.
+		frappe.db.set_value("Role", "Student", "desk_access", 0, update_modified=False)
+		frappe.clear_cache()
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+
+	def test_the_student_role_grants_no_desk_access(self):
+		self.assertEqual(frappe.db.get_value("Role", "Student", "desk_access"), 0)
+
+	def test_the_staff_roles_keep_theirs(self):
+		for role in ("Registrar", "Academic Coordinator", "Admissions Officer"):
+			with self.subTest(role=role):
+				if frappe.db.exists("Role", role):
+					self.assertEqual(frappe.db.get_value("Role", role, "desk_access"), 1)
+
+	def test_the_student_role_no_longer_promotes_a_portal_user(self):
+		"""The regression itself: give a Website User the Student role and
+		they must still be a Website User afterwards."""
+		email = f"desk.check.{frappe.generate_hash(length=6)}@example.invalid"
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": email,
+				"first_name": "Desk Check",
+				"user_type": "Website User",
+				"send_welcome_email": 0,
+			}
+		).insert(ignore_permissions=True)
+
+		user.append("roles", {"role": "Student"})
+		user.save(ignore_permissions=True)
+
+		self.assertEqual(frappe.db.get_value("User", email, "user_type"), "Website User")
+
+	def test_the_patch_demotes_students_and_leaves_staff_alone(self):
+		"""Narrow on purpose: demoting a member of staff who happens to be
+		enrolled would lock them out of their own console, which is a worse
+		fault than the one being fixed."""
+		from sibbcs.patches import students_are_not_desk_users
+
+		suffix = frappe.generate_hash(length=6)
+		only_student = make_user(f"demote.{suffix}@example.invalid", ["Student"], "Only Student")
+		also_registrar = make_user(
+			f"keep.{suffix}@example.invalid", ["Student", "Registrar"], "Staff Who Studies"
+		)
+		for email in (only_student, also_registrar):
+			frappe.db.set_value("User", email, "user_type", "System User", update_modified=False)
+
+		students_are_not_desk_users.execute()
+
+		self.assertEqual(frappe.db.get_value("User", only_student, "user_type"), "Website User")
+		self.assertEqual(frappe.db.get_value("User", also_registrar, "user_type"), "System User")
+		self.assertEqual(frappe.db.get_value("User", "Administrator", "user_type"), "System User")

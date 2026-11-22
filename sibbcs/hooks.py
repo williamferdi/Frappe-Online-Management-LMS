@@ -415,6 +415,10 @@ permission_query_conditions = {
 	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_query",
 	"Student": "sibbcs.academic.permissions.student_query",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_query",
+	# Added 21 Nov 2026. Without it a student listing Fee Invoice -- in Desk, or
+	# through the generic records API -- got every invoice on the site, with the
+	# names and the amounts on them.
+	"Fee Invoice": "sibbcs.academic.permissions.fee_invoice_query",
 }
 
 has_permission = {
@@ -422,4 +426,5 @@ has_permission = {
 	"Course Grade Scheme": "sibbcs.academic.permissions.course_grade_scheme_permission",
 	"Student": "sibbcs.academic.permissions.student_permission",
 	"Program Enrollment": "sibbcs.academic.permissions.program_enrollment_permission",
+	"Fee Invoice": "sibbcs.academic.permissions.fee_invoice_permission",
 }

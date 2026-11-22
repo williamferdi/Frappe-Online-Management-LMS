@@ -14,3 +14,4 @@ sibbcs.patches.invite_names_the_lms_activation_link
 sibbcs.patches.mentor_consent_names_the_handbook
 sibbcs.patches.teaching_reaches_the_lms
 sibbcs.patches.learn_the_lms_course_ids
+sibbcs.patches.students_are_not_desk_users
