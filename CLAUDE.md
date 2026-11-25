@@ -1783,8 +1783,16 @@ whether a *teaching* role outranks Student, so a Registrar passes it.
 
 **And `Fee Invoice` now has a query condition.** It had none, so a student listing it got
 every invoice on the site, names and amounts included. The portal was never the hole; the
-Desk list and the generic records API were. Faculty and Facilitator still see every
-invoice — a separate question, deliberately not answered here.
+Desk list and the generic records API were.
+
+**A query condition runs only after the DocType permission check**, which is worth stating
+because it was got wrong here on 21 Nov 2026: Faculty were reported as "still seeing every
+invoice" on the strength of the condition returning `""` for them. They see none. The
+`Fee Invoice` permission table names **Accounts, Registrar, Student, System Manager** and
+nobody else, so a teaching role never reaches the condition at all. Before reading a wide
+condition as a hole, check whether the role can open the DocType in the first place. The
+teaching roles are scoped in the condition regardless, so that adding them to that table
+later — to show a tutor whether a student has paid — does not silently open it.
 
 ## 8. Open decisions that block later phases
 

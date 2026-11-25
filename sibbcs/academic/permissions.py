@@ -489,13 +489,22 @@ def fee_invoice_query(user=None):
 	but the Desk list view and the generic records API both go through here, and
 	both were open.
 
-	Only the student case is narrowed. Faculty and Facilitator still see every
-	invoice, which is its own question and not this one's to answer.
+	**Teaching roles are scoped too**, which corrects a claim made here on
+	21 Nov 2026 that they could already see everything. They could not: the
+	DocType grants read to Accounts, Registrar, Student and System Manager and
+	to nobody else, so a teacher never reaches a query condition at all. The
+	rule is written anyway, for the day somebody adds a teaching role to that
+	permission table -- to show a tutor whether their student has paid, say --
+	because on that day the rows should already be scoped rather than wide open.
+	Fees are a finance matter, not a teaching one.
+
+	A teacher who is also enrolled keeps their own invoices, which is why this
+	resolves their Student record rather than refusing outright.
 	"""
 	user = user or frappe.session.user
 	if is_unrestricted(user):
 		return ""
-	if _only_a_student(user):
+	if _only_a_student(user) or _teaches(user):
 		student = student_for(user)
 		return _within("Fee Invoice", "student", [student] if student else [])
 	return ""
@@ -511,6 +520,6 @@ def fee_invoice_permission(doc, ptype="read", user=None):
 	user = user or frappe.session.user
 	if not doc or is_unrestricted(user):
 		return True
-	if _only_a_student(user):
+	if _only_a_student(user) or _teaches(user):
 		return doc.get("student") == student_for(user)
 	return True

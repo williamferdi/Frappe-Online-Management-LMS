@@ -408,3 +408,95 @@ class TestStudentsHaveNoDesk(FrappeTestCase):
 		self.assertEqual(frappe.db.get_value("User", only_student, "user_type"), "Website User")
 		self.assertEqual(frappe.db.get_value("User", also_registrar, "user_type"), "System User")
 		self.assertEqual(frappe.db.get_value("User", "Administrator", "user_type"), "System User")
+
+
+class TestFeeInvoiceAndTeachingRoles(FrappeTestCase):
+	"""Who may open Fee Invoice at all, and what the condition does for them.
+
+	On 21 Nov 2026 Faculty were reported as "still seeing every invoice"
+	because `fee_invoice_query` returns an empty condition for them. They see
+	none: a query condition runs only **after** the DocType permission check,
+	and the permission table does not name a teaching role. These tests pin
+	both gates, because the first is the one that was misread.
+	"""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		from sibbcs.finance.test_fees import make_invoice
+
+		suffix = frappe.generate_hash(length=6)
+		cls.owner_user = make_user(f"fee.own.{suffix}@example.invalid", ["Student"], "Fee Owner")
+		cls.owner = make_student(full_name=f"Fee Owner {suffix}", user=cls.owner_user).name
+		cls.invoice = make_invoice(cls.owner).name
+		cls.suffix = suffix
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+
+	def test_the_permission_table_is_the_first_gate(self):
+		"""A wide condition is not by itself a hole. This is what actually
+		keeps a teacher out, and it is what a future change could undo."""
+		src = (
+			"Custom DocPerm"
+			if frappe.db.count("Custom DocPerm", {"parent": "Fee Invoice"})
+			else "DocPerm"
+		)
+		roles = {
+			row.role
+			for row in frappe.get_all(
+				src,
+				filters={"parent": "Fee Invoice", "read": 1, "permlevel": 0},
+				fields=["role"],
+			)
+		}
+
+		self.assertNotIn("Faculty", roles)
+		self.assertNotIn("Facilitator", roles)
+		self.assertEqual(roles, {"Accounts", "Registrar", "Student", "System Manager"})
+
+	def test_a_teacher_is_scoped_by_the_condition_as_well(self):
+		"""Belt to the permission table's braces: if a teaching role is ever
+		added there, the rows are already narrowed rather than wide open."""
+		teacher = make_user(
+			f"fee.teacher.{self.suffix}@example.invalid", ["Faculty"], "Fee Teacher"
+		)
+
+		self.assertEqual(permissions.fee_invoice_query(teacher), permissions.NOTHING)
+		self.assertFalse(
+			permissions.fee_invoice_permission(
+				frappe.get_doc("Fee Invoice", self.invoice), "read", teacher
+			)
+		)
+
+	def test_a_teacher_who_is_also_enrolled_keeps_their_own_invoices(self):
+		"""Staff do study here. Scoping teachers must not cost one of them
+		sight of their own fees."""
+		both = make_user(
+			f"fee.both.{self.suffix}@example.invalid", ["Faculty", "Student"], "Fee Both"
+		)
+		student = make_student(full_name=f"Fee Both {self.suffix}", user=both).name
+		from sibbcs.finance.test_fees import make_invoice
+
+		mine = make_invoice(student).name
+
+		condition = permissions.fee_invoice_query(both)
+
+		self.assertIn(student, condition)
+		self.assertNotEqual(condition, permissions.NOTHING)
+		self.assertTrue(
+			permissions.fee_invoice_permission(
+				frappe.get_doc("Fee Invoice", mine), "read", both
+			)
+		)
+		self.assertFalse(
+			permissions.fee_invoice_permission(
+				frappe.get_doc("Fee Invoice", self.invoice), "read", both
+			)
+		)
+
+	def test_the_registrar_is_still_unrestricted(self):
+		registrar = make_user(
+			f"fee.reg2.{self.suffix}@example.invalid", ["Registrar"], "Fee Registrar"
+		)
+		self.assertEqual(permissions.fee_invoice_query(registrar), "")
