@@ -991,6 +991,90 @@ class TestLedger(FrappeTestCase):
 		self.assertEqual(closing["credit"], 200)
 		self.assertEqual(closing["balance"], 150)
 
+	def _rows(self, student):
+		from sibbcs.finance.report.student_fee_ledger.student_fee_ledger import execute
+
+		_columns, rows = execute({"student": student.name})
+		return rows[:-1], rows[-1]
+
+	def test_a_waived_invoice_is_not_left_in_the_balance(self):
+		"""It kept its full net on the record, so the balance carried money the
+		college chose not to collect."""
+		student = make_student(email="ledger2@example.com")
+		make_invoice(student.name, gross_amount=350, due_date="2026-01-01", status="Waived")
+
+		rows, closing = self._rows(student)
+
+		self.assertEqual([r["entry_type"] for r in rows], ["Invoice", "Waived"])
+		self.assertEqual(rows[1]["credit"], 350)
+		self.assertEqual(closing["balance"], 0)
+		self.assertEqual(closing["status"], "Settled")
+
+	def test_only_the_unpaid_rest_of_a_part_paid_invoice_is_waived(self):
+		student = make_student(email="ledger3@example.com")
+		invoice = make_invoice(student.name, gross_amount=3000, due_date="2026-01-01")
+		make_payment(
+			student.name, 1000, [{"fee_invoice": invoice.name, "allocated_amount": 1000}],
+			received_on="2026-01-05",
+		)
+		frappe.db.set_value("Fee Invoice", invoice.name, "status", "Waived")
+
+		rows, closing = self._rows(student)
+
+		waived = next(r for r in rows if r["entry_type"] == "Waived")
+		self.assertEqual(waived["credit"], 2000)
+		self.assertEqual(closing["balance"], 0)
+
+	def test_a_waiver_does_not_hide_what_is_still_owed(self):
+		student = make_student(email="ledger4@example.com")
+		make_invoice(student.name, gross_amount=350, due_date="2026-01-01", status="Waived")
+		make_invoice(student.name, gross_amount=700, due_date="2026-02-01")
+
+		_rows, closing = self._rows(student)
+
+		self.assertEqual(closing["balance"], 700)
+		self.assertEqual(closing["status"], "Outstanding")
+
+	def test_the_waiver_sits_directly_under_its_invoice(self):
+		student = make_student(email="ledger5@example.com")
+		make_invoice(student.name, gross_amount=350, due_date="2026-01-01", status="Waived")
+		make_invoice(student.name, gross_amount=700, due_date="2026-01-01")
+
+		rows, _closing = self._rows(student)
+
+		kinds = [(r["entry_type"], r["reference"]) for r in rows]
+		first = rows[0]["reference"]
+		self.assertEqual(kinds[0], ("Invoice", first))
+		self.assertEqual(kinds[1], ("Waived", first))
+
+	def test_the_staff_ledger_and_the_student_statement_agree(self):
+		"""One question, asked from both sides: what does this student owe? A
+		student told one figure and the office another is the worst outcome."""
+		from sibbcs.api import student_fees
+
+		student = make_student(email="ledger6@example.com")
+		part = make_invoice(student.name, gross_amount=3000, due_date="2026-01-01")
+		make_payment(
+			student.name, 1000, [{"fee_invoice": part.name, "allocated_amount": 1000}],
+			received_on="2026-01-05",
+		)
+		make_invoice(student.name, gross_amount=350, due_date="2026-02-01", status="Waived")
+		make_invoice(student.name, gross_amount=350, due_date="2026-02-02", status="Waived")
+		make_payment(
+			student.name, 600, [{"fee_invoice": part.name, "allocated_amount": 600}],
+			received_on="2026-01-09",
+		)
+		make_invoice(student.name, gross_amount=500, due_date="2026-03-01")
+
+		_rows, closing = self._rows(student)
+		invoices = student_fees._invoices(student.name)
+		payments = student_fees._payments(student.name, invoices)
+		statement = student_fees._statement(invoices, payments)
+
+		self.assertEqual(statement["balance"], closing["balance"])
+		self.assertEqual(statement["charges"], closing["charge"])
+		self.assertEqual(statement["credits"], closing["credit"])
+
 	def test_ledger_requires_a_student(self):
 		from sibbcs.finance.report.student_fee_ledger.student_fee_ledger import execute
 

@@ -1552,9 +1552,9 @@ Frappe Desk, which they stopped reaching when `Student` lost `desk_access`.
   receipts") and the account menu ("Fees & receipts", students only).
 - **Cancelled invoices are hidden**; a cancelled tuition invoice is the college correcting its own
   books and the term is billed again. **Waived invoices show as Waived with nothing outstanding**,
-  and the statement carries a credit row for what was waived. The staff Student Fee Ledger does *not*
-  do this: it counts a waived invoice as a charge with no credit, so its balance still includes money
-  the college chose not to collect. The student statement is the corrected version.
+  and the statement carries a credit row for what was waived. The staff Student Fee Ledger does the
+  same (it did not until 25 Nov 2026: it counted a waived invoice as a charge with no credit, so its
+  balance still included money the college chose not to collect). `TestLedger` pins the two to agree.
 - **Left out on purpose: the application fee.** It is owed before a Student exists, so it sits on the
   Admission Application, and when taken by hand its only record is a free-text note on the invoice —
   no date, no mode a receipt could be built from. It belongs here once it is a recorded payment.

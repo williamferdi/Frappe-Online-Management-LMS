@@ -153,10 +153,10 @@ def _payments(student, invoices):
 def _statement(invoices, payments):
 	"""Charges and credits in date order, with a running balance.
 
-	The same shape as the staff's Student Fee Ledger -- an invoice is a charge,
-	a payment a credit -- with one correction: a waived invoice gets a credit for
-	what was waived. Without it the balance would carry money the college chose
-	not to collect and tell the student they still owed it.
+	The same as the staff's Student Fee Ledger -- an invoice is a charge, a
+	payment a credit, and a waived invoice gets a credit for what was waived.
+	Without that last the balance would carry money the college chose not to
+	collect and tell the student they still owed it. The two are tested to agree.
 	"""
 	rows = []
 

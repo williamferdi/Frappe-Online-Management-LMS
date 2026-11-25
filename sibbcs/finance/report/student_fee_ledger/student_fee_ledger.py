@@ -5,6 +5,13 @@
 Architecture doc §2.4 is explicit that this is a **report, not a DocType**:
 invoices and payments are the records; the ledger is a view over them with a
 running balance.
+
+**A waived invoice is a charge and a credit.** The invoice keeps its full net on
+the record, so on its own it would sit in the balance as money owed -- money the
+college chose not to collect. The ledger therefore adds a "Waived" credit for
+what was waived (the net less anything already paid), so the balance is what the
+student actually owes. The student's own statement (`api/student_fees.py`) does
+the same and the two are tested to agree.
 """
 
 import frappe
@@ -59,7 +66,7 @@ def get_data(filters):
 		filters=invoice_filters,
 		fields=[
 			"name", "due_date", "creation", "fee_type", "term",
-			"gross_amount", "discount_amount", "net_amount", "status",
+			"gross_amount", "discount_amount", "net_amount", "paid_amount", "status",
 		],
 		order_by="due_date asc, creation asc",
 	):
@@ -70,7 +77,7 @@ def get_data(filters):
 		rows.append(
 			{
 				"date": invoice.due_date,
-				"sort_key": (invoice.due_date, invoice.creation),
+				"sort_key": (str(invoice.due_date or ""), str(invoice.creation), 0),
 				"entry_type": _("Invoice"),
 				"reference": invoice.name,
 				"reference_doctype": "Fee Invoice",
@@ -81,6 +88,25 @@ def get_data(filters):
 				"status": invoice.status,
 			}
 		)
+
+		if invoice.status == "Waived":
+			waived = flt(flt(invoice.net_amount) - flt(invoice.paid_amount), 2)
+			if waived > 0:
+				rows.append(
+					{
+						"date": invoice.due_date,
+						# Directly after the invoice it belongs to.
+						"sort_key": (str(invoice.due_date or ""), str(invoice.creation), 1),
+						"entry_type": _("Waived"),
+						"reference": invoice.name,
+						"reference_doctype": "Fee Invoice",
+						"particulars": _("{0} waived").format(invoice.fee_type),
+						"term": invoice.term,
+						"charge": 0.0,
+						"credit": waived,
+						"status": invoice.status,
+					}
+				)
 
 	for payment in frappe.get_all(
 		"Payment Entry",
@@ -95,7 +121,7 @@ def get_data(filters):
 		rows.append(
 			{
 				"date": payment.received_on,
-				"sort_key": (payment.received_on, payment.creation),
+				"sort_key": (str(payment.received_on or ""), str(payment.creation), 0),
 				"entry_type": _("Payment"),
 				"reference": payment.name,
 				"reference_doctype": "Payment Entry",
