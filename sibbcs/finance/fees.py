@@ -404,26 +404,48 @@ def has_active_registrations(program_enrollment, term):
 	)
 
 
+DEFAULT_MONTHLY_TUITION = 1500.0
+
+
+def monthly_rate(program):
+	return flt(program.monthly_tuition) or DEFAULT_MONTHLY_TUITION
+
+
+def ceiling_state(ceiling, billed, monthly):
+	"""(remaining, reached) for one enrollment against its programme's ceiling.
+
+	The single statement of when billing stops, so that what the nightly job
+	does and what the screens say cannot drift apart.
+
+	Less than one month left is not a month of study, so it is not billed. The
+	advertised ceilings are round figures (Rs78,000, Rs52,000) and the monthly
+	rate is not a divisor of them: after 18 full two-month terms of Rs4,332 an
+	M.Div. student has been billed Rs77,976, and what was left, Rs24, used to
+	arrive as an invoice of its own. `<` and not `<=`: a remainder of exactly
+	one month is still a month.
+
+	`ceiling` of 0 means uncapped, which is never reached.
+	"""
+	if not flt(ceiling):
+		return None, False
+	remaining = flt(flt(ceiling) - flt(billed), 2)
+	return remaining, remaining < flt(monthly)
+
+
 def compute_tuition(enrollment, program, months):
 	"""Gross, discount and the reason tuition would be skipped.
 
 	Returns a dict; `gross` of 0 means nothing should be billed.
 	"""
-	monthly = flt(program.monthly_tuition) or 1500.0
+	monthly = monthly_rate(program)
 	gross = monthly * int(months)
 
 	ceiling = flt(program.tuition_total)
 	if ceiling:
 		on_gross = bool(getattr(program, "cap_on_gross", 1))
 		billed = tuition_billed_to_date(enrollment.name, on_gross=on_gross)
-		remaining = ceiling - billed
-		# Less than one month left is not a month of study, so it is not billed.
-		# The advertised ceilings are round figures (Rs78,000, Rs52,000) and the
-		# monthly rate is not a divisor of them: after 18 full two-month terms of
-		# Rs4,332 an M.Div. student has been billed Rs77,976, and what was left,
-		# Rs24, used to arrive as an invoice of its own. `<` and not `<=`: a
-		# remainder of exactly one month is still a month.
-		if remaining < monthly:
+		remaining, reached = ceiling_state(ceiling, billed, monthly)
+		if reached:
 			return {"gross": 0.0, "discount": 0.0, "reason": "ceiling reached"}
 		# At least a month left: bill it rather than overshooting the total.
 		gross = min(gross, remaining)
@@ -436,6 +458,134 @@ def compute_tuition(enrollment, program, months):
 	discount = min(wanted, headroom, gross)
 
 	return {"gross": flt(gross, 2), "discount": flt(discount, 2), "reason": None}
+
+
+# ---------------------------------------------------------------------------
+# where each student stands -- what the screens show
+# ---------------------------------------------------------------------------
+
+
+def _position(enrollment, program, tuition):
+	"""One enrollment's position, from facts already in hand.
+
+	`tuition` is `{"gross", "net", "terms"}` for its non-cancelled tuition
+	invoices. Kept free of queries so the roster can build every row from one.
+	"""
+	monthly = monthly_rate(program)
+	ceiling = flt(program.tuition_total)
+	on_gross = bool(program.get("cap_on_gross", 1))
+	billed = flt(tuition["gross"] if on_gross else tuition["net"], 2)
+	remaining, reached = ceiling_state(ceiling, billed, monthly)
+
+	if not ceiling:
+		state = "uncapped"
+	elif reached:
+		state = "ceiling_reached"
+	else:
+		state = "billing"
+
+	award_cap = flt(enrollment.get("scholarship_total_cap"))
+	award_monthly = flt(enrollment.get("scholarship_monthly_discount"))
+	scholarship = None
+	if award_cap or award_monthly:
+		used = flt(enrollment.get("scholarship_used_to_date"))
+		scholarship = {
+			"monthly": award_monthly,
+			"cap": award_cap,
+			"used": used,
+			"remaining": flt(max(award_cap - used, 0.0), 2),
+		}
+
+	return {
+		"enrollment": enrollment.get("name"),
+		"state": state,
+		"monthly": monthly,
+		"ceiling": ceiling,
+		"billed": billed,
+		# Billing stops with this much unbilled -- never more than a month's worth.
+		"remaining": remaining,
+		"terms_billed": int(tuition["terms"]),
+		"scholarship": scholarship,
+	}
+
+
+def _tuition_totals(enrollment_names=None):
+	"""{enrollment: {gross, net, terms}} for non-cancelled tuition invoices."""
+	conditions = ["fee_type = %(fee)s", "status != 'Cancelled'", "program_enrollment IS NOT NULL"]
+	values = {"fee": TUITION_FEE}
+	if enrollment_names is not None:
+		if not enrollment_names:
+			return {}
+		conditions.append("program_enrollment IN %(names)s")
+		values["names"] = tuple(enrollment_names)
+
+	rows = frappe.db.sql(
+		f"""
+		SELECT program_enrollment, SUM(gross_amount) AS gross,
+		       SUM(net_amount) AS net, COUNT(name) AS terms
+		FROM `tabFee Invoice`
+		WHERE {' AND '.join(conditions)}
+		GROUP BY program_enrollment
+		""",
+		values,
+		as_dict=True,
+	)
+	return {row.program_enrollment: row for row in rows}
+
+
+NO_TUITION = {"gross": 0, "net": 0, "terms": 0}
+
+
+def tuition_position(enrollment):
+	"""Where one student stands against the programme ceiling and the scholarship cap."""
+	doc = (
+		enrollment
+		if hasattr(enrollment, "doctype")
+		else frappe.get_doc("Program Enrollment", enrollment)
+	)
+	program = frappe.get_cached_doc("Program", doc.program)
+	totals = _tuition_totals([doc.name]).get(doc.name, NO_TUITION)
+	return _position(doc, program, totals)
+
+
+def tuition_positions():
+	"""Every active enrollment's position, those at the ceiling first.
+
+	This is the answer to "who has reached the ceiling", which the nightly job
+	used to work out and throw away: it knew, logged a count, and told nobody.
+	Computed from the invoices on every call rather than stored, so it cannot
+	go stale -- a cancelled or waived invoice moves it at once.
+	"""
+	enrollments = frappe.get_all(
+		"Program Enrollment",
+		filters={"status": "Active"},
+		fields=[
+			"name", "student", "student_name", "program", "current_level",
+			"scholarship_monthly_discount", "scholarship_total_cap",
+			"scholarship_used_to_date",
+		],
+	)
+	totals = _tuition_totals([e.name for e in enrollments])
+	programs = {}
+
+	rows = []
+	for enrollment in enrollments:
+		if enrollment.program not in programs:
+			programs[enrollment.program] = frappe.get_cached_doc("Program", enrollment.program)
+		position = _position(
+			enrollment, programs[enrollment.program], totals.get(enrollment.name, NO_TUITION)
+		)
+		position.update(
+			student=enrollment.student,
+			student_name=enrollment.student_name,
+			program=enrollment.program,
+			level=enrollment.current_level,
+		)
+		rows.append(position)
+
+	order = {"ceiling_reached": 0, "billing": 1, "uncapped": 2}
+	rows.sort(key=lambda r: (order[r["state"]], r["remaining"] if r["remaining"] is not None else 0, r["student_name"] or ""))
+	return rows
 
 
 def _billing_date(term):

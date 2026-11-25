@@ -7,6 +7,7 @@ import type {
 	PaymentsResponse,
 	RoleCount,
 	ScholarshipsResponse,
+	TuitionResponse,
 	UsersResponse,
 } from '@/types'
 
@@ -16,6 +17,7 @@ export const financeKeys = {
 	payments: (search: string) => ['finance', 'payments', search] as const,
 	outstanding: (student: string) => ['finance', 'outstanding', student] as const,
 	scholarships: ['finance', 'scholarships'] as const,
+	tuition: ['finance', 'tuition'] as const,
 	users: (filters: UserFilters) => ['finance', 'users', filters] as const,
 	roleSummary: ['finance', 'role-summary'] as const,
 }
@@ -61,6 +63,12 @@ export const useOutstandingFor = (student: string | null) =>
 		queryFn: () =>
 			frappeGet<OutstandingInvoice[]>('sibbcs.api.finance_api.outstanding_for', { student }),
 		enabled: Boolean(student),
+	})
+
+export const useTuition = () =>
+	useQuery({
+		queryKey: financeKeys.tuition,
+		queryFn: () => frappeGet<TuitionResponse>('sibbcs.api.finance_api.tuition'),
 	})
 
 export const useScholarships = () =>

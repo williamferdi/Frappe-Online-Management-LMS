@@ -278,6 +278,38 @@ def record_payment(student, amount, mode, received_on=None, reference_no=None,
 
 
 # ---------------------------------------------------------------------------
+# tuition
+# ---------------------------------------------------------------------------
+
+
+@frappe.whitelist()
+def tuition():
+	"""Every active student against the programme ceiling and their scholarship cap.
+
+	The nightly job stops billing a student the moment the ceiling is reached,
+	and used to say so only in a log nobody reads. This is where an officer
+	finds out, and finds out *before* a student asks why no invoice came.
+	"""
+	_require_money()
+
+	from sibbcs.finance import fees
+
+	rows = fees.tuition_positions()
+	return {
+		"rows": rows,
+		"summary": {
+			"students": len(rows),
+			"at_ceiling": sum(1 for r in rows if r["state"] == "ceiling_reached"),
+			"scholarship_spent": sum(
+				1
+				for r in rows
+				if r["scholarship"] and r["scholarship"]["cap"] and not r["scholarship"]["remaining"]
+			),
+		},
+	}
+
+
+# ---------------------------------------------------------------------------
 # scholarships
 # ---------------------------------------------------------------------------
 

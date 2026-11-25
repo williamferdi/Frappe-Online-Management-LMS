@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
-import type { StudentDetail as Detail } from '@/types'
+import type { StudentDetail as Detail, TuitionPosition } from '@/types'
 
 const MENTOR_HTML =
 	'<table><tr><td>How long have you known the applicant?</td><td><b>More than 6 years</b></td></tr></table>'
@@ -37,6 +37,7 @@ const detail: Detail = {
 		start_term: 'Term 1 2026',
 	},
 	registrations: [],
+	tuition: null,
 	invoices: [],
 	promotions: [],
 	admission: {
@@ -390,5 +391,80 @@ describe('the student profile', () => {
 		expect(screen.queryByText('Transfer student')).not.toBeInTheDocument()
 		expect(screen.queryByText('Mature candidate')).not.toBeInTheDocument()
 		expect(screen.getByText('Waiting For Payment')).toBeInTheDocument()
+	})
+})
+
+const billing: TuitionPosition = {
+	enrollment: 'ENR-0007',
+	state: 'billing',
+	monthly: 2166,
+	ceiling: 78000,
+	billed: 4332,
+	remaining: 73668,
+	terms_billed: 1,
+	scholarship: { monthly: 666, cap: 24000, used: 1332, remaining: 22668 },
+}
+
+describe('the tuition standing', () => {
+	it('shows how far billing has got and what is still to bill', async () => {
+		await renderProfile({ ...detail, tuition: billing })
+
+		const fees = cardFor('Fees')
+		expect(within(fees).getByText('Tuition billed')).toBeInTheDocument()
+		expect(within(fees).getByText(/₹4,332 of ₹78,000/)).toBeInTheDocument()
+		expect(within(fees).getByText('1 term billed')).toBeInTheDocument()
+		expect(within(fees).getByText(/₹73,668 still to bill/)).toBeInTheDocument()
+		expect(within(fees).queryByText('Ceiling reached')).not.toBeInTheDocument()
+	})
+
+	it('says plainly that the ceiling has been reached, and why no invoice is coming', async () => {
+		// Billing stops on its own. Until this was shown, nobody found out
+		// except by a student asking where their invoice was.
+		await renderProfile({
+			...detail,
+			tuition: {
+				...billing,
+				state: 'ceiling_reached',
+				billed: 77976,
+				remaining: 24,
+				terms_billed: 18,
+			},
+		})
+
+		const fees = cardFor('Fees')
+		expect(within(fees).getByText('Ceiling reached')).toBeInTheDocument()
+		expect(within(fees).getByText('18 terms billed')).toBeInTheDocument()
+		expect(within(fees).getByText(/No further tuition will be invoiced/)).toBeInTheDocument()
+		// The sliver that was not billed is stated, not hidden.
+		expect(within(fees).getByText(/₹24 is left, which is less than one month/)).toBeInTheDocument()
+	})
+
+	it('says when a scholarship has been used up', async () => {
+		await renderProfile({
+			...detail,
+			tuition: { ...billing, scholarship: { monthly: 1500, cap: 24000, used: 24000, remaining: 0 } },
+		})
+
+		const fees = cardFor('Fees')
+		expect(within(fees).getByText(/Scholarship ₹24,000 of ₹24,000 used/)).toBeInTheDocument()
+		expect(within(fees).getByText('Fully used')).toBeInTheDocument()
+	})
+
+	it('has no ceiling to show for a programme without one', async () => {
+		await renderProfile({
+			...detail,
+			tuition: { ...billing, state: 'uncapped', ceiling: 0, remaining: null, scholarship: null },
+		})
+
+		expect(screen.getByText(/has no tuition ceiling/)).toBeInTheDocument()
+		expect(screen.queryByText('Ceiling reached')).not.toBeInTheDocument()
+	})
+
+	it('shows nothing about tuition to a reader who may not see money', async () => {
+		// A teacher is sent `tuition: null`. The Fees card is not drawn at all.
+		await renderProfile({ ...detail, tuition: null })
+
+		expect(screen.queryByText('Tuition billed')).not.toBeInTheDocument()
+		expect(screen.queryByText('Fees')).not.toBeInTheDocument()
 	})
 })

@@ -14,6 +14,7 @@ import {
 
 import { DocumentsCard, ResponsesCard } from '@/components/AdmissionEvidence'
 import { QueryState } from '@/components/QueryState'
+import { TuitionStanding } from '@/components/TuitionStanding'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -88,7 +89,7 @@ function Loaded({ data }: { data: Detail }) {
 				<Academic data={data} />
 
 				<div className="space-y-4">
-					{data.invoices.length > 0 && <Fees data={data} />}
+					{(data.invoices.length > 0 || data.tuition) && <Fees data={data} />}
 					<Promotions data={data} />
 					{enrollment && admission && admission.manuals.length > 0 && (
 						<Manuals admission={admission} />
@@ -541,7 +542,8 @@ function Fees({ data }: { data: Detail }) {
 			<CardHeader>
 				<CardTitle className="text-base">Fees</CardTitle>
 			</CardHeader>
-			<CardContent className="pt-3">
+			<CardContent className="space-y-4 pt-3">
+				{data.tuition && <TuitionStanding position={data.tuition} />}
 				<ul className="space-y-1.5 text-sm">
 					{data.invoices.map((invoice) => (
 						<li key={invoice.name} className="flex items-center justify-between gap-2">

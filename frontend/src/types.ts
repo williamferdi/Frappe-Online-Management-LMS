@@ -788,6 +788,8 @@ export interface StudentDetail {
 		registration_fee_invoice: string | null
 		course_offering: string
 	}[]
+	/** Null when the reader may not see money, or there is no enrolment. */
+	tuition: TuitionPosition | null
 	invoices: {
 		name: string
 		fee_type: string | null
@@ -987,6 +989,35 @@ export interface ScholarshipRow {
 	approved_on: string | null
 	submitted_on: string | null
 	justification: string | null
+}
+
+/**
+ * One student's tuition against the programme ceiling and their scholarship cap.
+ * Decided on the server by the rule the nightly billing job uses.
+ */
+export interface TuitionPosition {
+	enrollment: string
+	state: 'billing' | 'ceiling_reached' | 'uncapped'
+	monthly: number
+	/** 0 when the programme has no ceiling. */
+	ceiling: number
+	billed: number
+	/** Left under the ceiling; null when uncapped. Under one month once reached. */
+	remaining: number | null
+	terms_billed: number
+	scholarship: { monthly: number; cap: number; used: number; remaining: number } | null
+}
+
+export interface TuitionRow extends TuitionPosition {
+	student: string
+	student_name: string | null
+	program: string
+	level: string
+}
+
+export interface TuitionResponse {
+	rows: TuitionRow[]
+	summary: { students: number; at_ceiling: number; scholarship_spent: number }
 }
 
 export interface ScholarshipsResponse {

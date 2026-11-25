@@ -643,6 +643,143 @@ class TestLateRegistrantBilling(FrappeTestCase):
 		self.assertEqual(getdate(rows[0].due_date), getdate(add_days(today(), 14)))
 
 
+
+class TestCeilingState(FrappeTestCase):
+	"""The one rule for when billing stops -- pure, so the boundary is exact."""
+
+	def test_uncapped_is_never_reached(self):
+		self.assertEqual(fees.ceiling_state(0, 999999, 1500), (None, False))
+
+	def test_a_month_or_more_left_is_not_reached(self):
+		self.assertEqual(fees.ceiling_state(54000, 52500, 1500), (1500, False))
+		self.assertEqual(fees.ceiling_state(54000, 0, 1500), (54000, False))
+
+	def test_less_than_a_month_left_is_reached(self):
+		self.assertEqual(fees.ceiling_state(54000, 52501, 1500), (1499, True))
+		self.assertEqual(fees.ceiling_state(78000, 77976, 2166), (24, True))
+
+	def test_billed_to_the_ceiling_or_past_it_is_reached(self):
+		self.assertEqual(fees.ceiling_state(54000, 54000, 1500), (0, True))
+		self.assertTrue(fees.ceiling_state(54000, 56000, 1500)[1])
+
+
+class TestTuitionPosition(FrappeTestCase):
+	"""What the screens show about a student's tuition -- and that it is what
+	the nightly job would do. The job used to know a student had reached the
+	ceiling and told nobody."""
+
+	_setup = TestTuitionStream._setup
+	_register = TestTuitionStream._register
+	_bill_to = TestTuitionStream._bill_to
+
+	def _program(self, enrollment):
+		return frappe.get_doc("Program", enrollment.program)
+
+	def test_nothing_billed_yet(self):
+		_s, enrollment, _t = self._setup("pos1@example.com", "TST P100", "TST-POS-1")
+
+		position = fees.tuition_position(enrollment)
+
+		ceiling = flt(self._program(enrollment).tuition_total)
+		self.assertTrue(ceiling, "the test programme is expected to carry a ceiling")
+		self.assertEqual(position["state"], "billing")
+		self.assertEqual(position["billed"], 0)
+		self.assertEqual(position["remaining"], ceiling)
+		self.assertEqual(position["terms_billed"], 0)
+		self.assertIsNone(position["scholarship"])
+
+	def test_it_counts_what_has_been_billed(self):
+		_s, enrollment, term = self._setup(
+			"pos2@example.com", "TST P110", "TST-POS-2", monthly_discount=800, cap=24000
+		)
+		self._register(enrollment, term, "TST P110")
+		fees.bill_enrollment_for_term(enrollment.name, term.name)
+
+		position = fees.tuition_position(enrollment.name)
+
+		self.assertEqual(position["billed"], 3000)
+		self.assertEqual(position["terms_billed"], 1)
+		self.assertEqual(
+			position["scholarship"],
+			{"monthly": 800, "cap": 24000, "used": 1600, "remaining": 22400},
+		)
+
+	def test_it_says_when_the_ceiling_is_reached(self):
+		_s, enrollment, _t = self._setup("pos3@example.com", "TST P120", "TST-POS-3")
+		ceiling = flt(self._program(enrollment).tuition_total)
+		self._bill_to(enrollment, ceiling - 24, "TST-POS-3-PRIOR")
+
+		position = fees.tuition_position(enrollment)
+
+		self.assertEqual(position["state"], "ceiling_reached")
+		# The unbilled sliver is shown, not hidden: it is less than a month.
+		self.assertEqual(position["remaining"], 24)
+
+	def test_the_screen_and_the_job_agree(self):
+		"""The reason for sharing one rule: they cannot say different things."""
+		_s, enrollment, term = self._setup("pos4@example.com", "TST P130", "TST-POS-4")
+		self._register(enrollment, term, "TST P130")
+		ceiling = flt(self._program(enrollment).tuition_total)
+		self._bill_to(enrollment, ceiling - 100, "TST-POS-4-PRIOR")
+
+		position = fees.tuition_position(enrollment)
+		outcome = fees.bill_enrollment_for_term(enrollment.name, term.name, dry_run=True)
+
+		self.assertEqual(position["state"], "ceiling_reached")
+		self.assertIn("ceiling", outcome["skipped"])
+
+	def test_a_cancelled_invoice_is_not_counted(self):
+		_s, enrollment, _t = self._setup("pos5@example.com", "TST P140", "TST-POS-5")
+		self._bill_to(enrollment, 3000, "TST-POS-5-PRIOR")
+		name = frappe.db.get_value(
+			"Fee Invoice", {"program_enrollment": enrollment.name, "fee_type": "Monthly Tuition"}
+		)
+		frappe.db.set_value("Fee Invoice", name, "status", "Cancelled")
+
+		position = fees.tuition_position(enrollment)
+
+		self.assertEqual(position["billed"], 0)
+		self.assertEqual(position["terms_billed"], 0)
+
+	def test_uncapped_has_no_remainder(self):
+		program = frappe._dict(monthly_tuition=1500, tuition_total=0, cap_on_gross=1)
+		enrollment = frappe._dict(name="X")
+
+		position = fees._position(enrollment, program, {"gross": 9000, "net": 9000, "terms": 3})
+
+		self.assertEqual(position["state"], "uncapped")
+		self.assertIsNone(position["remaining"])
+		self.assertEqual(position["billed"], 9000)
+
+	def test_net_is_measured_when_the_programme_says_so(self):
+		program = frappe._dict(monthly_tuition=1500, tuition_total=54000, cap_on_gross=0)
+		enrollment = frappe._dict(name="X")
+
+		position = fees._position(enrollment, program, {"gross": 3000, "net": 1400, "terms": 1})
+
+		self.assertEqual(position["billed"], 1400)
+
+	def test_the_roster_puts_those_at_the_ceiling_first(self):
+		_s, open_one, _t = self._setup("pos6@example.com", "TST P150", "TST-POS-6")
+		_s, at_ceiling, _t = self._setup("pos7@example.com", "TST P160", "TST-POS-7")
+		ceiling = flt(self._program(at_ceiling).tuition_total)
+		self._bill_to(at_ceiling, ceiling, "TST-POS-7-PRIOR")
+
+		names = [row["enrollment"] for row in fees.tuition_positions()]
+
+		self.assertIn(open_one.name, names)
+		self.assertLess(names.index(at_ceiling.name), names.index(open_one.name))
+
+	def test_the_roster_names_the_student(self):
+		_s, enrollment, _t = self._setup("pos8@example.com", "TST P170", "TST-POS-8")
+
+		row = next(r for r in fees.tuition_positions() if r["enrollment"] == enrollment.name)
+
+		self.assertEqual(row["student"], enrollment.student)
+		self.assertEqual(row["program"], enrollment.program)
+		self.assertEqual(row["level"], enrollment.current_level)
+
+
 class TestOneTimeFees(FrappeTestCase):
 	"""§5 Stream 1."""
 

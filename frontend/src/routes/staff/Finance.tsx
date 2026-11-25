@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
 	BadgeIndianRupee,
+	GraduationCap,
 	HandCoins,
 	LoaderCircle,
 	Plus,
@@ -50,11 +51,14 @@ import { FrappeError } from '@/lib/frappe'
 import { cn, formatDate, money } from '@/lib/utils'
 import type { FinanceSummary, InvoiceRow, ScholarshipRow } from '@/types'
 
-type Tab = 'invoices' | 'payments' | 'scholarships'
+import { FinanceTuition } from './FinanceTuition'
+
+type Tab = 'invoices' | 'payments' | 'tuition' | 'scholarships'
 
 const TABS: { id: Tab; label: string; icon: typeof Receipt }[] = [
 	{ id: 'invoices', label: 'Invoices', icon: Receipt },
 	{ id: 'payments', label: 'Payments', icon: HandCoins },
+	{ id: 'tuition', label: 'Tuition', icon: GraduationCap },
 	{ id: 'scholarships', label: 'Scholarships', icon: BadgeIndianRupee },
 ]
 
@@ -72,7 +76,7 @@ export function Finance() {
 
 	return (
 		<>
-			<PageHeader title="Finance" description="Invoices, payments and scholarships" />
+			<PageHeader title="Finance" description="Invoices, payments, tuition and scholarships" />
 
 			<div className="mb-4 flex flex-wrap gap-1">
 				{TABS.map((entry) => (
@@ -89,6 +93,7 @@ export function Finance() {
 
 			{tab === 'invoices' && <Invoices />}
 			{tab === 'payments' && <Payments />}
+			{tab === 'tuition' && <FinanceTuition />}
 			{tab === 'scholarships' && <Scholarships />}
 		</>
 	)

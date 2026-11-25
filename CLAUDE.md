@@ -1499,6 +1499,22 @@ invoice of ₹24 (M.Div.) or ₹16 (MACS). Now a student is billed ₹77,976 / �
 months only — and the unbilled ₹24 / ₹16 is simply not charged. A remainder of exactly one
 month is still billed (`remaining < monthly`).
 
+**Where an officer sees the ceiling.** The nightly job used to stop billing a student at the
+ceiling and say so only in a log nobody reads; a student found out by asking where their invoice
+was. Now:
+
+- `fees.ceiling_state(ceiling, billed, monthly)` is the **one** statement of when billing stops.
+  `compute_tuition` (the job), `tuition_position` (one student) and `tuition_positions`
+  (everyone) all call it, so the screens cannot say something the job will not do.
+- Nothing is stored. A position is computed from the non-cancelled tuition invoices on every
+  call, so a cancelled or waived invoice moves it at once and it cannot go stale.
+- **Finance → Tuition** (`finance_api.tuition`): every active enrolment, those at the ceiling
+  first, with billed-of-ceiling, scholarship used-of-cap, and "At the ceiling only".
+- **The student page's Fees card** shows the same figures for one student
+  (`academic_api.student` → `tuition`).
+- Both follow the permission on Fee Invoice, not the academic role: a teacher is sent
+  `tuition: null` and no Fees card, because the position is money.
+
 **When tuition is billed.** The daily job offers *every started Open/Active term*
 (`fees.terms_to_bill`) to `bill_enrollment_for_term`, which is idempotent per term and
 skips anyone with no registration. It used to match `start_date == today`, so a student

@@ -199,10 +199,21 @@ def student(name):
 			order_by="term desc, course asc",
 		)
 
+	# Money is not a teacher's to see: the position follows the same permission
+	# as the invoices beside it, which a teacher does not hold.
+	may_see_money = bool(frappe.has_permission("Fee Invoice", "read"))
+
+	tuition = None
+	if enrollment and may_see_money:
+		from sibbcs.finance import fees
+
+		tuition = fees.tuition_position(enrollment.name)
+
 	return {
 		"student": record,
 		"enrollment": enrollment,
 		"registrations": registrations,
+		"tuition": tuition,
 		"invoices": frappe.get_all(
 			"Fee Invoice",
 			filters={"student": name},
@@ -210,7 +221,7 @@ def student(name):
 			        "outstanding_amount", "due_date"],
 			order_by="creation desc",
 		)
-		if frappe.has_permission("Fee Invoice", "read")
+		if may_see_money
 		else [],
 		"admission": _admission_profile(record.admission_application),
 		"promotions": frappe.get_all(

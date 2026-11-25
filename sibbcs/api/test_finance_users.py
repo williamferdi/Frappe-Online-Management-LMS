@@ -12,8 +12,10 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import today
 
+from sibbcs.api import academic_api as academic
 from sibbcs.api import finance_api as fin
 from sibbcs.api import users_api as usr
+from sibbcs.api.test_api import make_user
 from sibbcs.api.test_student_api import make_student
 
 
@@ -39,7 +41,7 @@ class TestFinanceAccess(FrappeTestCase):
 		_, _, email = make_student()
 		frappe.set_user(email)
 
-		for endpoint in (fin.invoices, fin.payments, fin.scholarships):
+		for endpoint in (fin.invoices, fin.payments, fin.scholarships, fin.tuition):
 			with self.subTest(endpoint=endpoint.__name__):
 				with self.assertRaises(frappe.PermissionError):
 					endpoint()
@@ -140,6 +142,84 @@ class TestInvoiceList(FrappeTestCase):
 		for row in fin.invoices(overdue=1)["rows"]:
 			self.assertTrue(row["overdue"])
 			self.assertNotIn(row["status"], ("Paid", "Waived", "Cancelled"))
+
+
+
+class TestTuitionConsole(FrappeTestCase):
+	"""Who has reached the tuition ceiling, where an officer will see it."""
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+
+	def _at_the_ceiling(self):
+		student, enrollment, _ = make_student()
+		ceiling = frappe.db.get_value("Program", enrollment.program, "tuition_total")
+		make_invoice(
+			student.name,
+			amount=ceiling,
+			fee_type="Monthly Tuition",
+			program_enrollment=enrollment.name,
+		)
+		return student, enrollment
+
+	def test_the_roster_says_who_is_at_the_ceiling(self):
+		_student, enrollment = self._at_the_ceiling()
+
+		result = fin.tuition()
+		row = next(r for r in result["rows"] if r["enrollment"] == enrollment.name)
+
+		self.assertEqual(row["state"], "ceiling_reached")
+		self.assertGreaterEqual(result["summary"]["at_ceiling"], 1)
+		self.assertEqual(
+			result["summary"]["at_ceiling"],
+			sum(1 for r in result["rows"] if r["state"] == "ceiling_reached"),
+		)
+
+	def test_accounts_may_look(self):
+		email = f"acc.{frappe.generate_hash(length=8)}@example.invalid"
+		make_user(email, ["Accounts"])
+		frappe.set_user(email)
+
+		self.assertIn("rows", fin.tuition())
+
+	def test_the_student_page_carries_the_position_for_those_who_see_money(self):
+		student, enrollment = self._at_the_ceiling()
+
+		page = academic.student(student.name)
+
+		self.assertEqual(page["tuition"]["enrollment"], enrollment.name)
+		self.assertEqual(page["tuition"]["state"], "ceiling_reached")
+
+	def test_a_teacher_is_not_shown_it(self):
+		"""The position is money; it follows the permission on the invoices
+		beside it, which a teacher does not hold."""
+		from sibbcs.academic.doctype.academic_term.test_academic_term import make_term
+		from sibbcs.academic.doctype.course.test_course import make_course
+		from sibbcs.academic.doctype.course_offering.test_course_offering import (
+			make_instructor,
+			make_offering,
+		)
+		from sibbcs.academic.doctype.course_registration.test_course_registration import (
+			make_registration,
+		)
+
+		student, enrollment = self._at_the_ceiling()
+		tag = frappe.generate_hash(length=6)
+		email = f"teach.{tag}@example.invalid"
+		make_user(email, ["Faculty"])
+		offering = make_offering(
+			make_course(f"TUI{tag}", level="1", credits=3).name,
+			make_term(f"TUI-{tag}", status="Open").name,
+			status="Published",
+			instructor=make_instructor(f"Tuition Teacher {tag}", user=email).name,
+		).name
+		make_registration(enrollment.name, offering)
+
+		frappe.set_user(email)
+		page = academic.student(student.name)
+
+		self.assertIsNone(page["tuition"])
+		self.assertEqual(page["invoices"], [])
 
 
 class TestUserAdministration(FrappeTestCase):
