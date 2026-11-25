@@ -48,8 +48,8 @@ describe('the account menu', () => {
 		expect(screen.queryByRole('menuitem', { name: /frappe desk/i })).not.toBeInTheDocument()
 	})
 
-	it('gives a student their fees and receipts, which the navigation has no room for', async () => {
-		// The college specified nine navigation items, so this is not a tenth.
+	it('also gives a student their fees and receipts in the account menu', async () => {
+		// A second way in; the navigation has Fees too.
 		await open('/portal', { user: 's@x.com', full_name: 'A Student', roles: ['Student'] })
 		expect(screen.getByRole('menuitem', { name: /fees & receipts/i })).toHaveAttribute(
 			'href',

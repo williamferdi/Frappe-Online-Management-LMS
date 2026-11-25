@@ -432,9 +432,9 @@ render. `src/test/setup.ts` stubs it.
 
 ### The student portal — `sibbcs/api/student.py` + `frontend/src/routes/portal`
 
-Nine sections, the order the college specified. Dashboard, My Courses, Grades and
-Profile are built; registration hangs off My Courses at `/portal/courses/register`
-rather than taking a tenth slot in a navigation specified as nine.
+The college specified nine sections; **Fees was added as a tenth on 25 Nov 2026 at their request**
+(after Grades). Dashboard, My Courses, Grades, Fees and Profile are built; registration hangs off My
+Courses at `/portal/courses/register`.
 
 **One call per screen.** `dashboard()`, `grades()`, `my_courses()` and
 `registration_options()` each compose what one page draws. The rules stay in
@@ -1547,9 +1547,10 @@ Frappe Desk, which they stopped reaching when `Student` lost `desk_access`.
   `receipt(payment)` and `statement()` (PDFs). The student is whoever is signed in. A receipt that is
   somebody else's answers **exactly like one that does not exist** (`DoesNotExistError`, same text),
   so the refusal cannot be used to discover which receipt numbers are real.
-- **Not a tenth navigation slot.** The college specified the portal navigation as nine items (see the
-  comment in `router.tsx`). It is reached from the dashboard's Outstanding-fees card ("All fees &
-  receipts") and the account menu ("Fees & receipts", students only).
+- **In the navigation, after Grades.** The college first specified nine items and then asked for Fees
+  as a tenth (25 Nov 2026); `PortalLayout.test.tsx` pins the order. It is also reached from the
+  dashboard's Outstanding-fees card ("All fees & receipts") and the account menu ("Fees & receipts",
+  students only).
 - **Cancelled invoices are hidden**; a cancelled tuition invoice is the college correcting its own
   books and the term is billed again. **Waived invoices show as Waived with nothing outstanding**,
   and the statement carries a credit row for what was waived. The staff Student Fee Ledger does the

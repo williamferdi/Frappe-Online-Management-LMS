@@ -8,12 +8,17 @@ import {
 	ListTodo,
 	Megaphone,
 	MessagesSquare,
+	Receipt,
 } from 'lucide-react'
 
 import { AppShell, type NavSection } from '@/components/AppShell'
 import { useUnreadCounts } from '@/hooks/useComms'
 
-/** The shape the college asked for, in the order they asked for it. */
+/**
+ * The shape the college asked for, in the order they asked for it. Fees was
+ * added on 25 Nov 2026 at the college's request -- the original nine had no
+ * place for it, so a student had to find it on the Dashboard or the account menu.
+ */
 const SECTIONS: NavSection[] = [
 	{
 		items: [
@@ -23,6 +28,7 @@ const SECTIONS: NavSection[] = [
 			{ to: '/portal/calendar', label: 'Calendar', icon: CalendarDays },
 			{ to: '/portal/inbox', label: 'Inbox', icon: Inbox },
 			{ to: '/portal/grades', label: 'Grades', icon: GraduationCap },
+			{ to: '/portal/fees', label: 'Fees', icon: Receipt },
 			{ to: '/portal/discussions', label: 'Discussions', icon: MessagesSquare },
 			{ to: '/portal/announcements', label: 'Announcements', icon: Megaphone },
 			{ to: '/portal/profile', label: 'Profile', icon: CircleUser },

@@ -52,12 +52,12 @@ export const router = createBrowserRouter([
 				children: [
 					{ index: true, element: <Dashboard /> },
 					{ path: 'courses', element: <MyCourses /> },
-					// Registration hangs off My Courses rather than taking a tenth
-					// slot in a navigation the college specified as nine.
+					// Registration hangs off My Courses rather than taking a slot of its
+					// own in the navigation.
 					{ path: 'courses/register', element: <Register /> },
 					{ path: 'grades', element: <Grades /> },
-					// Reached from the dashboard and the account menu, not a tenth
-					// navigation slot: the college specified the navigation as nine.
+					// In the navigation (added at the college's request), and also reached
+					// from the dashboard card and the account menu.
 					{ path: 'fees', element: <Fees /> },
 					{ path: 'profile', element: <Profile /> },
 					{ path: 'todo', element: <ToDo /> },

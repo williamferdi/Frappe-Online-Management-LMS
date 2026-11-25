@@ -13,6 +13,7 @@ const EXPECTED = [
 	'Calendar',
 	'Inbox',
 	'Grades',
+	'Fees',
 	'Discussions',
 	'Announcements',
 	'Profile',
@@ -58,7 +59,7 @@ afterEach(() => {
 })
 
 describe('student portal navigation', () => {
-	it('offers the nine sections the college asked for, in order', async () => {
+	it('offers the ten sections the college asked for, in order', async () => {
 		await renderNav()
 		expect(navLabels()).toEqual(EXPECTED)
 	})
