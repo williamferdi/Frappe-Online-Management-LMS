@@ -31,15 +31,13 @@ What is deliberately left out, and why:
   * **Who recorded a payment.** That is the office's business, not the student's.
 """
 
-import html
-
 import frappe
 from frappe import _
-from frappe.utils import flt, fmt_money, formatdate, getdate, today
+from frappe.utils import flt, fmt_money, getdate, today
 
+from sibbcs.api import fee_pdf
+from sibbcs.api.fee_pdf import COLLEGE_NAME  # noqa: F401  (kept importable from here)
 from sibbcs.api.student import _enrollment_header, _require_enrollment
-
-COLLEGE_NAME = "South India Baptist Bible College & Seminary"
 
 # An invoice in one of these has nothing left to pay. Waived is here because the
 # college chose not to collect it: its net is still on the invoice, but the
@@ -58,10 +56,6 @@ def _me():
 	if not enrollment:
 		return None
 	return _enrollment_header(enrollment)
-
-
-def _money(value):
-	return fmt_money(flt(value), precision=2, currency="INR")
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +160,9 @@ def _statement(invoices, payments):
 		if invoice.term:
 			particulars += f" · {invoice.term}"
 		if flt(invoice.discount_amount):
-			particulars += _(" (scholarship −{0})").format(flt(invoice.discount_amount, 2))
+			particulars += _(" (scholarship −{0})").format(
+				fmt_money(flt(invoice.discount_amount), precision=2, currency="INR")
+			)
 
 		rows.append(
 			{
@@ -280,149 +276,20 @@ def fees():
 # ---------------------------------------------------------------------------
 # PDFs
 # ---------------------------------------------------------------------------
-
-_STYLE = """
-	body { font-family: Arial, Helvetica, sans-serif; color: #1c1e26; font-size: 12px; }
-	h1 { font-size: 20px; margin: 0 0 2px; }
-	h2 { font-size: 14px; margin: 22px 0 6px; }
-	.college { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #555a6e; }
-	.rule { border-top: 2px solid #2d2a8c; margin: 10px 0 16px; }
-	table { border-collapse: collapse; width: 100%; }
-	th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
-	     color: #555a6e; border-bottom: 1px solid #c8cad6; padding: 6px 6px; }
-	td { padding: 6px 6px; border-bottom: 1px solid #e6e7ee; vertical-align: top; }
-	.num { text-align: right; white-space: nowrap; }
-	.meta td { border: 0; padding: 2px 0; }
-	.meta td:first-child { color: #555a6e; width: 130px; }
-	.total { font-size: 18px; font-weight: bold; }
-	.box { border: 1px solid #c8cad6; padding: 10px 14px; margin: 14px 0; }
-	.foot { margin-top: 28px; color: #7a7f93; font-size: 10px; }
-"""
+# Drawn by `fee_pdf` with reportlab -- see its docstring for why not wkhtmltopdf.
 
 
-def _page(title, body):
-	return (
-		"<!doctype html><html><head><meta charset='utf-8'>"
-		f"<title>{html.escape(title)}</title><style>{_STYLE}</style></head><body>"
-		f"<div class='college'>{html.escape(COLLEGE_NAME)}</div>"
-		f"<h1>{html.escape(title)}</h1><div class='rule'></div>{body}"
-		"<div class='foot'>This is a computer-generated document and needs no signature.</div>"
-		"</body></html>"
-	)
+def _send_pdf(build, *args, filename):
+	"""Draw the PDF and hand it back, or say plainly that it cannot be done.
 
-
-def _e(value):
-	return html.escape("" if value is None else str(value))
-
-
-def _date(value):
-	return formatdate(value, "dd MMM yyyy") if value else "—"
-
-
-def _who(header):
-	return (
-		"<table class='meta'>"
-		f"<tr><td>Student</td><td><b>{_e(header.get('student_name'))}</b></td></tr>"
-		f"<tr><td>Student ID</td><td>{_e(header.get('student'))}</td></tr>"
-		f"<tr><td>Programme</td><td>{_e(header.get('program_name') or header.get('program'))}</td></tr>"
-		"</table>"
-	)
-
-
-def receipt_html(header, payment):
-	"""One payment as a receipt. Separate from the endpoint so it can be tested
-	without a PDF renderer."""
-	applied = "".join(
-		"<tr>"
-		f"<td>{_e(row['invoice'])}</td>"
-		f"<td>{_e(row['fee_type'] or '')}{(' · ' + _e(row['term'])) if row['term'] else ''}</td>"
-		f"<td class='num'>{_money(row['amount'])}</td>"
-		"</tr>"
-		for row in payment["applied_to"]
-	)
-	credit = (
-		f"<p>{_money(payment['unallocated_amount'])} of this payment is held as credit "
-		"against future fees.</p>"
-		if flt(payment["unallocated_amount"]) > 0.005
-		else ""
-	)
-
-	body = (
-		_who(header)
-		+ "<div class='box'><table class='meta'>"
-		f"<tr><td>Receipt no.</td><td><b>{_e(payment['name'])}</b></td></tr>"
-		f"<tr><td>Received on</td><td>{_date(payment['received_on'])}</td></tr>"
-		f"<tr><td>Paid by</td><td>{_e(payment['mode'])}</td></tr>"
-		+ (
-			f"<tr><td>Reference</td><td>{_e(payment['reference_no'])}</td></tr>"
-			if payment["reference_no"]
-			else ""
-		)
-		+ f"<tr><td>Amount received</td><td class='total'>{_money(payment['amount'])}</td></tr>"
-		"</table></div>"
-		+ (
-			"<h2>Applied to</h2><table><tr><th>Invoice</th><th>For</th>"
-			f"<th class='num'>Amount</th></tr>{applied}</table>"
-			if applied
-			else ""
-		)
-		+ credit
-	)
-	return _page(_("Payment receipt"), body)
-
-
-def statement_html(header, statement):
-	rows = "".join(
-		"<tr>"
-		f"<td>{_date(row['date'])}</td>"
-		f"<td>{_e(row['particulars'])}<br><span style='color:#7a7f93'>{_e(row['reference'])}</span></td>"
-		f"<td class='num'>{_money(row['charge']) if row['charge'] else ''}</td>"
-		f"<td class='num'>{_money(row['credit']) if row['credit'] else ''}</td>"
-		f"<td class='num'>{_money(row['balance'])}</td>"
-		"</tr>"
-		for row in statement["rows"]
-	)
-	balance = statement["balance"]
-	standing = (
-		_("Outstanding")
-		if balance > 0.005
-		else _("In credit")
-		if balance < -0.005
-		else _("Settled")
-	)
-
-	body = (
-		_who(header)
-		+ f"<p style='color:#555a6e'>As on {_date(today())}</p>"
-		+ (
-			"<table><tr><th>Date</th><th>Particulars</th><th class='num'>Charge</th>"
-			f"<th class='num'>Paid</th><th class='num'>Balance</th></tr>{rows}</table>"
-			if rows
-			else "<p>Nothing has been billed to this account yet.</p>"
-		)
-		+ "<div class='box'><table class='meta'>"
-		f"<tr><td>Total charged</td><td>{_money(statement['charges'])}</td></tr>"
-		f"<tr><td>Total paid or waived</td><td>{_money(statement['credits'])}</td></tr>"
-		f"<tr><td>Balance</td><td class='total'>{_money(abs(balance))} "
-		f"<span style='font-size:12px;font-weight:normal'>{_e(standing)}</span></td></tr>"
-		"</table></div>"
-	)
-	return _page(_("Statement of account"), body)
-
-
-def _send_pdf(document, filename):
-	"""Render and hand back as a PDF, or say plainly that it cannot be done.
-
-	The renderer is an external program that may not be installed, so a failure
-	here is reported as what it is -- the page also offers Print, which needs no
-	server-side renderer at all.
+	Whatever goes wrong (the library missing, a font that will not load) is
+	logged for the office and reported to the student as what they can do about
+	it: the page also offers Print, which needs nothing from the server.
 	"""
-	from frappe.utils.pdf import get_pdf
-
 	try:
-		content = get_pdf(document)
+		content = build(*args)
 	except Exception:
-		frappe.log_error(title="Student fee PDF could not be rendered")
+		frappe.log_error(title="Student fee PDF could not be made")
 		frappe.throw(
 			_("The PDF could not be made just now. Use Print instead, or ask the office."),
 			title=_("PDF Unavailable"),
@@ -448,7 +315,7 @@ def receipt(payment):
 	if not mine:
 		frappe.throw(_("Receipt not found."), frappe.DoesNotExistError)
 
-	_send_pdf(receipt_html(header, mine), f"receipt-{mine.name}.pdf")
+	_send_pdf(fee_pdf.receipt_pdf, header, mine, filename=f"receipt-{mine.name}.pdf")
 
 
 @frappe.whitelist()
@@ -459,4 +326,4 @@ def statement():
 		frappe.throw(_("There is no account to show yet."), frappe.DoesNotExistError)
 
 	_invoices_unused, _payments_unused, account = _facts(header)
-	_send_pdf(statement_html(header, account), f"statement-{header['student']}.pdf")
+	_send_pdf(fee_pdf.statement_pdf, header, account, filename=f"statement-{header['student']}.pdf")

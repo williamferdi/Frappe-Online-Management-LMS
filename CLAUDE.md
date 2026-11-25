@@ -1559,13 +1559,22 @@ Frappe Desk, which they stopped reaching when `Student` lost `desk_access`.
   Admission Application, and when taken by hand its only record is a free-text note on the invoice —
   no date, no mode a receipt could be built from. It belongs here once it is a recorded payment.
 - **Never shows who recorded a payment** (`reconciled_by`); that is the office's business.
-- **Receipts and the statement are PDFs from `frappe.utils.pdf.get_pdf`**, which shells out to
-  `wkhtmltopdf`. If that is missing the endpoint says "The PDF could not be made just now. Use Print
-  instead" and logs the real error. The page always offers **Print** for the statement too, which uses
-  the browser (`.print-area` in `index.css`) and needs no renderer. The PDF is fetched by
+- **Receipts and the statement are PDFs drawn by `sibbcs/api/fee_pdf.py` with `reportlab`**, not by
+  `frappe.utils.pdf.get_pdf`. That one shells out to `wkhtmltopdf`, which the college server does not
+  have and cannot get without root; WeasyPrint is in the bench venv but needs the system Pango library,
+  also root. `reportlab` is plain Python (declared in `pyproject.toml`; `bench setup requirements`
+  installs it). The layout is drawn directly, not converted from HTML, so a person's typed text is only
+  ever a table cell. Failure (library missing, a font that will not load) answers "The PDF could not be
+  made just now. Use Print instead" and logs the real error. The page also offers **Print** for the
+  statement, which uses the browser (`.print-area` in `index.css`). The PDF is fetched by
   `frappeDownload` and saved from a blob, not opened as a bare link, so a failure becomes a toast
   rather than a tab of raw JSON.
-- Everything a person types (name, reference number) is HTML-escaped before it goes into the PDF page.
+- **The rupee sign needs DejaVu Sans** (`/usr/share/fonts/truetype/dejavu`, present on the server): the
+  standard PDF fonts have no ₹. Without it the PDF writes "Rs." instead of printing an empty box. DejaVu
+  has no Indic scripts, so a name in Tamil or Devanagari would print as boxes. `TestThePdfs` builds real
+  PDFs and reads them back with pypdf, including the no-font fallback.
+- Everything a person types (name, reference number) is escaped for reportlab's paragraph markup and
+  stripped of control characters before it is drawn, so markup in a name is shown, not obeyed.
 
 **When tuition is billed.** The daily job offers *every started Open/Active term*
 (`fees.terms_to_bill`) to `bill_enrollment_for_term`, which is idempotent per term and

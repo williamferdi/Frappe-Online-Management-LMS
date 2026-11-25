@@ -7,19 +7,22 @@ a good half of these are about what cannot be asked for.
 """
 
 import inspect
+import io
+import re
 from unittest import mock
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_days, today
+from pypdf import PdfReader
 
+from sibbcs.api import fee_pdf
 from sibbcs.api import student_fees as api
 from sibbcs.api.test_student_api import make_student
 from sibbcs.finance.test_fees import make_invoice, make_payment
 
 TUITION = "Monthly Tuition"
 REGISTRATION = "Course Registration Fee"
-FAKE_PDF = b"%PDF-1.4 stub"
 
 
 def pay(student, invoice, amount):
@@ -146,6 +149,8 @@ class TestTheFeesPage(FrappeTestCase):
 		rows = api.fees()["statement"]["rows"]
 
 		self.assertIn("scholarship", rows[0]["particulars"])
+		# As money, not a bare float: "-1332.0" is not something to print on a student's statement.
+		self.assertIn("1,332.00", rows[0]["particulars"])
 		self.assertEqual(rows[0]["charge"], 3000)
 
 	def test_a_payment_towards_an_invoice_cancelled_afterwards_is_still_listed(self):
@@ -294,6 +299,10 @@ class TestWhoMayAsk(FrappeTestCase):
 
 
 class TestThePdfs(FrappeTestCase):
+	"""These build real PDFs and read them back. Nothing is mocked except where
+	the point is a failure: a PDF that is merely asserted to exist proves
+	nothing about what is printed on it."""
+
 	def setUp(self):
 		self.student, self.enrollment, self.email = make_student()
 		self.invoice = make_invoice(self.student.name, TUITION, gross_amount=3000)
@@ -307,31 +316,60 @@ class TestThePdfs(FrappeTestCase):
 	def tearDown(self):
 		frappe.set_user("Administrator")
 
-	def _render(self, call, *args):
-		with mock.patch("frappe.utils.pdf.get_pdf", return_value=FAKE_PDF) as get_pdf:
-			call(*args)
-		return get_pdf.call_args[0][0]
+	def _read(self, content):
+		"""Every page's text, whitespace folded so a wrapped line still matches."""
+		reader = PdfReader(io.BytesIO(content))
+		return re.sub(r"\s+", " ", " ".join(page.extract_text() for page in reader.pages))
+
+	def _made(self, call, *args):
+		call(*args)
+		self.assertEqual(frappe.local.response.type, "pdf")
+		content = frappe.local.response.filecontent
+		self.assertTrue(content.startswith(b"%PDF"), "not a PDF")
+		return self._read(content)
 
 	def test_a_receipt_is_a_pdf_named_for_the_payment(self):
-		self._render(api.receipt, self.payment.name)
+		self._made(api.receipt, self.payment.name)
 
-		self.assertEqual(frappe.local.response.type, "pdf")
-		self.assertEqual(frappe.local.response.filecontent, FAKE_PDF)
 		self.assertEqual(frappe.local.response.filename, f"receipt-{self.payment.name}.pdf")
 
 	def test_the_receipt_says_what_was_paid_and_for_what(self):
-		document = self._render(api.receipt, self.payment.name)
+		text = self._made(api.receipt, self.payment.name)
 
-		self.assertIn(self.payment.name, document)
-		self.assertIn("3,000.00", document)
-		self.assertIn("UPI", document)
-		self.assertIn("UTR-123456", document)
-		self.assertIn(self.invoice.name, document)
-		self.assertIn(TUITION, document)
+		self.assertIn("Payment receipt", text)
+		self.assertIn(self.payment.name, text)
+		self.assertIn(fee_pdf._plain(fee_pdf._money(3000)), text)
+		self.assertIn("UPI", text)
+		self.assertIn("UTR-123456", text)
+		self.assertIn(self.invoice.name, text)
+		self.assertIn(TUITION, text)
+		self.assertIn(api._me()["student_name"], text)
 
-	def test_anything_typed_by_a_person_is_escaped(self):
-		"""A name, a reference number and a remark are typed by people and land
-		inside an HTML page that is then rendered."""
+	def test_the_rupee_sign_is_printed(self):
+		"""The standard PDF fonts have no rupee sign; a font that does is why
+		this is not simply Helvetica."""
+		text = self._made(api.receipt, self.payment.name)
+
+		self.assertIn("₹", text)
+
+	def test_without_the_rupee_font_it_writes_rs_rather_than_a_box(self):
+		with mock.patch.object(fee_pdf, "_fonts_cache", ("Helvetica", "Helvetica-Bold", False)):
+			text = self._made(api.receipt, self.payment.name)
+
+		self.assertIn("Rs.", text)
+		self.assertNotIn("₹", text)
+		self.assertIn("3,000.00", text)
+
+	def test_it_does_not_need_wkhtmltopdf(self):
+		"""The reason this exists: Frappe's own renderer is not on the server."""
+		with mock.patch("frappe.utils.pdf.get_pdf", side_effect=AssertionError("must not be used")):
+			self._made(api.receipt, self.payment.name)
+			self._made(api.statement)
+
+	def test_anything_typed_by_a_person_is_shown_literally(self):
+		"""A name, a reference number and a remark are typed by people. In a PDF
+		they are text in a cell; markup in them must neither take effect nor
+		break the page."""
 		header = {
 			"student_name": "Ruth <b>Bold</b> & Sons",
 			"student": "S-1",
@@ -342,57 +380,110 @@ class TestThePdfs(FrappeTestCase):
 			amount=100, unallocated_amount=0, applied_to=[],
 		)
 
-		document = api.receipt_html(header, payment)
+		text = self._read(fee_pdf.receipt_pdf(header, payment))
 
-		self.assertIn("Ruth &lt;b&gt;Bold&lt;/b&gt; &amp; Sons", document)
-		self.assertIn("&lt;img src=x onerror=alert(1)&gt;", document)
-		self.assertNotIn("<b>Bold</b>", document)
-		self.assertNotIn("<img", document)
-		self.assertNotIn("<i>Divinity</i>", document)
+		self.assertIn("Ruth <b>Bold</b> & Sons", text)
+		self.assertIn("<i>Divinity</i>", text)
+		self.assertIn("<img src=x onerror=alert(1)>", text)
 
-		statement = api.statement_html(
-			header,
-			{
-				"rows": [
-					{"date": today(), "particulars": "<u>x</u>", "reference": "R<1>",
-					 "charge": 1, "credit": 0, "balance": 1}
-				],
-				"charges": 1, "credits": 0, "balance": 1,
-			},
+		statement = {
+			"rows": [
+				{"date": today(), "particulars": "<u>x</u>", "reference": "R<1>",
+				 "charge": 1, "credit": 0, "balance": 1}
+			],
+			"charges": 1, "credits": 0, "balance": 1,
+		}
+		text = self._read(fee_pdf.statement_pdf(header, statement))
+
+		self.assertIn("<u>x</u>", text)
+		self.assertIn("R<1>", text)
+
+	def test_a_control_character_in_a_name_does_not_break_the_page(self):
+		header = {"student_name": "Ruth\x00 Ann\x0b", "student": "S-1", "program_name": "P"}
+		payment = frappe._dict(
+			name="PAY-1", received_on=today(), mode="Cash", reference_no=None,
+			amount=100, unallocated_amount=0, applied_to=[],
 		)
-		self.assertNotIn("<u>x</u>", statement)
-		self.assertIn("&lt;u&gt;x&lt;/u&gt;", statement)
+
+		text = self._read(fee_pdf.receipt_pdf(header, payment))
+
+		self.assertIn("Ruth Ann", text)
 
 	def test_the_receipt_does_not_name_the_staff_member_who_recorded_it(self):
-		document = self._render(api.receipt, self.payment.name)
+		text = self._made(api.receipt, self.payment.name)
 
-		self.assertNotIn("Administrator", document)
+		self.assertNotIn("Administrator", text)
 
 	def test_credit_beyond_the_invoices_is_stated(self):
-		html = api.receipt_html(
-			{"student_name": "A", "student": "S", "program_name": "P"},
-			frappe._dict(
-				name="PAY-1", received_on=today(), mode="Cash", reference_no=None,
-				amount=500, unallocated_amount=150, applied_to=[],
-			),
+		text = self._read(
+			fee_pdf.receipt_pdf(
+				{"student_name": "A", "student": "S", "program_name": "P"},
+				frappe._dict(
+					name="PAY-1", received_on=today(), mode="Cash", reference_no=None,
+					amount=500, unallocated_amount=150, applied_to=[],
+				),
+			)
 		)
 
-		self.assertIn("150.00", html)
-		self.assertIn("held as credit", html)
+		self.assertIn("150.00", text)
+		self.assertIn("held as credit", text)
 
 	def test_a_statement_is_a_pdf(self):
-		document = self._render(api.statement)
+		text = self._made(api.statement)
 
-		self.assertEqual(frappe.local.response.type, "pdf")
 		self.assertEqual(frappe.local.response.filename, f"statement-{self.student.name}.pdf")
-		self.assertIn("Statement of account", document)
-		self.assertIn(self.invoice.name, document)
-		self.assertIn(self.payment.name, document)
+		self.assertIn("Statement of account", text)
+		self.assertIn(self.invoice.name, text)
+		self.assertIn(self.payment.name, text)
+		self.assertIn("Settled", text)
 
-	def test_when_the_renderer_fails_the_student_is_told_what_to_do(self):
-		with mock.patch("frappe.utils.pdf.get_pdf", side_effect=OSError("no wkhtmltopdf")):
+	def test_a_statement_with_nothing_on_it_says_so(self):
+		text = self._read(
+			fee_pdf.statement_pdf(
+				{"student_name": "A", "student": "S", "program_name": "P"},
+				{"rows": [], "charges": 0, "credits": 0, "balance": 0},
+			)
+		)
+
+		self.assertIn("Nothing has been billed", text)
+
+	def test_a_long_statement_runs_onto_more_pages_and_repeats_its_header(self):
+		rows = [
+			{"date": today(), "particulars": f"Monthly Tuition {i}", "reference": f"FEE-{i}",
+			 "charge": 100, "credit": 0, "balance": 100 * (i + 1)}
+			for i in range(120)
+		]
+		content = fee_pdf.statement_pdf(
+			{"student_name": "A", "student": "S", "program_name": "P"},
+			{"rows": rows, "charges": 12000, "credits": 0, "balance": 12000},
+		)
+
+		reader = PdfReader(io.BytesIO(content))
+
+		self.assertGreater(len(reader.pages), 1)
+		with_rows = [p.extract_text() for p in reader.pages if "Monthly Tuition" in p.extract_text()]
+		self.assertGreater(len(with_rows), 1)
+		# Every page that carries rows carries the column headings too.
+		for text in with_rows:
+			self.assertIn("Particulars", text)
+
+	def test_a_statement_that_owes_nothing_and_one_in_credit_are_told_apart(self):
+		header = {"student_name": "A", "student": "S", "program_name": "P"}
+
+		credit = self._read(
+			fee_pdf.statement_pdf(header, {"rows": [], "charges": 0, "credits": 50, "balance": -50})
+		)
+		owed = self._read(
+			fee_pdf.statement_pdf(header, {"rows": [], "charges": 50, "credits": 0, "balance": 50})
+		)
+
+		self.assertIn("In credit", credit)
+		self.assertIn("Outstanding", owed)
+
+	def test_when_drawing_fails_the_student_is_told_what_to_do(self):
+		with mock.patch.object(fee_pdf, "receipt_pdf", side_effect=OSError("font went missing")):
 			with self.assertRaises(frappe.ValidationError) as caught:
 				api.receipt(self.payment.name)
 
 		self.assertIn("Print", str(caught.exception))
-		self.assertNotIn("wkhtmltopdf", str(caught.exception))
+		self.assertNotIn("font went missing", str(caught.exception))

@@ -16,7 +16,7 @@ the same and the two are tested to agree.
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import flt, fmt_money
 
 
 def execute(filters=None):
@@ -72,7 +72,9 @@ def get_data(filters):
 	):
 		particulars = invoice.fee_type
 		if flt(invoice.discount_amount):
-			particulars += _(" (scholarship −{0})").format(flt(invoice.discount_amount, 2))
+			particulars += _(" (scholarship −{0})").format(
+				fmt_money(flt(invoice.discount_amount), precision=2, currency="INR")
+			)
 
 		rows.append(
 			{
