@@ -1493,6 +1493,12 @@ registration fee and a tuition instalment at once, each with its own due date):
 lives on `Program.tuition_total`, not in code — clear it for uncapped billing. The final
 invoice is *trimmed* so the advertised total is never overshot.
 
+A remainder of **less than one month** is not billed at all. The live ceilings (M.Div.
+₹78,000, MACS ₹52,000) are not multiples of a ₹4,332 term, so billing used to end with an
+invoice of ₹24 (M.Div.) or ₹16 (MACS). Now a student is billed ₹77,976 / ₹51,984 — whole
+months only — and the unbilled ₹24 / ₹16 is simply not charged. A remainder of exactly one
+month is still billed (`remaining < monthly`).
+
 **When tuition is billed.** The daily job offers *every started Open/Active term*
 (`fees.terms_to_bill`) to `bill_enrollment_for_term`, which is idempotent per term and
 skips anyone with no registration. It used to match `start_date == today`, so a student

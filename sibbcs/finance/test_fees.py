@@ -414,6 +414,75 @@ class TestTuitionStream(FrappeTestCase):
 		# Rs3000 would overshoot; only Rs2000 of headroom remains
 		self.assertEqual(invoice.gross_amount, 2000)
 
+	def _bill_to(self, enrollment, amount, label):
+		"""Put `amount` of gross tuition on the books against an earlier term."""
+		frappe.get_doc(
+			{
+				"doctype": "Fee Invoice",
+				"student": enrollment.student,
+				"program_enrollment": enrollment.name,
+				"fee_type": "Monthly Tuition",
+				"gross_amount": amount,
+				"due_date": today(),
+				"term": make_term(label, status="Closed").name,
+			}
+		).insert(ignore_permissions=True)
+
+	def test_less_than_a_month_left_is_not_billed(self):
+		"""The tail invoice. Rs78,000 is not a multiple of a Rs4,332 term, so
+		after 18 terms Rs24 was left and arrived as an invoice of its own."""
+		_s, enrollment, _term = self._setup("tui13@example.com", "TST T210", "TST-TUI-13")
+		self._bill_to(enrollment, 77976, "TST-TUI-13-PRIOR")
+		program = frappe._dict(monthly_tuition=2166, tuition_total=78000, cap_on_gross=1)
+
+		outcome = fees.compute_tuition(enrollment, program, 2)
+
+		self.assertEqual(outcome["gross"], 0)
+		self.assertEqual(outcome["reason"], "ceiling reached")
+
+	def test_the_last_full_term_is_still_billed_in_full(self):
+		"""One term short of the tail: Rs4,356 left, so a whole Rs4,332 term goes."""
+		_s, enrollment, _term = self._setup("tui14@example.com", "TST T220", "TST-TUI-14")
+		self._bill_to(enrollment, 73644, "TST-TUI-14-PRIOR")
+		program = frappe._dict(monthly_tuition=2166, tuition_total=78000, cap_on_gross=1)
+
+		outcome = fees.compute_tuition(enrollment, program, 2)
+
+		self.assertEqual(outcome["gross"], 4332)
+
+	def test_exactly_one_month_left_is_still_billed(self):
+		"""The boundary: a remainder equal to the monthly rate is a month."""
+		_s, enrollment, _term = self._setup("tui15@example.com", "TST T230", "TST-TUI-15")
+		self._bill_to(enrollment, 52500, "TST-TUI-15-PRIOR")
+		program = frappe._dict(monthly_tuition=1500, tuition_total=54000, cap_on_gross=1)
+
+		outcome = fees.compute_tuition(enrollment, program, 2)
+
+		self.assertEqual(outcome["gross"], 1500)
+
+	def test_a_sliver_under_a_month_is_not_billed(self):
+		_s, enrollment, _term = self._setup("tui16@example.com", "TST T240", "TST-TUI-16")
+		self._bill_to(enrollment, 52501, "TST-TUI-16-PRIOR")
+		program = frappe._dict(monthly_tuition=1500, tuition_total=54000, cap_on_gross=1)
+
+		outcome = fees.compute_tuition(enrollment, program, 2)
+
+		self.assertEqual(outcome["gross"], 0)
+
+	def test_the_tail_does_not_spend_the_scholarship(self):
+		"""No invoice, so nothing is discounted and nothing is used up."""
+		_s, enrollment, term = self._setup(
+			"tui17@example.com", "TST T250", "TST-TUI-17", monthly_discount=666, cap=24000
+		)
+		self._register(enrollment, term, "TST T250")
+		self._bill_to(enrollment, 52990, "TST-TUI-17-PRIOR")
+
+		outcome = fees.bill_enrollment_for_term(enrollment.name, term.name)
+
+		self.assertIsNone(outcome["invoice"])
+		enrollment.reload()
+		self.assertEqual(enrollment.scholarship_used_to_date, 0)
+
 	def test_ceiling_is_measured_on_gross_not_net(self):
 		"""If measured on net, a scholarship would merely stretch the payment
 		period instead of reducing the bill -- cancelling out Stream 4."""

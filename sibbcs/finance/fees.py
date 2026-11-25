@@ -12,7 +12,8 @@ answer to "has this been paid".
 
 Tuition ceiling (open decision #1, answered "cap at Rs54,000, pay-as-you-go"):
 tuition bills only in terms where the student registered at least one course,
-and stops once `Program.tuition_total` has been billed. The ceiling is measured
+and stops once `Program.tuition_total` has been billed, or once less than one
+month of it is left. The ceiling is measured
 against **gross** tuition by default (`Program.cap_on_gross`) -- see
 `tuition_billed_to_date` for why measuring it against net would quietly cancel
 out every scholarship.
@@ -416,9 +417,15 @@ def compute_tuition(enrollment, program, months):
 		on_gross = bool(getattr(program, "cap_on_gross", 1))
 		billed = tuition_billed_to_date(enrollment.name, on_gross=on_gross)
 		remaining = ceiling - billed
-		if remaining <= 0:
+		# Less than one month left is not a month of study, so it is not billed.
+		# The advertised ceilings are round figures (Rs78,000, Rs52,000) and the
+		# monthly rate is not a divisor of them: after 18 full two-month terms of
+		# Rs4,332 an M.Div. student has been billed Rs77,976, and what was left,
+		# Rs24, used to arrive as an invoice of its own. `<` and not `<=`: a
+		# remainder of exactly one month is still a month.
+		if remaining < monthly:
 			return {"gross": 0.0, "discount": 0.0, "reason": "ceiling reached"}
-		# Bill the remainder rather than overshooting the advertised total.
+		# At least a month left: bill it rather than overshooting the total.
 		gross = min(gross, remaining)
 
 	# stream 4 -- scholarship, clipped to its own cap
