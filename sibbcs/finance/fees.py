@@ -431,6 +431,19 @@ def compute_tuition(enrollment, program, months):
 	return {"gross": flt(gross, 2), "discount": flt(discount, 2), "reason": None}
 
 
+def _billing_date(term):
+	"""The date the fortnight to pay runs from: the term's start, or today if later.
+
+	An invoice raised for a student who registered mid-term would otherwise fall
+	due at `start_date + 14`, which can already be in the past -- it would be
+	overdue the moment it appeared, for a bill they had no way to see before.
+	On a term's first day the two dates are the same, so nothing changes there.
+	"""
+	started = getdate(term.start_date) if term.start_date else None
+	now = getdate(today())
+	return max(started, now) if started else now
+
+
 def bill_enrollment_for_term(enrollment_name, term_name, dry_run=False):
 	"""Raise one term's tuition for one enrollment. Idempotent."""
 	enrollment = frappe.get_doc("Program Enrollment", enrollment_name)
@@ -475,7 +488,7 @@ def bill_enrollment_for_term(enrollment_name, term_name, dry_run=False):
 		program_enrollment=enrollment_name,
 		term=term_name,
 		months_billed=months,
-		due_date=add_days(term.start_date or today(), DEFAULT_DUE_DAYS),
+		due_date=add_days(_billing_date(term), DEFAULT_DUE_DAYS),
 		remarks=_("Tuition for {0} ({1} month(s))").format(term_name, months),
 	)
 
@@ -494,7 +507,11 @@ def bill_enrollment_for_term(enrollment_name, term_name, dry_run=False):
 
 
 def run_term_tuition(term=None, dry_run=False):
-	"""Scheduled at each term start. Safe to re-run -- billing is per-term idempotent."""
+	"""Raise tuition for one term. Safe to re-run -- billing is per-term idempotent.
+
+	The daily job calls this for every started term, not only on a start date;
+	see `terms_to_bill`.
+	"""
 	term = term or _current_term()
 	if not term:
 		frappe.logger("sibbcs").info("tuition job: no active term")
@@ -521,19 +538,40 @@ def _current_term():
 	)
 
 
-def run_term_tuition_scheduled():
-	"""Daily hook: bill only on the day a term actually starts.
+def terms_to_bill(on=None):
+	"""Every term tuition may be raised for today: Open or Active, and started.
 
-	Running daily and gating on the date is more robust than trying to schedule
-	a job per term, and the per-term idempotency check makes a double-run safe.
+	**Not only the terms that start today.** This used to match
+	`start_date == today`, so a student who registered even one day after a term
+	began was never billed for it: the job ran every night, reported "Complete",
+	and found nothing, because by then no term was starting. Registration stays
+	open for weeks into a term -- 2026-T6 began on 16 Nov and registration closes
+	on 30 Nov -- so late registrants are the ordinary case, not an edge.
+
+	Whether a student is owed a bill is decided per enrollment by
+	`bill_enrollment_for_term`, which is idempotent per term. Offering it every
+	started term every night is therefore safe: whoever already has an invoice is
+	skipped, and whoever registered since the last run is picked up.
+
+	A term the college has closed, or has not yet started, is never offered.
+	Status is the college's switch, so a term left Active after its end date is
+	still billed -- close it to stop that.
 	"""
-	today_date = getdate(nowdate())
-	terms = frappe.get_all(
+	on = getdate(on or nowdate())
+	return frappe.get_all(
 		"Academic Term",
-		filters={"status": ("in", ("Open", "Active")), "start_date": today_date},
+		filters={"status": ("in", ("Open", "Active")), "start_date": ("<=", on)},
 		pluck="name",
+		order_by="start_date asc",
 	)
-	for term in terms:
+
+
+def run_term_tuition_scheduled():
+	"""Daily hook: bill every started term, so a late registrant is billed too.
+
+	See `terms_to_bill` for why this is no longer gated on the start date.
+	"""
+	for term in terms_to_bill():
 		run_term_tuition(term)
 
 

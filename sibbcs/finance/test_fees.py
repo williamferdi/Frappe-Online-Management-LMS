@@ -2,9 +2,11 @@
 # For license information, please see license.txt
 """The fee engine -- architecture doc §5, all four streams."""
 
+from unittest import mock
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import flt, today
+from frappe.utils import add_days, flt, getdate, today
 
 from sibbcs.academic.doctype.academic_term.test_academic_term import make_term
 from sibbcs.academic.doctype.course.test_course import make_course
@@ -443,6 +445,133 @@ class TestTuitionStream(FrappeTestCase):
 		result = fees.run_term_tuition(term.name)
 		billed = {b["enrollment"] for b in result["billed"]}
 		self.assertIn(enrollment.name, billed)
+
+
+
+class TestLateRegistrantBilling(FrappeTestCase):
+	"""A student who registers after a term has started is still billed for it.
+
+	The nightly job used to match `start_date == today`. 2026-T6 began on
+	16 Nov; a student registered on 20 Nov, the job reported "Complete" every
+	night, and no invoice was ever raised. Registration runs for weeks into a
+	term, so this was the ordinary case, not an edge.
+	"""
+
+	# The set-up is the tuition stream's own; borrowing it rather than
+	# subclassing keeps its tests from running twice.
+	_setup = TestTuitionStream._setup
+	_register = TestTuitionStream._register
+
+	def _started_term(self, name, started_days_ago=10, status="Open"):
+		return make_term(
+			name,
+			status=status,
+			start_date=add_days(today(), -started_days_ago),
+			end_date=add_days(today(), 60),
+		)
+
+	def _run_nightly_for(self, term):
+		"""The real entry point, aimed at one term.
+
+		The test database holds terms left by other tests, and billing every one
+		of them would make this slow without testing anything more.
+		"""
+		with mock.patch.object(fees, "terms_to_bill", return_value=[term.name]):
+			fees.run_term_tuition_scheduled()
+
+	def _invoices(self, enrollment):
+		return frappe.get_all(
+			"Fee Invoice",
+			filters={"program_enrollment": enrollment.name, "fee_type": "Monthly Tuition"},
+			fields=["name", "term", "due_date", "gross_amount"],
+		)
+
+	def test_a_registration_after_the_start_date_is_billed(self):
+		term = self._started_term("TST-LATE-1")
+		_s, enrollment, _t = self._setup("late1@example.com", "TST L100", "TST-LATE-1")
+		self._register(enrollment, term, "TST L100")
+
+		self._run_nightly_for(term)
+
+		rows = self._invoices(enrollment)
+		self.assertEqual(len(rows), 1)
+		self.assertEqual(rows[0].term, term.name)
+		self.assertEqual(rows[0].gross_amount, 3000)
+
+	def test_a_late_invoice_is_not_overdue_the_moment_it_appears(self):
+		term = self._started_term("TST-LATE-2", started_days_ago=10)
+		_s, enrollment, _t = self._setup("late2@example.com", "TST L110", "TST-LATE-2")
+		self._register(enrollment, term, "TST L110")
+
+		self._run_nightly_for(term)
+
+		due = getdate(self._invoices(enrollment)[0].due_date)
+		# start + 14 would be four days ago
+		self.assertEqual(due, getdate(add_days(today(), 14)))
+
+	def test_an_invoice_for_a_term_yet_to_start_still_falls_due_after_it_starts(self):
+		"""The other side of the max(): billing early must not pull the date in."""
+		term = make_term(
+			"TST-LATE-3",
+			status="Open",
+			start_date=add_days(today(), 5),
+			end_date=add_days(today(), 65),
+		)
+		_s, enrollment, _t = self._setup("late3@example.com", "TST L120", "TST-LATE-3")
+		self._register(enrollment, term, "TST L120")
+
+		fees.bill_enrollment_for_term(enrollment.name, term.name)
+
+		due = getdate(self._invoices(enrollment)[0].due_date)
+		self.assertEqual(due, getdate(add_days(today(), 19)))
+
+	def test_running_the_job_every_night_bills_a_term_once(self):
+		term = self._started_term("TST-LATE-4")
+		_s, enrollment, _t = self._setup("late4@example.com", "TST L130", "TST-LATE-4")
+		self._register(enrollment, term, "TST L130")
+
+		for _night in range(3):
+			self._run_nightly_for(term)
+
+		self.assertEqual(len(self._invoices(enrollment)), 1)
+
+	def test_a_student_with_no_registration_is_still_paused_on_a_started_term(self):
+		term = self._started_term("TST-LATE-5")
+		_s, enrollment, _t = self._setup("late5@example.com", "TST L140", "TST-LATE-5")
+
+		self._run_nightly_for(term)
+
+		self.assertEqual(self._invoices(enrollment), [])
+
+	def test_which_terms_the_job_offers(self):
+		started_open = self._started_term("TST-LATE-6A", status="Open")
+		started_active = self._started_term("TST-LATE-6B", status="Active")
+		starts_today = self._started_term("TST-LATE-6C", started_days_ago=0)
+		closed = self._started_term("TST-LATE-6D", status="Closed")
+		planned = self._started_term("TST-LATE-6E", status="Planned")
+		not_started = make_term(
+			"TST-LATE-6F",
+			status="Open",
+			start_date=add_days(today(), 3),
+			end_date=add_days(today(), 63),
+		)
+
+		offered = set(fees.terms_to_bill())
+
+		self.assertTrue({started_open.name, started_active.name, starts_today.name} <= offered)
+		self.assertFalse({closed.name, planned.name, not_started.name} & offered)
+
+	def test_the_start_day_itself_still_bills(self):
+		"""What the old job did must survive the change."""
+		term = self._started_term("TST-LATE-7", started_days_ago=0)
+		_s, enrollment, _t = self._setup("late7@example.com", "TST L150", "TST-LATE-7")
+		self._register(enrollment, term, "TST L150")
+
+		self._run_nightly_for(term)
+
+		rows = self._invoices(enrollment)
+		self.assertEqual(len(rows), 1)
+		self.assertEqual(getdate(rows[0].due_date), getdate(add_days(today(), 14)))
 
 
 class TestOneTimeFees(FrappeTestCase):

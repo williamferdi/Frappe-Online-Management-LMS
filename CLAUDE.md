@@ -1493,6 +1493,15 @@ registration fee and a tuition instalment at once, each with its own due date):
 lives on `Program.tuition_total`, not in code — clear it for uncapped billing. The final
 invoice is *trimmed* so the advertised total is never overshot.
 
+**When tuition is billed.** The daily job offers *every started Open/Active term*
+(`fees.terms_to_bill`) to `bill_enrollment_for_term`, which is idempotent per term and
+skips anyone with no registration. It used to match `start_date == today`, so a student
+who registered even a day after a term began was never billed — registration runs for
+weeks into a term (2026-T6: began 16 Nov, registration closes 30 Nov), so that was the
+ordinary case. A late invoice falls due 14 days from **today**, not from the term's
+start, so it is not overdue when it appears (`_billing_date`). A term the college has
+Closed is never offered, so closing it is how billing stops.
+
 `Program.cap_on_gross` defaults to **1**, and this matters: §5 says "net tuition billed",
 but measuring the ceiling against net means a student with a scholarship simply takes
 longer to reach ₹54,000 and pays the same total — the discount would stretch the payment
