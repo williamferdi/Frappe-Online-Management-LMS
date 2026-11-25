@@ -14,6 +14,9 @@ import {
 import { AppShell, type NavSection } from '@/components/AppShell'
 import { useUnreadCounts } from '@/hooks/useComms'
 
+/** The helpdesk's list of the signed-in person's own tickets. */
+export const HELPDESK_URL = 'https://onlinesupport.sibbc.org/helpdesk/my-tickets'
+
 /**
  * The shape the college asked for, in the order they asked for it. Fees was
  * added on 25 Nov 2026 at the college's request -- the original nine had no
@@ -56,5 +59,5 @@ export function PortalLayout() {
 		}),
 	}))
 
-	return <AppShell product="Student Portal" sections={sections} />
+	return <AppShell product="Student Portal" sections={sections} helpdeskUrl={HELPDESK_URL} />
 }

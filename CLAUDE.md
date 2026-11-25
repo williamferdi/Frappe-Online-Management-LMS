@@ -1551,6 +1551,9 @@ Frappe Desk, which they stopped reaching when `Student` lost `desk_access`.
   as a tenth (25 Nov 2026); `PortalLayout.test.tsx` pins the order. It is also reached from the
   dashboard's Outstanding-fees card ("All fees & receipts") and the account menu ("Fees & receipts",
   students only).
+- **Helpdesk link, top right of the portal** (next to LMS): `https://onlinesupport.sibbc.org/helpdesk/my-tickets`,
+  a constant `HELPDESK_URL` in `PortalLayout.tsx` passed to `AppShell`, opens in its own tab. The staff
+  console is not given the prop, so it has no such link. Added 25 Nov 2026 at the user's request.
 - **Cancelled invoices are hidden**; a cancelled tuition invoice is the college correcting its own
   books and the term is billed again. **Waived invoices show as Waived with nothing outstanding**,
   and the statement carries a credit row for what was waived. The staff Student Fee Ledger does the

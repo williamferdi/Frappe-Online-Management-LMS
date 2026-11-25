@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
 	GraduationCap,
+	LifeBuoy,
 	Menu,
 	PanelLeftClose,
 	PanelLeftOpen,
@@ -31,6 +32,8 @@ export interface NavSection {
 interface AppShellProps {
 	product: string
 	sections: NavSection[]
+	/** Where "Helpdesk" goes. Omitted, no link is drawn: the staff console has none. */
+	helpdeskUrl?: string
 }
 
 /** Remembered per browser, so the choice survives a reload.
@@ -56,7 +59,7 @@ function rememberCollapsed(value: boolean) {
 	}
 }
 
-export function AppShell({ product, sections }: AppShellProps) {
+export function AppShell({ product, sections, helpdeskUrl }: AppShellProps) {
 	const [open, setOpen] = useState(false)
 	const [collapsed, setCollapsed] = useState(readCollapsed)
 	const location = useLocation()
@@ -186,6 +189,7 @@ export function AppShell({ product, sections }: AppShellProps) {
 					</Button>
 					<div className="ml-auto flex items-center gap-1">
 						<LmsLink />
+						<HelpdeskLink url={helpdeskUrl} />
 						<ThemeToggle />
 						<UserMenu />
 					</div>
@@ -218,6 +222,24 @@ function LmsLink() {
 			<a href={boot.lms_url} target="_blank" rel="noreferrer">
 				<GraduationCap />
 				<span className="sr-only sm:not-sr-only">LMS</span>
+			</a>
+		</Button>
+	)
+}
+
+/** The way across to the helpdesk, where a student raises a ticket and sees the
+ *  ones they have open.
+ *
+ *  A separate site, so it opens in its own tab like the LMS link and, like it,
+ *  keeps its label on a wide screen and only the icon on a phone. */
+function HelpdeskLink({ url }: { url?: string }) {
+	if (!url) return null
+
+	return (
+		<Button variant="ghost" size="sm" asChild>
+			<a href={url} target="_blank" rel="noreferrer">
+				<LifeBuoy />
+				<span className="sr-only sm:not-sr-only">Helpdesk</span>
 			</a>
 		</Button>
 	)

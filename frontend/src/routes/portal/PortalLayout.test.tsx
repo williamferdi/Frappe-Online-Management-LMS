@@ -64,6 +64,16 @@ describe('student portal navigation', () => {
 		expect(navLabels()).toEqual(EXPECTED)
 	})
 
+	it('has a Helpdesk link in the top bar, opening the support site in its own tab', async () => {
+		await renderNav()
+
+		const link = screen.getByRole('link', { name: 'Helpdesk' })
+		expect(link).toHaveAttribute('href', 'https://onlinesupport.sibbc.org/helpdesk/my-tickets')
+		expect(link).toHaveAttribute('target', '_blank')
+		// It is not one of the sections down the side.
+		expect(navLabels()).toEqual(EXPECTED)
+	})
+
 	it('badges Inbox and Announcements when something is unread', async () => {
 		await renderNav({ announcements: 2, inbox: 5 })
 

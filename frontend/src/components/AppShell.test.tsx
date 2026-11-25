@@ -109,6 +109,15 @@ describe('the main menu', () => {
 	})
 })
 
+describe('the way across to the helpdesk', () => {
+	it('is drawn only for a shell that is given an address', () => {
+		// The staff console is not given one.
+		renderShell()
+
+		expect(screen.queryByRole('link', { name: 'Helpdesk' })).not.toBeInTheDocument()
+	})
+})
+
 describe('the way across to the learning site', () => {
 	it('sits in the header, on every page', () => {
 		// Not only on a course row in My Courses, which is where the single
