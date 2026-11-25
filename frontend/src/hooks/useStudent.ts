@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { frappeGet, frappePost } from '@/lib/frappe'
 import type {
 	DashboardResponse,
+	FeesResponse,
 	GradesResponse,
 	MyCoursesResponse,
 	ProfileResponse,
@@ -16,6 +17,7 @@ export const studentKeys = {
 	dashboard: ['student', 'dashboard'] as const,
 	myCourses: ['student', 'my-courses'] as const,
 	grades: ['student', 'grades'] as const,
+	fees: ['student', 'fees'] as const,
 	profile: ['student', 'profile'] as const,
 	registration: ['student', 'registration-options'] as const,
 }
@@ -30,6 +32,12 @@ export const useMyCourses = () =>
 	useQuery({
 		queryKey: studentKeys.myCourses,
 		queryFn: () => frappeGet<MyCoursesResponse>('sibbcs.api.student.my_courses'),
+	})
+
+export const useFees = () =>
+	useQuery({
+		queryKey: studentKeys.fees,
+		queryFn: () => frappeGet<FeesResponse>('sibbcs.api.student_fees.fees'),
 	})
 
 export const useGrades = () =>

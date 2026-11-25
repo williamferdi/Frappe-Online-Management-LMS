@@ -195,6 +195,47 @@ export async function frappeCall<T>(path: string, options: CallOptions = {}): Pr
 	return payload.message as T
 }
 
+/**
+ * Fetch a file from a whitelisted method, and fail the way every other call
+ * does. A bare link to a PDF endpoint that errors opens a page of raw JSON in a
+ * new tab; going through here turns the same failure into a message the caller
+ * can show.
+ */
+export async function frappeDownload(
+	path: string,
+	args: Record<string, unknown> = {},
+): Promise<Blob> {
+	const query = new URLSearchParams()
+	for (const [key, value] of Object.entries(args)) {
+		if (value === undefined || value === null) continue
+		query.set(key, String(value))
+	}
+	const qs = query.toString()
+
+	const response = await fetch(`/api/method/${path}${qs ? `?${qs}` : ''}`, {
+		credentials: 'same-origin',
+	})
+
+	if (!response.ok) {
+		let payload: Record<string, unknown> = {}
+		try {
+			payload = JSON.parse(await response.text()) as Record<string, unknown>
+		} catch {
+			// Not JSON: an error page from upstream of Frappe.
+		}
+		const messages = serverMessages(payload)
+		const excType = typeof payload.exc_type === 'string' ? payload.exc_type : ''
+		throw new FrappeError(
+			messages[0] || `${response.status} ${response.statusText}`,
+			response.status,
+			excType,
+			messages,
+		)
+	}
+
+	return response.blob()
+}
+
 export const frappeGet = <T>(path: string, args?: Record<string, unknown>) =>
 	frappeCall<T>(path, { method: 'GET', args })
 

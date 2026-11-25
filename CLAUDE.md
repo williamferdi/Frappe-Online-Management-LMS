@@ -1538,6 +1538,35 @@ tuition arrived a term later at full price. Now:
 - Only `Monthly Tuition` behaves this way. Cancelling any other fee changes its status and
   nothing else, as before.
 
+**The student's Fees page** (`/portal/fees`, `sibbcs/api/student_fees.py`). Until it existed the
+portal showed only what a student *currently owed*: pay an invoice and it vanished from every
+screen, with no receipt and no statement. The only place a student could see a paid invoice was the
+Frappe Desk, which they stopped reaching when `Student` lost `desk_access`.
+
+- **Three endpoints, none of which takes a student:** `fees()` (invoices, payments, statement),
+  `receipt(payment)` and `statement()` (PDFs). The student is whoever is signed in. A receipt that is
+  somebody else's answers **exactly like one that does not exist** (`DoesNotExistError`, same text),
+  so the refusal cannot be used to discover which receipt numbers are real.
+- **Not a tenth navigation slot.** The college specified the portal navigation as nine items (see the
+  comment in `router.tsx`). It is reached from the dashboard's Outstanding-fees card ("All fees &
+  receipts") and the account menu ("Fees & receipts", students only).
+- **Cancelled invoices are hidden**; a cancelled tuition invoice is the college correcting its own
+  books and the term is billed again. **Waived invoices show as Waived with nothing outstanding**,
+  and the statement carries a credit row for what was waived. The staff Student Fee Ledger does *not*
+  do this: it counts a waived invoice as a charge with no credit, so its balance still includes money
+  the college chose not to collect. The student statement is the corrected version.
+- **Left out on purpose: the application fee.** It is owed before a Student exists, so it sits on the
+  Admission Application, and when taken by hand its only record is a free-text note on the invoice —
+  no date, no mode a receipt could be built from. It belongs here once it is a recorded payment.
+- **Never shows who recorded a payment** (`reconciled_by`); that is the office's business.
+- **Receipts and the statement are PDFs from `frappe.utils.pdf.get_pdf`**, which shells out to
+  `wkhtmltopdf`. If that is missing the endpoint says "The PDF could not be made just now. Use Print
+  instead" and logs the real error. The page always offers **Print** for the statement too, which uses
+  the browser (`.print-area` in `index.css`) and needs no renderer. The PDF is fetched by
+  `frappeDownload` and saved from a blob, not opened as a bare link, so a failure becomes a toast
+  rather than a tab of raw JSON.
+- Everything a person types (name, reference number) is HTML-escaped before it goes into the PDF page.
+
 **When tuition is billed.** The daily job offers *every started Open/Active term*
 (`fees.terms_to_bill`) to `bill_enrollment_for_term`, which is idempotent per term and
 skips anyone with no registration. It used to match `start_date == today`, so a student

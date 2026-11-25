@@ -21,6 +21,7 @@ import { Students } from '@/routes/staff/Students'
 import { Users } from '@/routes/staff/Users'
 import { StaffLayout } from '@/routes/staff/StaffLayout'
 import { Dashboard } from '@/routes/portal/Dashboard'
+import { Fees } from '@/routes/portal/Fees'
 import { Grades } from '@/routes/portal/Grades'
 import { MyCourses } from '@/routes/portal/MyCourses'
 import { PortalLayout } from '@/routes/portal/PortalLayout'
@@ -55,6 +56,9 @@ export const router = createBrowserRouter([
 					// slot in a navigation the college specified as nine.
 					{ path: 'courses/register', element: <Register /> },
 					{ path: 'grades', element: <Grades /> },
+					// Reached from the dashboard and the account menu, not a tenth
+					// navigation slot: the college specified the navigation as nine.
+					{ path: 'fees', element: <Fees /> },
 					{ path: 'profile', element: <Profile /> },
 					{ path: 'todo', element: <ToDo /> },
 					{ path: 'calendar', element: <Calendar /> },

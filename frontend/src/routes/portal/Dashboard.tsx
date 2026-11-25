@@ -163,8 +163,11 @@ function Loaded({ data }: { data: DashboardResponse }) {
 
 			{fees && fees.count > 0 && (
 				<Card className="mt-4">
-					<CardHeader>
+					<CardHeader className="flex-row items-center justify-between">
 						<CardTitle className="text-base">Outstanding fees</CardTitle>
+						<Link to="/portal/fees" className="text-primary text-sm hover:underline">
+							All fees &amp; receipts
+						</Link>
 					</CardHeader>
 					<CardContent className="pt-3">
 						<ul className="divide-y">

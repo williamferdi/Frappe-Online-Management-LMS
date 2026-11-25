@@ -205,3 +205,31 @@
 
 	--viz-rest: #54544f;
 }
+
+/*
+ * Print the statement and nothing else. The portal wraps every page in a
+ * sidebar and a header that mean nothing on paper, so everything is hidden
+ * except the block marked `.print-area`, which is lifted to the top-left of
+ * the page. Hiding with `visibility` rather than `display` is what lets the
+ * marked block stay in the tree it belongs to.
+ */
+@media print {
+	body * {
+		visibility: hidden;
+	}
+	.print-area,
+	.print-area * {
+		visibility: visible;
+	}
+	.print-area {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		border: 0;
+		box-shadow: none;
+	}
+	.print-hide {
+		display: none !important;
+	}
+}

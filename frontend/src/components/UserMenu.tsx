@@ -1,5 +1,12 @@
 import { Link, useLocation } from 'react-router-dom'
-import { GraduationCap, LayoutGrid, LogOut, ShieldCheck, User as UserIcon } from 'lucide-react'
+import {
+	GraduationCap,
+	LayoutGrid,
+	LogOut,
+	Receipt,
+	ShieldCheck,
+	User as UserIcon,
+} from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -70,6 +77,14 @@ export function UserMenu() {
 						<UserIcon /> Profile
 					</Link>
 				</DropdownMenuItem>
+
+				{isStudent() && (
+					<DropdownMenuItem asChild>
+						<Link to="/portal/fees">
+							<Receipt /> Fees &amp; receipts
+						</Link>
+					</DropdownMenuItem>
+				)}
 
 				{isStaff() && (
 					<DropdownMenuItem asChild>

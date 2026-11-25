@@ -126,6 +126,59 @@ export interface GradeBand {
 	is_pass: 0 | 1
 }
 
+// --- a student's own fees --------------------------------------------------
+
+export interface FeeInvoiceRow {
+	name: string
+	fee_type: string | null
+	category: string | null
+	term: string | null
+	status: string
+	due_date: string | null
+	gross_amount: number
+	discount_amount: number
+	net_amount: number
+	paid_amount: number
+	outstanding_amount: number
+	payment_link: string | null
+	overdue: boolean
+}
+
+export interface FeePayment {
+	name: string
+	received_on: string
+	amount: number
+	mode: string | null
+	reference_no: string | null
+	allocated_amount: number
+	unallocated_amount: number
+	applied_to: { invoice: string; fee_type: string | null; term: string | null; amount: number }[]
+}
+
+export interface StatementRow {
+	date: string | null
+	kind: 'Invoice' | 'Payment' | 'Waived'
+	reference: string
+	particulars: string
+	charge: number
+	credit: number
+	balance: number
+}
+
+export interface FeesResponse {
+	enrollment: EnrollmentHeader | null
+	summary: {
+		billed: number
+		paid: number
+		outstanding: number
+		overdue: number
+		overdue_count: number
+	}
+	invoices: FeeInvoiceRow[]
+	payments: FeePayment[]
+	statement: { rows: StatementRow[]; charges: number; credits: number; balance: number }
+}
+
 export interface GradesResponse {
 	enrollment: EnrollmentHeader | null
 	terms: {

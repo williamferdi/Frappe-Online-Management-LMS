@@ -48,6 +48,20 @@ describe('the account menu', () => {
 		expect(screen.queryByRole('menuitem', { name: /frappe desk/i })).not.toBeInTheDocument()
 	})
 
+	it('gives a student their fees and receipts, which the navigation has no room for', async () => {
+		// The college specified nine navigation items, so this is not a tenth.
+		await open('/portal', { user: 's@x.com', full_name: 'A Student', roles: ['Student'] })
+		expect(screen.getByRole('menuitem', { name: /fees & receipts/i })).toHaveAttribute(
+			'href',
+			'/portal/fees',
+		)
+	})
+
+	it('does not offer fees to staff who are not students', async () => {
+		await open('/staff', { user: 'r@x.com', full_name: 'A Registrar', roles: ['Registrar'] })
+		expect(screen.queryByRole('menuitem', { name: /fees & receipts/i })).not.toBeInTheDocument()
+	})
+
 	it('does not offer the portal to staff who are not enrolled', async () => {
 		await open('/staff', { user: 'r@x.com', full_name: 'A Registrar', roles: ['Registrar'] })
 		expect(screen.queryByRole('menuitem', { name: /student portal/i })).not.toBeInTheDocument()
