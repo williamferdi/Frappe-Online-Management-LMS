@@ -601,6 +601,37 @@ def _billing_date(term):
 	return max(started, now) if started else now
 
 
+def return_scholarship(program_enrollment, amount):
+	"""Give back what a cancelled tuition invoice spent of the scholarship cap.
+
+	Billing spends the cap at the moment an invoice is raised, so cancelling the
+	invoice without returning it left the cap short by a discount nobody
+	received: the student lost that money for good, and the term was billed
+	again at full price at the far end of the programme. Never below zero, and
+	never more than was used.
+
+	Returns what was actually given back.
+	"""
+	amount = flt(amount)
+	if not program_enrollment or amount <= 0:
+		return 0.0
+
+	used = flt(
+		frappe.db.get_value(
+			"Program Enrollment", program_enrollment, "scholarship_used_to_date", for_update=True
+		)
+	)
+	remaining = flt(max(used - amount, 0.0), 2)
+	frappe.db.set_value(
+		"Program Enrollment",
+		program_enrollment,
+		"scholarship_used_to_date",
+		remaining,
+		update_modified=False,
+	)
+	return flt(used - remaining, 2)
+
+
 def bill_enrollment_for_term(enrollment_name, term_name, dry_run=False):
 	"""Raise one term's tuition for one enrollment. Idempotent."""
 	enrollment = frappe.get_doc("Program Enrollment", enrollment_name)
@@ -612,8 +643,17 @@ def bill_enrollment_for_term(enrollment_name, term_name, dry_run=False):
 		result["skipped"] = "enrollment not active"
 		return result
 
+	# A cancelled invoice does not count: cancelling one undoes that term's
+	# billing (see `return_scholarship`), so the term is billable again. This
+	# used to ignore status, which left a cancelled term unbillable for ever
+	# while the ceiling reopened and the same tuition arrived at the far end.
 	if _existing_invoice(
-		{"program_enrollment": enrollment_name, "fee_type": TUITION_FEE, "term": term_name}
+		{
+			"program_enrollment": enrollment_name,
+			"fee_type": TUITION_FEE,
+			"term": term_name,
+			"status": ("!=", "Cancelled"),
+		}
 	):
 		result["skipped"] = "already billed for this term"
 		return result

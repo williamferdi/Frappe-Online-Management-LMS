@@ -12,7 +12,87 @@ class FeeInvoice(Document):
 		self.validate_owner()
 		self.validate_amounts()
 		self.compute_totals()
+		self.validate_tuition_cancellation()
 		self.set_status()
+
+	def on_update(self):
+		self.undo_tuition_billing_when_cancelled()
+
+	def is_tuition(self):
+		from sibbcs.finance.fees import TUITION_FEE
+
+		return self.fee_type == TUITION_FEE
+
+	def validate_tuition_cancellation(self):
+		"""Cancelling a tuition invoice undoes its billing, so it must be safe to.
+
+		Two things would make it unsafe, and both are refused rather than
+		quietly handled.
+
+		**Money already taken.** Cancelling reopens the term, so the billing job
+		raises it again. With a payment sitting on the old invoice the student
+		would be billed twice for the same term.
+
+		**Reopening a cancelled one.** The job raises the term itself, so a
+		revived invoice would sit beside its replacement and bill the term twice.
+		"""
+		if not self.is_tuition():
+			return
+
+		before = self.get_doc_before_save()
+		was = before.status if before else None
+
+		if self.status == "Cancelled" and was not in (None, "Cancelled"):
+			if flt(self.paid_amount) > 0:
+				frappe.throw(
+					_(
+						"{0} has {1} paid against it. Cancelling it would bill {2} again and "
+						"charge the student twice. Waive it, or reverse the payment first."
+					).format(self.name, self.paid_amount, self.term or _("the term")),
+					title=_("Payment Recorded"),
+				)
+
+		if was == "Cancelled" and self.status != "Cancelled":
+			frappe.throw(
+				_(
+					"{0} is cancelled and cannot be reopened. Its term is billed again by the "
+					"nightly job, which raises a fresh invoice."
+				).format(self.name),
+				title=_("Cancelled Invoice"),
+			)
+
+	def undo_tuition_billing_when_cancelled(self):
+		"""Cancel means the billing never happened.
+
+		The ceiling already stops counting a cancelled invoice, and the billing
+		job now treats its term as unbilled. The one thing left is the
+		scholarship, which billing spent when it raised the invoice and which
+		nothing used to return. Only on the save that cancels it: saving a
+		cancelled invoice again (to add a remark, say) must not return it twice.
+		"""
+		if not self.is_tuition() or self.status != "Cancelled":
+			return
+
+		before = self.get_doc_before_save()
+		if not before or before.status == "Cancelled":
+			return
+
+		from sibbcs.finance.fees import return_scholarship
+
+		given_back = return_scholarship(self.program_enrollment, self.discount_amount)
+
+		frappe.msgprint(
+			_("{0} cancelled. {1} is billed again by the nightly job while the student is registered.").format(
+				self.name, self.term or _("Its term")
+			)
+			+ (
+				" " + _("{0} of scholarship returned.").format(frappe.format_value(given_back, {"fieldtype": "Currency"}))
+				if given_back
+				else ""
+			),
+			indicator="orange",
+			alert=True,
+		)
 
 	def validate_owner(self):
 		"""Exactly one of student / admission_application.

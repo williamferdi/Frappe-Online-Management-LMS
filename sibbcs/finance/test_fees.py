@@ -780,6 +780,176 @@ class TestTuitionPosition(FrappeTestCase):
 		self.assertEqual(row["level"], enrollment.current_level)
 
 
+
+class TestCancellingTuition(FrappeTestCase):
+	"""Cancelling a tuition invoice undoes its billing.
+
+	It used to flip a status and nothing else. The ceiling stopped counting the
+	invoice, but the scholarship it spent was never returned and the billing job
+	never raised the term again -- so the student lost that scholarship for
+	good and the same tuition arrived at the far end of the programme instead.
+	"""
+
+	_setup = TestTuitionStream._setup
+	_register = TestTuitionStream._register
+	_registration = TestRegistrationFee._registration
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.term = make_term("TST-FEE-TERM", status="Open").name
+
+	def _billed(self, email, code, term_name, **kw):
+		_s, enrollment, term = self._setup(email, code, term_name, **kw)
+		self._register(enrollment, term, code)
+		outcome = fees.bill_enrollment_for_term(enrollment.name, term.name)
+		return enrollment, term, frappe.get_doc("Fee Invoice", outcome["invoice"])
+
+	def _cancel(self, invoice):
+		invoice.reload()
+		invoice.status = "Cancelled"
+		invoice.save(ignore_permissions=True)
+		return invoice
+
+	def _used(self, enrollment):
+		return flt(
+			frappe.db.get_value("Program Enrollment", enrollment.name, "scholarship_used_to_date")
+		)
+
+	def test_cancelling_returns_the_scholarship_it_spent(self):
+		enrollment, _term, invoice = self._billed(
+			"can1@example.com", "TST C100", "TST-CAN-1", monthly_discount=800, cap=24000
+		)
+		self.assertEqual(self._used(enrollment), 1600)
+
+		self._cancel(invoice)
+
+		self.assertEqual(self._used(enrollment), 0)
+
+	def test_it_is_returned_once_not_every_time_the_invoice_is_saved(self):
+		"""Two invoices spent 3,200. Cancelling one returns 1,600; saving the
+		cancelled one again for a remark must not return it a second time."""
+		enrollment, _term, first = self._billed(
+			"can2@example.com", "TST C110", "TST-CAN-2", monthly_discount=800, cap=24000
+		)
+		second_term = make_term("TST-CAN-2B", status="Open")
+		self._register(enrollment, second_term, "TST C111")
+		fees.bill_enrollment_for_term(enrollment.name, second_term.name)
+		self.assertEqual(self._used(enrollment), 3200)
+
+		self._cancel(first)
+		self.assertEqual(self._used(enrollment), 1600)
+
+		first.reload()
+		first.remarks = "Billed in error"
+		first.save(ignore_permissions=True)
+		self.assertEqual(self._used(enrollment), 1600)
+
+	def test_it_never_goes_below_zero(self):
+		enrollment, _term, invoice = self._billed(
+			"can3@example.com", "TST C120", "TST-CAN-3", monthly_discount=800, cap=24000
+		)
+		frappe.db.set_value(
+			"Program Enrollment", enrollment.name, "scholarship_used_to_date", 500, update_modified=False
+		)
+
+		self._cancel(invoice)
+
+		self.assertEqual(self._used(enrollment), 0)
+
+	def test_an_invoice_with_no_discount_returns_nothing(self):
+		enrollment, _term, invoice = self._billed("can4@example.com", "TST C130", "TST-CAN-4")
+
+		self._cancel(invoice)
+
+		self.assertEqual(self._used(enrollment), 0)
+
+	def test_the_cancelled_term_is_billable_again(self):
+		"""The job used to see the cancelled invoice and call the term billed."""
+		enrollment, term, invoice = self._billed(
+			"can5@example.com", "TST C140", "TST-CAN-5", monthly_discount=800, cap=24000
+		)
+		self._cancel(invoice)
+
+		again = fees.bill_enrollment_for_term(enrollment.name, term.name)
+
+		self.assertIsNotNone(again["invoice"])
+		self.assertNotEqual(again["invoice"], invoice.name)
+		replacement = frappe.get_doc("Fee Invoice", again["invoice"])
+		self.assertEqual(replacement.discount_amount, 1600)
+		self.assertEqual(self._used(enrollment), 1600)
+
+	def test_the_ceiling_does_not_move_to_the_tail(self):
+		"""Cancel and re-bill must leave the student at the same total as if
+		nothing had happened -- the point of undoing it properly."""
+		enrollment, term, invoice = self._billed(
+			"can6@example.com", "TST C150", "TST-CAN-6", monthly_discount=800, cap=24000
+		)
+		before = fees.tuition_billed_to_date(enrollment.name)
+
+		self._cancel(invoice)
+		fees.bill_enrollment_for_term(enrollment.name, term.name)
+
+		self.assertEqual(fees.tuition_billed_to_date(enrollment.name), before)
+
+	def test_a_live_invoice_still_blocks_a_second_bill_for_its_term(self):
+		enrollment, term, _invoice = self._billed("can7@example.com", "TST C160", "TST-CAN-7")
+
+		again = fees.bill_enrollment_for_term(enrollment.name, term.name)
+
+		self.assertIsNone(again["invoice"])
+		self.assertIn("already billed", again["skipped"])
+
+	def test_an_invoice_with_money_on_it_cannot_be_cancelled(self):
+		"""Re-raising the term would charge the student twice."""
+		enrollment, _term, invoice = self._billed("can8@example.com", "TST C170", "TST-CAN-8")
+		make_payment(
+			enrollment.student, 500, [{"fee_invoice": invoice.name, "allocated_amount": 500}]
+		)
+		invoice.reload()
+
+		invoice.status = "Cancelled"
+		with self.assertRaises(frappe.ValidationError):
+			invoice.save(ignore_permissions=True)
+
+	def test_a_cancelled_invoice_cannot_be_reopened(self):
+		"""The job raises the term itself; a revived one would bill it twice."""
+		_enrollment, _term, invoice = self._billed("can9@example.com", "TST C180", "TST-CAN-9")
+		self._cancel(invoice)
+
+		invoice.reload()
+		invoice.status = "Unpaid"
+		with self.assertRaises(frappe.ValidationError):
+			invoice.save(ignore_permissions=True)
+
+	def test_cancelling_another_kind_of_fee_leaves_the_scholarship_alone(self):
+		"""The registration fee is not discountable and spent none of it."""
+		_student, enrollment, registration = self._registration("can10@example.com", "TST C190")
+		frappe.db.set_value(
+			"Program Enrollment",
+			enrollment.name,
+			{"scholarship_total_cap": 24000, "scholarship_used_to_date": 900},
+			update_modified=False,
+		)
+		registration.reload()
+		invoice = frappe.get_doc("Fee Invoice", registration.registration_fee_invoice)
+
+		invoice.status = "Cancelled"
+		invoice.save(ignore_permissions=True)
+
+		self.assertEqual(self._used(enrollment), 900)
+
+	def test_a_remark_on_a_live_invoice_returns_nothing(self):
+		enrollment, _term, invoice = self._billed(
+			"can11@example.com", "TST C200", "TST-CAN-11", monthly_discount=800, cap=24000
+		)
+
+		invoice.remarks = "Chased by phone"
+		invoice.save(ignore_permissions=True)
+
+		self.assertEqual(self._used(enrollment), 1600)
+
+
 class TestOneTimeFees(FrappeTestCase):
 	"""§5 Stream 1."""
 

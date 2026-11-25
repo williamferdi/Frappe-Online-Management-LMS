@@ -1515,6 +1515,29 @@ was. Now:
 - Both follow the permission on Fee Invoice, not the academic role: a teacher is sent
   `tuition: null` and no Fees card, because the position is money.
 
+**Cancelling a tuition invoice undoes its billing.** Cancel used to flip a status and nothing
+else, and three pieces of code each disagreed about what that meant: the ceiling stopped
+counting the invoice, the billing job still counted it as "this term is billed", and
+`scholarship_used_to_date` — which billing raises when it raises an invoice — was never lowered.
+A student whose term-1 invoice was cancelled lost that scholarship for good (₹3,000 of
+Samuel's, ₹1,308 of Patricia's over a programme), the term was never billed again, and the same
+tuition arrived a term later at full price. Now:
+
+- **The scholarship comes back** (`fees.return_scholarship`, from `FeeInvoice.on_update`) —
+  exactly the invoice's discount, never below zero, and **only on the save that cancels it**, so
+  adding a remark to a cancelled invoice cannot return it twice.
+- **The term is billable again.** `bill_enrollment_for_term` no longer counts a cancelled
+  invoice as "already billed", so the nightly job raises a replacement while the student has an
+  active registration in the term. It is **not** a way to say "do not bill this student this term":
+  withdraw the registration (tuition then pauses) or Waive the invoice instead. A Waived invoice
+  still counts toward the ceiling and still keeps the scholarship spent, deliberately.
+- **A tuition invoice with money on it cannot be cancelled** — the replacement would charge the
+  student twice. Waive it, or reverse the payment first.
+- **A cancelled tuition invoice cannot be reopened.** The job raises the term itself, so a revived
+  one would sit beside its replacement and bill the term twice.
+- Only `Monthly Tuition` behaves this way. Cancelling any other fee changes its status and
+  nothing else, as before.
+
 **When tuition is billed.** The daily job offers *every started Open/Active term*
 (`fees.terms_to_bill`) to `bill_enrollment_for_term`, which is idempotent per term and
 skips anyone with no registration. It used to match `start_date == today`, so a student
