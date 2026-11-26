@@ -275,6 +275,8 @@ def on_offering_change(doc, method=None):
 		return
 	if doc.get("students_notified_on"):
 		return
+	if frappe.flags.sibbcs_import:
+		return
 
 	frappe.enqueue(
 		"sibbcs.academic.offer_notice.announce",

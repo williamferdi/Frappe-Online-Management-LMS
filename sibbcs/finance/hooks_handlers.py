@@ -14,6 +14,9 @@ def course_registration_on_update(doc, method=None):
 	"""§5 Stream 2 -- Rs350 on every registration that sticks."""
 	if doc.status in ("Draft", "Withdrawn"):
 		return
+	if frappe.flags.sibbcs_import or doc.get("legacy_source"):
+		# What a carried-over student still owes arrives as an opening balance.
+		return
 	if doc.registration_fee_invoice:
 		return
 	if not frappe.db.exists("DocType", "Fee Invoice"):
@@ -32,12 +35,18 @@ def sweep_missing_registration_fees(limit=500):
 	if not frappe.db.exists("DocType", "Fee Invoice"):
 		return {"raised": []}
 
+	filters = {
+		"status": ("in", ("Registered", "Active", "Completed")),
+		"registration_fee_invoice": ("in", ("", None)),
+	}
+	if frappe.db.has_column("Course Registration", "legacy_source"):
+		# A registration carried over from Zoho is history, not a new sign-up:
+		# without this the sweep would bill every course a student ever took.
+		filters["legacy_source"] = ("in", ("", None))
+
 	pending = frappe.get_all(
 		"Course Registration",
-		filters={
-			"status": ("in", ("Registered", "Active", "Completed")),
-			"registration_fee_invoice": ("in", ("", None)),
-		},
+		filters=filters,
 		pluck="name",
 		limit=limit,
 	)

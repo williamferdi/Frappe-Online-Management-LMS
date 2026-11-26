@@ -639,8 +639,19 @@ def push(doctype, name):
 		_post("/sync/enrollments", registration)
 
 
+def importing():
+	"""True while the Zoho import is loading records (`zoho_import.quiet()`).
+
+	An import writes a hundred students and a thousand registrations. Pushed as
+	they land, each would create an LMS account or enrolment that nobody has
+	decided to create yet -- the LMS is opened to imported students afterwards,
+	as its own step.
+	"""
+	return bool(frappe.flags.sibbcs_import)
+
+
 def queue(doctype, name):
-	if not configured():
+	if not configured() or importing():
 		return
 	frappe.enqueue(
 		"sibbcs.integrations.campus_lms.push",
@@ -667,7 +678,7 @@ def queue_payload(path, payload):
 	nothing left to read -- so a deletion has to say what it means while the
 	document is still in front of it.
 	"""
-	if not configured():
+	if not configured() or importing():
 		return
 	frappe.enqueue(
 		"sibbcs.integrations.campus_lms.send",

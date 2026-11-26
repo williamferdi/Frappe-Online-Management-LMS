@@ -2138,3 +2138,40 @@ with no scheme at all rather than guessing a bucket.
 authenticates as a *service*, not a person, and deliberately **cannot author pages or
 quizzes** — that is session-only, so the Phase 6/7 content migration had to export from
 Frappe and import through the LMS's own CLI rather than widening the token.
+
+## 11. Carrying records over from Zoho Creator — `sibbcs/setup/zoho_import/`
+
+The college's previous system is a Zoho Creator app ("Administration - SIBBCS Online Education",
+owner `admissions.online_sibbc`, app `online-education-administration`). The import moves the
+**onboarded** students across (about 103 of 121 in Nov 2026): identity, programme, level, the courses
+they took with marks, and their documents. Formation reports, mentor consents, referee forms and
+scholarship narratives have no DocType here and stay in Zoho. The plan, with counts, is in the session
+plan of 26 Nov 2026.
+
+- **Three commands, run at the server, in order:**
+  `./env/bin/python -m sibbcs.setup.zoho_import.credentials` (by a person: types the Self Client's
+  secret and grant code; writes `~/.zoho-credentials` 0600, scope `ZohoCreator.report.READ` only),
+  `./env/bin/python -m sibbcs.setup.zoho_import.extract` (read-only on Zoho; writes
+  `~/zoho-export/<date>/`, 0700), then the load (added once the extract has been reviewed).
+- **The extract is personal data.** It never leaves the server, is never committed, and tests use
+  invented fixtures only.
+- **`legacy_source`** (Data, read-only, indexed, in a collapsed "Legacy" section) is on Student,
+  Program Enrollment, Course, Academic Term, Course Offering, Course Registration, Instructor and
+  Fee Invoice. It holds the Zoho record id: the load upserts by it, and a purge can find exactly what
+  was imported.
+- **`zoho_import.quiet()`** sets `frappe.flags.sibbcs_import` (and `mute_emails`) for the length of a
+  load. While it is set: `campus_lms.queue()`/`queue_payload()` push nothing, `offer_notice` queues no
+  "registration open" mail, and no registration fee is raised.
+- **A registration with `legacy_source` is never billed the ₹350 fee, permanently** —
+  `raise_registration_fee` returns None and `sweep_missing_registration_fees` filters it out.
+  Without that, the night after the import the sweep would bill every course every imported student
+  ever took. What a carried-over student owes arrives as an opening-balance invoice instead.
+- **Report names** the extract reads (form → report): students → `students_Report`, Programs →
+  `All_Programs`, courses → `courses_Report`, Program_Course_Structure → `All_Program_Course_Structures`,
+  Terms1 → `All_Terms`, terms (course *offerings*) → `terms_by_status`, faculty → `faculty_Report`,
+  Grades → `Grades_Report`, Course_Enrollments → `Course_Enrollments_Report`, Course_Registrations →
+  `Course_Registrations_Report`. Records are read with `field_config=all`: the reports' own column
+  lists are short (students_Report shows six).
+- **Zoho's `Course_Registrations` is not history.** 3,488 rows, about two thirds "Not Yet Registered":
+  a generated checklist of student × programme course. History is `Grades` (student × offering, with
+  marks); rosters are `Course_Enrollments`.

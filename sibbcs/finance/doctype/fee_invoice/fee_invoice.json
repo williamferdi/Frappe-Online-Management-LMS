@@ -38,7 +38,9 @@
   "payment_reference",
   "payment_provider",
   "sb_remarks",
-  "remarks"
+  "remarks",
+  "sb_legacy",
+  "legacy_source"
  ],
  "fields": [
   {
@@ -237,12 +239,27 @@
    "fieldtype": "Data",
    "label": "Gateway",
    "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "sb_legacy",
+   "fieldtype": "Section Break",
+   "label": "Legacy"
+  },
+  {
+   "description": "The id of the record this came from in the college's previous system (Zoho Creator). Set by the import, which uses it to find this record again; never edited by hand.",
+   "fieldname": "legacy_source",
+   "fieldtype": "Data",
+   "label": "Legacy Source",
+   "no_copy": 1,
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-11-19 15:17:50.269471",
+ "modified": "2026-11-26 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Finance",
  "name": "Fee Invoice",

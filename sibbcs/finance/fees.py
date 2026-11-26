@@ -343,6 +343,9 @@ def raise_registration_fee(course_registration):
 		return None
 	if doc.status in ("Draft", "Withdrawn"):
 		return None
+	if doc.get("legacy_source"):
+		# Carried over from Zoho: history, billed (or not) under the old system.
+		return None
 
 	if _existing_invoice({"course_registration": doc.name, "fee_type": REGISTRATION_FEE}):
 		return None
