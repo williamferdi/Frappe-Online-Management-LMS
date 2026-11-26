@@ -2175,3 +2175,23 @@ plan of 26 Nov 2026.
 - **Zoho's `Course_Registrations` is not history.** 3,488 rows, about two thirds "Not Yet Registered":
   a generated checklist of student × programme course. History is `Grades` (student × offering, with
   marks); rosters are `Course_Enrollments`.
+- **The load** (`load.py`, after `review.py` has produced the sheets and the college has returned
+  `review/courses_reviewed.csv` and `review/opening_balances_filled.csv`):
+  `cd sites && ../env/bin/python -P -m sibbcs.setup.zoho_import.load <site> [date] [--stages a,b] [--dry-run]`.
+  `legacy_source` is `zoho:<id>` on what it created and `zoho:<id>:matched` on what was already here
+  (a course, a term, an offering); `--purge` deletes the first and only unmarks the second, and refuses
+  once anything not imported points at an imported student. Each stage commits on its own; a rerun
+  updates in place, which is how marks entered in Zoho after the load arrive.
+- **Decisions behind it (26 Nov 2026):** Zoho's calendar wins (2026-T6 becomes 30 Nov 2026 – 14 Feb
+  2027; a term already here keeps its status and `duration_months`); every Zoho term up to and including
+  the running Term 5 is **Closed** (already billed under the old system), later ones Planned, all at 2
+  months; an offering in a Closed term is Completed, an upcoming one Draft (never Published by the import,
+  so no "registration open" mail), format "Pre-Recorded" (Zoho never recorded the format, and Zoom Live will
+  not save without weekdays: the Registrar sets the real one before publishing); a Pass/Fail is Completed (fail = passed 0), no mark
+  yet is **Active** until a rerun brings it; `level_at_registration` is the *course's* level, Zoho having
+  kept no record of the student's; GDCS was created at ₹1,500/month, ₹26,000 ceiling; SPMF became a
+  department. Students on a programme with no counterpart are held back and listed in
+  `review/load_problems.csv`.
+- **A carried-over registration skips today's eligibility rules** (`run_eligibility`) and **the hourly
+  mark pull never asks the LMS about a carried-over offering** (`mark_pull.offerings_to_ask_about`):
+  the LMS never taught it, and its marks come from Zoho.

@@ -59,7 +59,7 @@ ROLES = [
 ]
 
 LEVELS = ["1", "2", "3", "4"]
-DEPARTMENTS = ["BIST", "THST", "CHMI", "HIST", "REMI", "GEST"]
+DEPARTMENTS = ["BIST", "THST", "CHMI", "HIST", "REMI", "GEST", "SPMF"]
 COURSE_TYPES = ["Core", "Elective", "Practicum", "General Studies"]
 FORMATS = ["Pre-Recorded", "Zoom Live", "Residential"]
 

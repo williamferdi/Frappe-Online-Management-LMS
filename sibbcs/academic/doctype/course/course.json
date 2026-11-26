@@ -98,7 +98,7 @@
    "fieldtype": "Select",
    "in_standard_filter": 1,
    "label": "Department",
-   "options": "BIST\nTHST\nCHMI\nHIST\nREMI\nGEST",
+   "options": "BIST\nTHST\nCHMI\nHIST\nREMI\nGEST\nSPMF",
    "reqd": 1
   },
   {
@@ -159,7 +159,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-11-26 12:00:00.000000",
+ "modified": "2026-11-26 20:00:00.000000",
  "modified_by": "Administrator",
  "module": "Academic",
  "name": "Course",

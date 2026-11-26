@@ -75,12 +75,20 @@ def offerings_to_ask_about(limit=200):
 	because nothing would say so. `limit` is left as a safety valve on a
 	runaway query, not as the thing that decides the work.
 	"""
+	# A run carried over from Zoho was never taught in the LMS: its marks
+	# arrive by re-running the import, and asking the LMS would only fail.
+	not_carried_over = (
+		"and ifnull(o.legacy_source, '') = ''"
+		if frappe.db.has_column("Course Offering", "legacy_source")
+		else ""
+	)
 	return frappe.db.sql(
-		"""
+		f"""
 		select o.name
 		from `tabCourse Offering` o
 		left join `tabAcademic Term` t on t.name = o.term
 		where o.status in %(states)s
+		  {not_carried_over}
 		  and (
 			o.status = 'Completed'
 			or (t.end_date is not null and t.end_date < %(today)s)

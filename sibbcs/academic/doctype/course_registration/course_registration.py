@@ -59,6 +59,11 @@ class CourseRegistration(Document):
 		"""§3. Skipped for terminal states so history can always be corrected."""
 		if self.status in ("Withdrawn", "Failed", "Completed"):
 			return
+		if self.get("legacy_source"):
+			# Carried over from Zoho: the student took this course under the old
+			# system, possibly at a level or in a term today's rules would
+			# refuse. It is a record of what happened, not a request to allow.
+			return
 
 		decision, warnings = evaluate(
 			self.program_enrollment,
